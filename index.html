@@ -1,0 +1,2566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#131C20">
+<meta name="description" content="TruCount — voice stocktaking for vans, stores and yards. An X3T product.">
+<style>
+  html{color-scheme:light dark}
+  body{margin:0}
+  img{max-width:100%}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+<title>TruCount Stocktake</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#EEF2F3; --surface:#FFFFFF; --surface-2:#E2E9EB; --sunk:#F6F9FA;
+    --line:#CDD8DB; --line-soft:#E1E8EA;
+    --ink:#0E1719; --ink-2:#465760; --ink-3:#78888F;
+    --header:#131C20; --header-ink:#EEF3F4; --header-ink-2:#8B9BA2; --header-line:#2A363B;
+    --accent:#06A99B; --accent-soft:rgba(6,169,155,.14); --accent-line:rgba(6,169,155,.42); --on-accent:#FFFFFF;
+    --accent-ink:color-mix(in srgb, var(--accent) 62%, #0A1005);
+    --accent-hdr:color-mix(in srgb, var(--accent) 52%, #FFFFFF);
+    --ok:#0B7355; --ok-soft:rgba(11,115,85,.12);
+    --bad:#A82316; --bad-soft:rgba(168,35,22,.11);
+    --lift:0 1px 2px rgba(14,23,25,.06), 0 12px 30px -18px rgba(14,23,25,.5);
+    --r:11px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#0B1114; --surface:#141C20; --surface-2:#1C262B; --sunk:#0F171A;
+      --line:#2A363C; --line-soft:#212B30;
+      --ink:#E6EDEF; --ink-2:#9FAFB6; --ink-3:#6B7C84;
+      --header:#080D0F; --header-ink:#E6EDEF; --header-ink-2:#7E8E96; --header-line:#1E282D;
+      --accent-ink:color-mix(in srgb, var(--accent) 86%, #FFFFFF);
+      --accent-ink:color-mix(in srgb, var(--accent) 86%, #FFFFFF);
+    --ok:#3FBE94; --ok-soft:rgba(63,190,148,.13);
+      --bad:#FF7A69; --bad-soft:rgba(255,122,105,.13);
+      --lift:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -20px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0B1114; --surface:#141C20; --surface-2:#1C262B; --sunk:#0F171A;
+    --line:#2A363C; --line-soft:#212B30;
+    --ink:#E6EDEF; --ink-2:#9FAFB6; --ink-3:#6B7C84;
+    --header:#080D0F; --header-ink:#E6EDEF; --header-ink-2:#7E8E96; --header-line:#1E282D;
+    --ok:#3FBE94; --ok-soft:rgba(63,190,148,.13);
+    --bad:#FF7A69; --bad-soft:rgba(255,122,105,.13);
+    --lift:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -20px rgba(0,0,0,.9);
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--ground); color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:"Archivo","Arial Narrow",system-ui,sans-serif; margin:0; text-wrap:balance; letter-spacing:-.014em}
+  button{font:inherit; color:inherit; cursor:pointer}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:5px}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums}
+  .hidden{display:none !important}
+
+  /* ================= header ================= */
+  header.top{position:sticky; top:0; z-index:40; background:var(--header); color:var(--header-ink); border-bottom:1px solid var(--header-line)}
+  .topin{max-width:1140px; margin:0 auto; padding:9px 14px; display:flex; align-items:center; gap:12px}
+  .mark{display:flex; align-items:center; gap:7px; margin-right:auto; min-width:0; overflow:hidden; flex:1 1 auto}
+  .mark .sq{width:19px; height:19px; border-radius:5px; background:var(--header-ink-2); display:grid; place-items:center; flex:none}
+  .mark .sq svg{width:11px; height:11px; color:var(--header)}
+  .mark .nm{display:flex; flex-direction:column; line-height:1.16; min-width:0}
+  .mark .nm b,.mark .nm small{white-space:nowrap}
+  .mark .nm b{font-family:"Archivo",sans-serif; font-weight:700; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--header-ink-2)}
+  .mark .nm small{font-size:8.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--header-ink-2); font-weight:600; opacity:.7}
+  .tabs{display:flex; gap:2px; background:rgba(255,255,255,.07); padding:3px; border-radius:9px; flex:none}
+  .tabs button{border:0; background:transparent; padding:6px 12px; border-radius:6px; font-size:13px; font-weight:600; color:var(--header-ink-2)}
+  .tabs button[aria-selected="true"]{background:var(--header-ink); color:var(--header)}
+  .rolechip{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; white-space:nowrap;
+    border:1px solid var(--header-line); background:transparent; color:var(--header-ink-2); padding:5px 10px; border-radius:999px}
+  .rolechip .rl{width:7px; height:7px; border-radius:50%; background:var(--header-ink-2)}
+  .rolechip.owner{border-color:var(--accent-hdr); color:var(--accent-hdr)}
+  .rolechip.owner .rl{background:var(--accent-hdr)}
+  .sync{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--header-ink-2); white-space:nowrap}
+  .sync .led{width:7px; height:7px; border-radius:50%; background:var(--header-ink-2)}
+  .sync.on .led{background:var(--ok)} .sync.queued .led{background:var(--accent)}
+  @media (max-width:560px){ .sync{display:none} .tabs button{padding:6px 9px; font-size:12.5px} .rolechip{padding:5px 8px} .mark .nm small{display:none} }
+  @media (max-width:400px){ .mark .nm{display:none} }
+
+  /* customer band */
+  .band{background:var(--header); border-bottom:3px solid var(--accent-hdr); color:var(--header-ink)}
+  .bandin{max-width:1140px; margin:0 auto; padding:2px 14px 14px; display:flex; align-items:center; gap:12px}
+  .badge{width:46px; height:46px; border-radius:11px; display:grid; place-items:center; flex:none; overflow:hidden;
+    font-family:"Archivo",sans-serif; font-weight:800; font-size:16px; letter-spacing:.02em; background:var(--accent); color:var(--on-accent)}
+  .badge img{width:100%; height:100%; object-fit:contain; background:#fff; padding:3px}
+  .whoami{display:flex; flex-direction:column; min-width:0; margin-right:auto; line-height:1.22}
+  .whoami .c{font-family:"Archivo",sans-serif; font-weight:800; font-size:19px; letter-spacing:-.012em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .whoami .w{font-size:12.5px; color:var(--header-ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .whoami .w b{color:var(--accent-hdr); font-weight:600}
+  .ghost{border:1px solid var(--header-line); background:transparent; color:var(--header-ink-2); padding:6px 11px; border-radius:8px; font-size:12px; font-weight:600; white-space:nowrap}
+  .ghost:hover{color:var(--header-ink)}
+
+  .wrap{max-width:1140px; margin:0 auto; padding:0 14px 76px}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r)}
+
+  /* ================= count ================= */
+  .count{max-width:620px; margin:0 auto}
+
+  .setup{margin-top:14px; padding:13px; display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .field{display:flex; flex-direction:column; gap:5px; min-width:0}
+  .field label{font-size:10px; letter-spacing:.11em; text-transform:uppercase; font-weight:600; color:var(--ink-3)}
+  .field select,.field input{font:inherit; font-size:14px; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--sunk); color:var(--ink); width:100%}
+  .full{grid-column:1/-1}
+  .segs{display:flex; gap:5px; flex-wrap:wrap}
+  .segs button{flex:1 1 auto; min-width:88px; padding:9px 8px; border-radius:8px; border:1px solid var(--line); background:var(--sunk);
+    font-size:12.5px; font-weight:600; color:var(--ink-2); display:flex; flex-direction:column; align-items:center; gap:3px}
+  .segs button svg{width:17px; height:17px; opacity:.75}
+  .segs button[aria-pressed="true"]{background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent-ink)}
+  .segs button[aria-pressed="true"] svg{opacity:1}
+  .segs.editing button{padding-top:14px}
+  .segs button .x{position:absolute; top:3px; right:5px; width:19px; height:19px; border-radius:50%;
+    background:var(--bad); color:#fff; font-size:13px; line-height:19px; text-align:center; font-weight:700}
+  .segs button{position:relative}
+  .segs .addtype{border-style:dashed; color:var(--ink-3)}
+  .lblrow{display:flex !important; align-items:center; justify-content:space-between; gap:8px}
+  .lnk{border:0; background:none; padding:0; font-size:11px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--accent-ink); cursor:pointer}
+  .addrow{display:flex; gap:7px; margin-top:7px}
+  .addrow input{flex:1; font:inherit; font-size:14px; padding:9px 10px; border-radius:8px;
+    border:1px dashed var(--accent-line); background:var(--accent-soft); color:var(--ink); min-width:0}
+  .pinbar{background:var(--header); border-bottom:1px solid var(--header-line)}
+  .pinin{max-width:1140px; margin:0 auto; padding:10px 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .pinin .pl{font-size:12px; font-weight:600; color:var(--header-ink-2); letter-spacing:.04em}
+  .pinin input{width:110px; font:inherit; font-size:14px; padding:7px 10px; border-radius:8px;
+    border:1px solid var(--header-line); background:rgba(255,255,255,.06); color:var(--header-ink)}
+  .pinmsg{font-size:12px; color:var(--bad); font-weight:600}
+  .toggle{display:flex; gap:10px; align-items:flex-start; padding:9px 10px; background:var(--sunk); border:1px solid var(--line); border-radius:8px; cursor:pointer}
+  .toggle input{margin:2px 0 0; width:17px; height:17px; accent-color:var(--accent); flex:none}
+  .toggle span{display:flex; flex-direction:column; gap:2px; min-width:0}
+  .toggle b{font-size:13px; font-weight:600}
+  .toggle small{font-size:11.5px; color:var(--ink-3); line-height:1.45}
+
+  /* stage */
+  .stage{margin-top:12px; padding:16px 14px 14px; text-align:center; box-shadow:var(--lift)}
+  .spots{display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin-bottom:14px}
+  .spot{padding:6px 12px; border-radius:999px; border:1px solid var(--line); background:var(--sunk); font-size:12.5px; font-weight:600; color:var(--ink-2)}
+  .spot[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
+  .spot.add{border-style:dashed; color:var(--ink-3)}
+
+  .micwrap{position:relative; width:150px; height:150px; margin:2px auto 0; display:grid; place-items:center}
+  .ring{position:absolute; inset:0; border-radius:50%; border:2px solid var(--accent-line); transform:scale(var(--lvl,1)); transition:transform .09s linear; opacity:.75}
+  .mic{width:124px; height:124px; border-radius:50%; border:0; background:var(--accent); color:var(--on-accent); display:grid; place-items:center; position:relative;
+    box-shadow:0 12px 34px -14px var(--accent-line); transition:transform .12s ease}
+  .mic:active{transform:scale(.97)}
+  .mic svg{width:42px; height:42px; margin-bottom:12px}
+  .mic .lbl{position:absolute; bottom:22px; font-size:9.5px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; opacity:.9}
+  @media (prefers-reduced-motion:reduce){ .ring{transition:none} }
+
+  .heard{margin-top:14px; min-height:40px; font-size:14.5px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace; line-height:1.45}
+  .heard b{color:var(--ink-2); font-weight:500}
+  .confirm{margin-top:4px; padding:13px 14px; border-radius:10px; text-align:left; background:var(--ok-soft); border:1px solid color-mix(in srgb,var(--ok) 34%,transparent)}
+  .confirm.err{background:var(--bad-soft); border-color:color-mix(in srgb,var(--bad) 36%,transparent)}
+  .confirm .l1{font-family:"Archivo",sans-serif; font-weight:700; font-size:19px; letter-spacing:-.012em}
+  .confirm .l2{font-size:13px; color:var(--ink-2); margin-top:3px}
+
+  .choices{display:flex; flex-direction:column; gap:6px; margin-top:10px; text-align:left}
+  .choices button{display:flex; align-items:baseline; gap:9px; width:100%; text-align:left; padding:10px 12px; border-radius:9px;
+    border:1px solid var(--accent-line); background:var(--accent-soft); font-size:14px; font-weight:600}
+  .choices button .n{font-family:"Archivo",sans-serif; font-weight:800; font-size:12px; color:var(--on-accent);
+    background:var(--accent); width:20px; height:20px; border-radius:50%; display:grid; place-items:center; flex:none; align-self:center}
+  .choices button .t{min-width:0}
+  .choices button .t small{display:block; font-weight:400; font-size:11.5px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace}
+  .choices button.plain{border-color:var(--line); background:var(--surface-2); font-weight:500; color:var(--ink-2)}
+
+  .scope{display:flex; align-items:center; gap:9px; padding:11px 14px; border-radius:var(--r);
+    background:var(--accent-soft); border:1px solid var(--accent-line); font-size:13px; color:var(--ink-2)}
+  .scope b{color:var(--ink)}
+  .joblist .jrow{display:flex; align-items:center; gap:10px; padding:10px 15px; border-top:1px solid var(--line-soft); flex-wrap:wrap}
+  .joblist .jrow .ji{min-width:0; margin-right:auto}
+  .joblist .jrow .ji b{display:block; font-size:14px}
+  .joblist .jrow .ji small{display:block; font-size:11.5px; color:var(--ink-3)}
+  .bar2{height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden; min-width:90px; flex:0 0 90px}
+  .bar2 i{display:block; height:100%; background:var(--accent)}
+
+  .picker{position:relative}
+  .picker input{padding-right:38px}
+  .caretbtn{position:absolute; right:4px; top:4px; bottom:4px; width:30px; border:0; background:transparent;
+    color:var(--ink-3); font-size:13px; border-radius:6px}
+  .caretbtn:hover{background:var(--surface-2); color:var(--ink)}
+  .pickmenu{position:absolute; z-index:20; left:0; right:0; top:calc(100% + 4px); max-height:262px; overflow-y:auto;
+    background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--lift); padding:4px}
+  .pickmenu .grp3{padding:8px 10px 4px; font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+  .pickmenu button{display:flex; align-items:baseline; gap:8px; width:100%; text-align:left; border:0; background:none;
+    padding:9px 10px; border-radius:7px; font-size:14px; font-weight:500}
+  .pickmenu button:hover,.pickmenu button.on{background:var(--accent-soft); color:var(--accent-ink)}
+  .pickmenu button .ty{margin-left:auto; font-size:11px; color:var(--ink-3); font-weight:500; white-space:nowrap}
+  .pickmenu button mark{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; border-radius:3px}
+  .pickmenu .none{padding:12px 10px; font-size:13px; color:var(--ink-3)}
+
+  .say{display:flex; gap:8px; margin-top:11px}
+  .say input{flex:1; font:inherit; padding:10px 12px; border-radius:9px; border:1px solid var(--line); background:var(--sunk); color:var(--ink)}
+  .say button{padding:10px 16px; border-radius:9px; border:1px solid var(--line); background:var(--surface-2); font-weight:600; font-size:14px}
+  .acts{display:flex; gap:7px; margin-top:11px; flex-wrap:wrap; justify-content:center}
+  .acts button{padding:8px 13px; border-radius:999px; border:1px solid var(--line); background:var(--surface); font-size:12.5px; font-weight:600; color:var(--ink-2)}
+  .acts button.primary{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+
+  .prog{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin-top:12px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  .prog div{background:var(--surface); padding:10px 8px; text-align:center}
+  .prog .v{font-family:"Archivo",sans-serif; font-weight:800; font-size:20px; letter-spacing:-.02em}
+  .prog .k{font-size:9.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); font-weight:600; margin-top:1px}
+
+  .recent{margin-top:12px; overflow:hidden}
+  .recent h3{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); padding:12px 14px 9px}
+  .rrow{display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--line-soft)}
+  .rrow .ri{min-width:0; margin-right:auto}
+  .rrow .ri b{display:block; font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .rrow .ri small{display:block; font-size:11.5px; color:var(--ink-3)}
+  .rrow button{padding:7px 12px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink); font-size:12.5px; font-weight:600; white-space:nowrap}
+
+  .tally{margin-top:12px; overflow:hidden}
+  .tally h3{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); padding:12px 14px 9px}
+  .grp2{display:flex; align-items:center; gap:8px; padding:8px 14px; background:var(--surface-2); border-top:1px solid var(--line); font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-2)}
+  .line{display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:baseline; padding:9px 14px; border-top:1px solid var(--line-soft)}
+  .line .code{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3)}
+  .line .nm{font-size:14px; min-width:0}
+  .line .nm small{display:block; color:var(--ink-3); font-size:11.5px}
+  .line .q{font-family:"Archivo",sans-serif; font-weight:700; font-size:15px; text-align:right; white-space:nowrap}
+  .line .q small{display:block; font-family:"IBM Plex Sans",sans-serif; font-weight:500; font-size:11px; color:var(--ink-3)}
+  .sum{display:flex; justify-content:space-between; align-items:baseline; padding:11px 14px; background:var(--surface-2); border-top:1px solid var(--line)}
+  .sum b{font-family:"Archivo",sans-serif; font-size:16px}
+  .calls{border-top:1px solid var(--line)}
+  .call{display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:8px 14px; border-top:1px solid var(--line-soft)}
+  .call .t{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3)}
+  .call .said{font-size:13px; color:var(--ink-2); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .play{width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:var(--surface); display:grid; place-items:center; font-size:11px; color:var(--accent-ink); padding:0}
+  .play[disabled]{opacity:.3; cursor:default}
+
+  /* ================= panels & tables ================= */
+  .mgr{margin-top:14px; display:flex; flex-direction:column; gap:14px}
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(148px,1fr)); gap:10px}
+  .tile{padding:13px 14px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r)}
+  .tile .k{font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+  .tile .v{font-family:"Archivo",sans-serif; font-weight:800; font-size:25px; margin-top:3px; letter-spacing:-.022em}
+  .tile .s{font-size:12px; color:var(--ink-3)}
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); overflow:hidden}
+  .panel>header{padding:12px 15px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .panel>header h2{font-size:14px; font-weight:700; margin-right:auto}
+  .panel>header .hint{font-size:12px; color:var(--ink-3)}
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse; width:100%; font-size:13.5px}
+  th{text-align:left; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:600; padding:9px 14px; border-bottom:1px solid var(--line); white-space:nowrap}
+  td{padding:9px 14px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.r,th.r{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .grp{cursor:pointer} .grp td{background:var(--surface-2); font-weight:600}
+  .grp .caret{display:inline-block; width:12px; color:var(--ink-3)}
+  .sub td:first-child{padding-left:30px}
+  .leaf td:first-child{padding-left:48px; color:var(--ink-2)}
+  .tag{display:inline-block; font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:5px; background:var(--surface-2); color:var(--ink-2); border:1px solid var(--line)}
+  .tag.ex{background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent-ink)}
+  .tag.open{background:var(--ok-soft); border-color:color-mix(in srgb,var(--ok) 30%,transparent); color:var(--ok)}
+  .dotc{display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:7px; vertical-align:-1px}
+  .btn{padding:7px 13px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); font-size:12.5px; font-weight:600}
+  .btn.dark{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+  .btn[disabled]{opacity:.45; cursor:default}
+  .empty{padding:26px 16px; text-align:center; color:var(--ink-3); font-size:13.5px}
+  .pos{color:var(--ok); font-weight:600} .neg{color:var(--bad); font-weight:600}
+  .note{font-size:12.5px; color:var(--ink-3); padding:11px 15px; border-top:1px solid var(--line-soft)}
+
+  /* import + brand admin */
+  .drop{margin:14px; padding:24px 18px; border:2px dashed var(--line); border-radius:12px; text-align:center; background:var(--sunk); cursor:pointer}
+  .drop.over{border-color:var(--accent); background:var(--accent-soft)}
+  .drop b{display:block; font-family:"Archivo",sans-serif; font-size:15px}
+  .drop small{display:block; margin-top:4px; color:var(--ink-3); font-size:12.5px}
+  .maprow{display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:center; padding:7px 15px; border-top:1px solid var(--line-soft)}
+  .maprow .h{font-size:13px; min-width:0; overflow:hidden; text-overflow:ellipsis}
+  .maprow .h small{display:block; color:var(--ink-3); font-size:11.5px; font-family:"IBM Plex Mono",monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .maprow select{font:inherit; font-size:13px; padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--surface); color:var(--ink); width:100%}
+  .maprow select.set{border-color:var(--accent-line); background:var(--accent-soft)}
+  .bar{display:flex; gap:8px; padding:12px 15px; border-top:1px solid var(--line); flex-wrap:wrap; align-items:center}
+  .bar .sp{margin-right:auto; font-size:12.5px; color:var(--ink-3)}
+  textarea{font:inherit; font-size:13.5px; width:100%; min-height:104px; padding:9px 11px; border-radius:8px; border:1px solid var(--line); background:var(--sunk); color:var(--ink); resize:vertical}
+  .brandrow{display:flex; align-items:center; gap:11px; padding:10px 15px; border-top:1px solid var(--line-soft); flex-wrap:wrap}
+  .brandrow .badge{width:34px; height:34px; font-size:12.5px}
+  .brandrow .n{font-weight:600; font-size:14px; margin-right:auto; min-width:120px}
+  .brandrow input[type=color]{width:36px; height:30px; padding:0; border:1px solid var(--line); border-radius:7px; background:none; cursor:pointer}
+  .lbl-btn{padding:6px 11px; border-radius:7px; border:1px solid var(--line); background:var(--surface-2); font-size:12px; font-weight:600; cursor:pointer}
+  details.hb{border-top:1px solid var(--line-soft)}
+  details.hb summary{padding:11px 15px; cursor:pointer; font-weight:600; font-size:13.5px; list-style:none; display:flex; gap:8px; align-items:center}
+  details.hb summary::-webkit-details-marker{display:none}
+  details.hb summary::before{content:"+"; color:var(--accent-ink); font-family:"IBM Plex Mono",monospace; font-weight:600}
+  details.hb[open] summary::before{content:"\2212"}
+  details.hb .body{padding:0 15px 14px 34px; color:var(--ink-2); font-size:13.5px; line-height:1.65}
+  code.k{font-family:"IBM Plex Mono",monospace; background:var(--surface-2); border:1px solid var(--line); padding:1px 6px; border-radius:5px; font-size:12.5px; white-space:nowrap}
+  .catgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:10px; padding:13px 15px; border-bottom:1px solid var(--line)}
+</style>
+
+<header class="top">
+  <div class="topin">
+    <div class="mark">
+      <span class="sq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="10" y="3" width="4" height="8" rx="2"></rect><path d="M6.5 10a5.5 5.5 0 0 0 11 0"></path><path d="M12 15.5V19"></path></svg></span>
+      <span class="nm"><b>TruCount</b><small>an X3T product</small></span>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-count" aria-selected="true">Count</button>
+      <button role="tab" id="t-mgr" aria-selected="false">Rollup</button>
+      <button role="tab" id="t-cat" aria-selected="false">Data</button>
+    </div>
+    <button class="rolechip" id="roleBtn" title="Switch view"><span class="rl" id="roleLed"></span><span id="roleTxt">Counter</span></button>
+    <span class="sync" id="sync"><span class="led"></span><span id="syncTxt">On device</span></span>
+  </div>
+</header>
+
+<div class="band" id="band">
+  <div class="bandin">
+    <span class="badge" id="badge">—</span>
+    <span class="whoami">
+      <span class="c" id="whoOrg">—</span>
+      <span class="w" id="whoWhere">Choose where you're counting</span>
+    </span>
+    <button class="ghost" id="btnSetup">Change</button>
+  </div>
+</div>
+
+<div class="pinbar hidden" id="pinBar">
+  <div class="pinin">
+    <span class="pl">Owner view</span>
+    <input id="pinIn" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+    <button class="btn dark" id="pinGo">Unlock</button>
+    <button class="btn" id="pinX">Cancel</button>
+    <span class="pinmsg" id="pinMsg"></span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ================= COUNT ================= -->
+  <section id="v-count" class="count">
+
+    <div class="card setup" id="setup">
+      <div class="field full">
+        <label for="fJob">Counting job</label>
+        <select id="fJob"></select>
+      </div>
+      <div class="field">
+        <label for="fCat">Catalogue</label>
+        <select id="fCat">
+          <option value="fibre">Fibre / NBI build</option>
+          <option value="pub">Pub &amp; bar</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fOrg">Counting for</label>
+        <select id="fOrg"></select>
+      </div>
+      <div class="field full">
+        <label class="lblrow">Where are you counting?<button class="lnk" id="editTypes">Edit</button></label>
+        <div class="segs" id="segs"></div>
+        <div class="addrow hidden" id="addType">
+          <input id="newType" placeholder="Add a place — Cold room, Front bar, Cellar…" autocomplete="off">
+          <button class="btn dark" id="newTypeGo">Add</button>
+        </div>
+      </div>
+      <div class="field full" id="placeWrap">
+        <label for="fVan" id="lVan">Registration</label>
+        <div class="picker">
+          <input id="fVan" placeholder="Search or type…" autocomplete="off" role="combobox" aria-expanded="false">
+          <button class="caretbtn" id="pickToggle" aria-label="Show list">▾</button>
+          <div class="pickmenu hidden" id="pickMenu"></div>
+        </div>
+      </div>
+      <div class="field full" id="whoWrap">
+        <label for="fWho">Counted by</label>
+        <input id="fWho" placeholder="Your name" autocomplete="off">
+      </div>
+      <label class="toggle full" for="fRec">
+        <input type="checkbox" id="fRec" checked>
+        <span><b>Record every line</b><small>Kept on this device so a disputed number can be played back. Turn it off if the counter would rather not be recorded.</small></span>
+      </label>
+      <div class="full" style="display:flex;justify-content:flex-end"><button class="btn dark" id="btnStart">Start counting</button></div>
+    </div>
+
+    <div class="card recent hidden" id="recent"></div>
+
+    <div class="card stage" id="stage">
+      <div class="spots" id="spots"></div>
+      <div class="micwrap">
+        <span class="ring" id="ring"></span>
+        <button class="mic" id="mic" data-live="0" aria-label="Start counting by voice">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <rect x="9" y="2.5" width="6" height="11" rx="3"></rect>
+            <path d="M5.5 11a6.5 6.5 0 0 0 13 0"></path><path d="M12 17.5V21"></path>
+          </svg>
+          <span class="lbl" id="micLbl">Tap to talk</span>
+        </button>
+      </div>
+      <div class="heard" id="heard"></div>
+      <div class="confirm" id="confirm">
+        <div class="l1" id="cf1">Ready when you are</div>
+        <div class="l2" id="cf2">Say the item, then how many and what unit. Every line is read back to you.</div>
+      </div>
+      <div class="choices hidden" id="choices"></div>
+      <div class="say">
+        <input id="typeIn" placeholder="…or type what you'd say" autocomplete="off">
+        <button id="typeGo">Enter</button>
+      </div>
+      <div class="acts">
+        <button id="aUndo">Undo last</button>
+        <button id="aTotal">Read total</button>
+        <button id="aNextLoc">New spot</button>
+        <button id="aFinish" class="primary">Finish</button>
+      </div>
+      <div class="prog" id="prog"></div>
+    </div>
+
+    <div class="card tally" id="tally"></div>
+    <p class="note" style="border:0;text-align:center">Counts save on this phone as you speak them — no signal needed. They upload when you're back in coverage.</p>
+  </section>
+
+  <!-- ================= ROLLUP ================= -->
+  <section id="v-mgr" class="mgr hidden">
+    <div class="scope" id="scope"></div>
+    <div class="tiles" id="tiles"></div>
+
+    <div class="panel owner-only" id="pnlJobs">
+      <header><h2>Jobs</h2><span class="hint">Every count belongs to a job</span></header>
+      <div class="scroll"><table id="tblJob"></table></div>
+    </div>
+
+    <div class="panel owner-only" id="pnlTodo">
+      <header><h2>Still to count</h2><span class="hint" id="todoHint">Registered locations with nothing against them on this job</span></header>
+      <div class="scroll"><table id="tblTodo"></table></div>
+    </div>
+
+    <div class="panel owner-only" id="pnlWho">
+      <header><h2>By counter</h2><span class="hint">Who counted what</span></header>
+      <div class="scroll"><table id="tblWho"></table></div>
+    </div>
+
+    <div class="panel">
+      <header>
+        <h2>Estate rollup</h2><span class="hint">Tap a contractor to open its vehicles and stores</span>
+        <button class="btn" id="expCsv">Export CSV</button>
+      </header>
+      <div class="scroll"><table id="tblOrg"></table></div>
+    </div>
+
+    <div class="panel">
+      <header><h2>Count against expected</h2><span class="hint" id="varHint"></span></header>
+      <div class="scroll"><table id="tblVar"></table></div>
+    </div>
+
+    <div class="panel">
+      <header><h2>Total stock by item</h2><span class="hint">All contractors, all locations, converted to base units</span></header>
+      <div class="scroll"><table id="tblItem"></table></div>
+    </div>
+
+    <div class="panel">
+      <header><h2>Stocktakes</h2><span class="hint">Newest first</span></header>
+      <div class="scroll"><table id="tblSess"></table></div>
+    </div>
+  </section>
+
+  <!-- ================= DATA ================= -->
+  <section id="v-cat" class="hidden mgr">
+
+    <div class="panel">
+      <header><h2>Import your item master</h2><span class="hint">CSV or Excel · columns in any order, under any heading</span></header>
+      <div class="drop" id="drop">
+        <b>Drop a file here, or tap to choose one</b>
+        <small>SAP or material codes, invoice codes, part numbers — whatever your system calls them. It finds the header row wherever it sits and guesses every column, then shows you the guesses to correct.</small>
+        <input type="file" id="file" accept=".csv,.tsv,.txt,.xlsx,.xls" class="hidden">
+      </div>
+      <div id="mapWrap" class="hidden">
+        <div class="bar"><span class="sp" id="mapInfo"></span></div>
+        <div id="mapRows"></div>
+        <div class="scroll" style="border-top:1px solid var(--line)"><table id="tblPrev"></table></div>
+        <div class="bar">
+          <span class="sp" id="mapCount"></span>
+          <button class="btn" id="impCancel">Cancel</button>
+          <button class="btn" id="impAdd">Add to existing</button>
+          <button class="btn dark" id="impReplace">Replace item master</button>
+        </div>
+      </div>
+      <div id="placeAdmin"></div>
+      <div id="typeAdmin" class="joblist"></div>
+      <p class="note" id="impNote">Nothing imported yet — the demo catalogue below is loaded so the app opens in a working state.</p>
+    </div>
+
+    <div class="panel owner-only">
+      <header><h2>Counting jobs</h2><span class="hint">NBI stocktake, daily count, month end — whatever the work is called</span></header>
+      <div class="catgrid">
+        <div class="field"><label for="jName">Job name</label><input id="jName" placeholder="NBI stocktake — month end"></div>
+        <div class="field"><label for="jKind">Type</label><select id="jKind"><option>Month end</option><option>Daily</option><option>Weekly</option><option>Spot check</option><option>Ad hoc</option></select></div>
+        <div class="field"><label for="jCat">Catalogue</label><select id="jCat"><option value="fibre">Fibre / NBI build</option><option value="pub">Pub &amp; bar</option></select></div>
+        <div class="field"><label for="jDue">Due</label><input id="jDue" type="date"></div>
+        <div class="field"><label for="jTarget">Locations expected</label><input id="jTarget" type="number" placeholder="150"></div>
+        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="jAdd">Add job</button></div>
+      </div>
+      <div id="jobList"></div>
+    </div>
+
+    <div class="panel">
+      <header><h2>Access</h2><span class="hint">Who is using this device, and what they can see</span></header>
+      <div class="catgrid">
+        <div class="field"><label for="aRole">This device is</label><select id="aRole"><option value="counter">A counter — sees only their own counts</option><option value="owner">The account owner — sees everything</option></select></div>
+        <div class="field"><label for="aName">Counter name</label><input id="aName" placeholder="Seán M"></div>
+        <div class="field"><label for="aPin">Owner PIN</label><input id="aPin" placeholder="1234" inputmode="numeric"></div>
+        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="aSave">Save</button></div>
+      </div>
+      <p class="note">In the shipped product this is a real account login. Here it is a switch so you can see both sides: a counter opens the app and sees only the vans they counted; the owner sees every counter, every location and the estate total.</p>
+    </div>
+
+    <div class="panel">
+      <header><h2>Customers and branding</h2><span class="hint">Each one gets its own colour and badge across the app</span></header>
+      <div id="brandList"></div>
+      <div class="bar"><span class="sp">Add or remove customers below, one per line</span></div>
+      <div style="padding:0 15px 13px"><textarea id="orgBox"></textarea></div>
+      <div class="bar"><span class="sp" id="orgCount"></span><button class="btn dark" id="orgSave">Save list</button></div>
+      <p class="note">Upload each customer's own logo file to replace the generated badge — that's the version you'd put in front of them.</p>
+    </div>
+
+    <div class="panel">
+      <header><h2>Item master</h2><span class="hint">Code · descriptions · unit · pack size</span></header>
+      <div class="catgrid">
+        <div class="field"><label for="nCode">Short code</label><input id="nCode" placeholder="COKE-330"></div>
+        <div class="field"><label for="nShort">Short description</label><input id="nShort" placeholder="Coke 330ml"></div>
+        <div class="field"><label for="nLong">Long description</label><input id="nLong" placeholder="Coca-Cola 330ml glass bottle"></div>
+        <div class="field"><label for="nUnit">Base unit</label><input id="nUnit" placeholder="bottle"></div>
+        <div class="field"><label for="nPack">Pack size</label><input id="nPack" type="number" placeholder="24"></div>
+        <div class="field"><label for="nAlias">Spoken as</label><input id="nAlias" placeholder="coke, cola"></div>
+        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="nAdd">Add item</button></div>
+      </div>
+      <div class="scroll"><table id="tblCat"></table></div>
+    </div>
+
+    <div class="panel">
+      <header><h2>What it understands</h2></header>
+      <details class="hb"><summary>Saying where you are</summary><div class="body">
+        <code class="k">reg number one two G one two three four five</code> → the vehicle 12-G-12345<br>
+        <code class="k">van 191 D 12345</code> · <code class="k">location back yard</code> · <code class="k">inside store</code> · <code class="k">outside store</code> · <code class="k">container</code><br>
+        Then the spot inside it: <code class="k">shelf number A1</code> · <code class="k">shelf A2</code> · <code class="k">bay three</code> · <code class="k">rack two</code> · <code class="k">next spot</code><br>
+        When you're finished: <code class="k">done the back yard</code> · <code class="k">finished here</code> — it closes that location and asks for the next.
+      </div></details>
+      <details class="hb"><summary>Counting</summary><div class="body">
+        <code class="k">coke twenty bottles</code> · <code class="k">twenty bottles of coke</code> · <code class="k">ten cases of coke</code><br>
+        Packs convert on the item's pack size, so ten cases of Coke lands as 240 bottles and is shown both ways.
+      </div></details>
+      <details class="hb"><summary>Drums and part reels</summary><div class="body">
+        <code class="k">drum A B C D one, eight hundred metres</code> — the drum ID is kept with the length, so part drums stay identifiable.<br>
+        <code class="k">twenty full drums of ninety six fibre</code> multiplies by the standard length on the item.
+      </div></details>
+      <details class="hb"><summary>Fixing and checking</summary><div class="body">
+        <code class="k">undo</code> / <code class="k">scratch that</code> removes the last line · <code class="k">total</code> reads back the running total.
+      </div></details>
+      <p class="note">Speech recognition runs on the device, which is why it keeps working with no signal. A production build loads your part codes as a boosted vocabulary so codes and contractor names are recognised first time.</p>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ============================================================
+   TruCount — voice stocktake
+   ============================================================ */
+const LS = 'trucount.v1';
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------- where you can be counting ---------- */
+const BASE_PLACES = [
+  {k:'van',   label:'Vehicle',       field:'Registration',  ph:'12-G-12345', icon:'M3 13l1.5-5A2 2 0 0 1 6.4 6.5h7.2A2 2 0 0 1 15.5 8l1.5 5m-14 0h18v4H3v-4zm3 4v1.5M18 17v1.5',
+   words:['van','vans','vehicle','truck','lorry','jeep','car','reg','reg number','registration','plate']},
+  {k:'store-in',  label:'Inside store', field:'Store name', ph:'Main store',
+   icon:'M4 9.5 12 4l8 5.5V20H4V9.5zM9 20v-6h6v6', words:['inside store','indoor store','internal store','main store','store room','stores','store','warehouse','shop']},
+  {k:'store-out', label:'Outside store', field:'Store name', ph:'External store',
+   icon:'M3 8h18M5 8V6h14v2M5 8v12h14V8M9 12h6', words:['outside store','external store','outdoor store','out store','lean to']},
+  {k:'yard',  label:'Yard',          field:'Yard name',     ph:'Back yard',
+   icon:'M3 19h18M5 19V9l7-4 7 4v10M9 19v-5h6v5', words:['yard','back yard','backyard','front yard','side yard','compound','depot','depot yard']},
+  {k:'container', label:'Container', field:'Container name', ph:'Container 2',
+   icon:'M3 7h18v10H3V7zm4 0v10m4-10v10m4-10v10', words:['container','cabin','unit','skip','trailer']},
+  {k:'site',  label:'Site',          field:'Site name',     ph:'Site name',
+   icon:'M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11zM12 8v4m-2-2h4', words:['site','build site','job','jobsite','works']}
+];
+const GENERIC_ICON = 'M4 7.5 12 3.5l8 4V19H4V7.5zM8 19v-6h8v6';
+function customTypes(){
+  const out=[]; const m=(S&&S.placeTypes)||{};
+  for(const k in m) for(const c of (m[k].custom||[])) if(!out.some(x=>x.k===c.k)) out.push(c);
+  return out;
+}
+/* resolve any type key, including ones a customer added or hid */
+function PL(k){
+  return BASE_PLACES.find(p=>p.k===k) || customTypes().find(p=>p.k===k)
+      || {k:k||'van', label:cap(String(k||'place').replace(/-/g,' ')), field:'Name', ph:'', icon:GENERIC_ICON, words:[String(k||'')]};
+}
+/* the list this customer actually uses */
+function placeTypes(cat, org){
+  const cfg = ((S&&S.placeTypes)||{})[cat+'|'+org] || {};
+  const hid = cfg.hidden||[];
+  return BASE_PLACES.filter(p=>!hid.includes(p.k)).concat(cfg.custom||[]);
+}
+function typeCfg(cat, org){
+  S.placeTypes = S.placeTypes || {};
+  const key = cat+'|'+org;
+  S.placeTypes[key] = S.placeTypes[key] || {hidden:[], custom:[]};
+  return S.placeTypes[key];
+}
+
+/* ---------- catalogues ---------- */
+const CATALOGUES = {
+  fibre: {
+    label:'Fibre / NBI build',
+    orgs:['TLI Group','Actavo','Bradleys','Gaeltec','Secto','KN Circet','KN Connections'],
+    defaultPlace:'van',
+    spots:['Shelf A1','Shelf A2','Shelf A3','Bay 1','Bay 2','Roof rack','Floor'],
+    items:[
+      {code:'FIB-96F', short:'96F fibre drum', long:'96 fibre ADSS cable, 4km drum', unit:'metre', pack:4000, packName:'drum', alias:'ninety six fibre, 96 fibre, ninety six f', drum:true},
+      {code:'FIB-48F', short:'48F fibre drum', long:'48 fibre ADSS cable, 4km drum', unit:'metre', pack:4000, packName:'drum', alias:'forty eight fibre, 48 fibre', drum:true},
+      {code:'FIB-24F', short:'24F fibre drum', long:'24 fibre ADSS cable, 2km drum', unit:'metre', pack:2000, packName:'drum', alias:'twenty four fibre, 24 fibre', drum:true},
+      {code:'DUCT-32', short:'32mm duct coil', long:'32mm HDPE sub-duct, 200m coil', unit:'metre', pack:200, packName:'coil', alias:'duct, thirty two duct, sub duct'},
+      {code:'POLE-9', short:'9m pole', long:'9 metre creosote distribution pole', unit:'each', pack:1, alias:'pole, nine metre pole, poles'},
+      {code:'HANG-STD', short:'Cable hanger', long:'Standard aerial cable hanger, box of 100', unit:'each', pack:100, packName:'box', alias:'hanger, hangers, cable hanger'},
+      {code:'MH-D400', short:'Manhole cover D400', long:'D400 composite manhole cover and frame', unit:'each', pack:1, alias:'manhole cover, cover, manhole'},
+      {code:'CONN-KIT', short:'Connection kit', long:'Standard premises connection kit', unit:'each', pack:1, alias:'connection kit, conn kit, kit, kits'},
+      {code:'SCREW-100', short:'Fixing screws', long:'Stainless fixing screws, box of 100', unit:'each', pack:100, packName:'box', alias:'screws, screw, fixings'},
+      {code:'CLOS-24', short:'24-way closure', long:'24 way inline splice closure', unit:'each', pack:1, alias:'closure, closures, twenty four way closure'}
+    ]
+  },
+  pub: {
+    label:'Pub & bar',
+    orgs:['Powers','Doogue’s Bar','Egan’s Bar'],
+    defaultPlace:'store-in',
+    spots:['Back bar','Shelf 1','Shelf 2','Shelf 3','Under-bar fridge','Cellar'],
+    items:[
+      {code:'COKE-330', short:'Coke 330ml', long:'Coca-Cola 330ml glass bottle', unit:'bottle', pack:24, packName:'case', alias:'coke, cola, coca cola'},
+      {code:'SPRT-330', short:'Sprite 330ml', long:'Sprite 330ml glass bottle', unit:'bottle', pack:24, packName:'case', alias:'sprite'},
+      {code:'HEIN-KEG', short:'Heineken keg', long:'Heineken 50 litre keg', unit:'keg', pack:1, alias:'heineken, heino'},
+      {code:'GUIN-KEG', short:'Guinness keg', long:'Guinness 50 litre keg', unit:'keg', pack:1, alias:'guinness, stout'},
+      {code:'HEIN-BTL', short:'Heineken bottle', long:'Heineken 330ml bottle', unit:'bottle', pack:24, packName:'case', alias:'heineken bottles, bottled heineken'},
+      {code:'JAM-70', short:'Jameson 70cl', long:'Jameson Irish Whiskey 70cl', unit:'bottle', pack:6, packName:'case', alias:'jameson, jemmy'},
+      {code:'SMIR-70', short:'Smirnoff 70cl', long:'Smirnoff Red vodka 70cl', unit:'bottle', pack:6, packName:'case', alias:'smirnoff, vodka'},
+      {code:'TONIC-200', short:'Tonic 200ml', long:'Schweppes tonic water 200ml', unit:'bottle', pack:24, packName:'case', alias:'tonic, schweppes'},
+      {code:'CRISP-BOX', short:'Crisps', long:'Assorted crisps, box of 48', unit:'packet', pack:48, packName:'box', alias:'crisps, taytos, tayto'}
+    ]
+  }
+};
+
+/* ---------- seed ---------- */
+const seedTs = Date.parse('2026-09-04T09:12:00Z');
+function L(cat,code,qty,unit,loc,drumId,ts){
+  return {id:'l'+Math.random().toString(36).slice(2,9), cat, code, qty, unit, loc, drumId:drumId||null, ts, raw:null};
+}
+function seedJobs(){
+  return [
+    {id:'j-nbi-me',    name:'NBI stocktake — month end',  kind:'Month end', cat:'fibre', due:'2026-09-30', target:12},
+    {id:'j-daily',     name:'Daily van count',            kind:'Daily',     cat:'fibre', due:'',           target:6},
+    {id:'j-powers-me', name:'Powers month-end count',     kind:'Month end', cat:'pub',   due:'2026-10-05', target:3}
+  ];
+}
+function jobs(){ return (S.jobs && S.jobs.length) ? S.jobs : seedJobs(); }
+function job(id){ return jobs().find(j=>j.id===id) || null; }
+function jobName(id){ const j=job(id); return j? j.name : 'Unassigned'; }
+
+function seedSessions(){
+  return [
+    {id:'demo-tli-1', cat:'fibre', org:'TLI Group', ctype:'van', container:'12-G-12345', by:'Seán M', job:'j-nbi-me', started:seedTs, finished:seedTs+2.4e6, example:true, lines:[
+      L('fibre','FIB-96F',3,'drum','Floor',null,seedTs),
+      L('fibre','FIB-96F',800,'metre','Floor','ABCD1',seedTs+6e4),
+      L('fibre','FIB-96F',350,'metre','Floor','ABCD7',seedTs+9e4),
+      L('fibre','DUCT-32',6,'coil','Shelf A1',null,seedTs+1.5e5),
+      L('fibre','HANG-STD',4,'box','Shelf A1',null,seedTs+1.8e5),
+      L('fibre','CONN-KIT',22,'each','Shelf A2',null,seedTs+2.4e5),
+      L('fibre','POLE-9',2,'each','Roof rack',null,seedTs+3e5)]},
+    {id:'demo-tli-2', cat:'fibre', org:'TLI Group', ctype:'yard', container:'Back yard', by:'Marie D', job:'j-nbi-me', started:seedTs+2.9e6, finished:seedTs+3.4e6, example:true, lines:[
+      L('fibre','FIB-96F',9,'drum','Bay 1',null,seedTs+2.9e6),
+      L('fibre','FIB-48F',4,'drum','Bay 1',null,seedTs+2.95e6),
+      L('fibre','POLE-9',36,'each','Bay 2',null,seedTs+3.0e6),
+      L('fibre','MH-D400',14,'each','Bay 2',null,seedTs+3.1e6)]},
+    {id:'demo-knc-1', cat:'fibre', org:'KN Circet', ctype:'van', container:'202-C-8871', by:'Declan B', job:'j-nbi-me', started:seedTs+3.6e6, finished:seedTs+5.4e6, example:true, lines:[
+      L('fibre','FIB-48F',2,'drum','Floor',null,seedTs+3.6e6),
+      L('fibre','FIB-48F',1250,'metre','Floor','KN0043',seedTs+3.7e6),
+      L('fibre','CONN-KIT',14,'each','Shelf A1',null,seedTs+3.8e6),
+      L('fibre','SCREW-100',3,'box','Shelf A1',null,seedTs+3.9e6),
+      L('fibre','CLOS-24',6,'each','Shelf A2',null,seedTs+4.0e6)]},
+    {id:'demo-powers-1', cat:'pub', org:'Powers', ctype:'store-in', container:'Main bar', by:'Pat', job:'j-powers-me', started:seedTs+7.2e6, finished:seedTs+8.1e6, example:true, lines:[
+      L('pub','COKE-330',20,'bottle','Shelf 1',null,seedTs+7.2e6),
+      L('pub','COKE-330',10,'bottle','Shelf 2',null,seedTs+7.25e6),
+      L('pub','SPRT-330',10,'bottle','Shelf 2',null,seedTs+7.3e6),
+      L('pub','COKE-330',10,'case','Cellar',null,seedTs+7.4e6),
+      L('pub','JAM-70',7,'bottle','Back bar',null,seedTs+7.5e6),
+      L('pub','HEIN-KEG',4,'keg','Cellar',null,seedTs+7.6e6),
+      L('pub','GUIN-KEG',6,'keg','Cellar',null,seedTs+7.7e6)]}
+  ];
+}
+
+/* ---------- state ---------- */
+let S = load();
+function load(){
+  try{ const raw = localStorage.getItem(LS); if(raw){ const p=JSON.parse(raw); if(p&&p.sessions) return p; } }catch(e){}
+  return {sessions:seedSessions(), current:null, synced:{}, custom:{fibre:[],pub:[]},
+          hideBuiltin:{}, baseline:{}, orgs:{}, mapping:{}, brand:{},
+          me:{role:'counter', name:'Seán M'}, pin:'1234', job:'j-nbi-me', jobs:seedJobs()};
+}
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
+
+function items(cat){
+  const own = (S.custom && S.custom[cat]) || [];
+  return ((S.hideBuiltin&&S.hideBuiltin[cat]) ? [] : CATALOGUES[cat].items).concat(own);
+}
+function item(cat,code){ return items(cat).find(i=>i.code===code) || {code, short:code, long:code, unit:'each', pack:1}; }
+function orgsFor(cat){ const own=(S.orgs&&S.orgs[cat])||null; return (own&&own.length)?own:CATALOGUES[cat].orgs; }
+
+/* ---------- branding ---------- */
+const BRAND_POOL = ['#2563EB','#059669','#7C3AED','#C2185B','#0EA5E9','#4F46E5','#0F766E','#B4245C','#5B8C00','#9333EA'];
+function hash(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+function initials(name){
+  const w = String(name||'').replace(/[^A-Za-z0-9 ]/g,' ').split(/\s+/).filter(Boolean);
+  if(!w.length) return '—';
+  if(w.length===1) return w[0].slice(0,2).toUpperCase();
+  return (w[0][0]+w[1][0]).toUpperCase();
+}
+/* colours and monograms are worked out across the whole customer list
+   so no two customers end up looking the same */
+function autoLooks(cat){
+  const list = orgsFor(cat);
+  const colors={}, monos={}, usedC=new Set(), usedM=new Set();
+  S.brand = S.brand || {};
+  for(const o of list){
+    const set = Object.assign({}, SEED_BRAND[cat+'|'+o]||{}, S.brand[cat+'|'+o]||{});
+    if(set.color){ colors[o]=set.color; usedC.add(set.color); }
+  }
+  for(const o of list){
+    if(!colors[o]){
+      const i = hash(o)%BRAND_POOL.length;
+      let pick=null;
+      for(let n=0;n<BRAND_POOL.length;n++){ const c=BRAND_POOL[(i+n)%BRAND_POOL.length]; if(!usedC.has(c)){ pick=c; break; } }
+      colors[o] = pick || BRAND_POOL[i];
+      usedC.add(colors[o]);
+    }
+    const w = String(o).replace(/[^A-Za-z0-9 ]/g,' ').split(/\s+/).filter(Boolean);
+    let m = initials(o), k=1;
+    while(usedM.has(m) && w.length>1 && k<3){ m = (w[0][0]+w[w.length-1].slice(0,1+k)).toUpperCase(); k++; }
+    if(usedM.has(m)) m = m+(usedM.size%10);
+    usedM.add(m); monos[o]=m;
+  }
+  return {colors, monos};
+}
+const SEED_BRAND = {
+  'pub|Powers': {color:'#B08420'},
+  'fibre|TLI Group': {color:'#141F60', logo:'data:image/png;base64,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'}
+};
+function brandFor(cat, org){
+  S.brand = S.brand || {};
+  const b = Object.assign({}, SEED_BRAND[cat+'|'+org]||{}, S.brand[cat+'|'+org]||{});
+  const looks = autoLooks(cat);
+  return {color: b.color || looks.colors[org] || BRAND_POOL[hash(org||'')%BRAND_POOL.length],
+          logo: b.logo || null,
+          mono: looks.monos[org] || initials(org)};
+}
+function setBrand(cat, org, patch){
+  S.brand = S.brand || {};
+  const key = cat+'|'+org;
+  S.brand[key] = Object.assign({}, S.brand[key]||{}, patch);
+  save();
+}
+function lum(hex){
+  const m = hex.replace('#','');
+  const n = m.length===3 ? m.split('').map(c=>c+c).join('') : m;
+  const r=parseInt(n.slice(0,2),16)/255, g=parseInt(n.slice(2,4),16)/255, b=parseInt(n.slice(4,6),16)/255;
+  const f = v => v<=.03928 ? v/12.92 : Math.pow((v+.055)/1.055,2.4);
+  return .2126*f(r)+.7152*f(g)+.0722*f(b);
+}
+function rgba(hex,a){
+  const m=hex.replace('#',''); const n=m.length===3?m.split('').map(c=>c+c).join(''):m;
+  return 'rgba('+parseInt(n.slice(0,2),16)+','+parseInt(n.slice(2,4),16)+','+parseInt(n.slice(4,6),16)+','+a+')';
+}
+function applyBrand(){
+  const cat = $('fCat').value, org = $('fOrg').value || orgsFor(cat)[0] || '';
+  const b = brandFor(cat, org);
+  const r = document.documentElement.style;
+  r.setProperty('--accent', b.color);
+  r.setProperty('--accent-soft', rgba(b.color,.13));
+  r.setProperty('--accent-line', rgba(b.color,.40));
+  r.setProperty('--on-accent', lum(b.color)>0.55 ? '#12191C' : '#FFFFFF');
+  const badge = $('badge');
+  badge.style.background = b.color;
+  badge.innerHTML = b.logo ? '<img src="'+esc(b.logo)+'" alt="">' : esc(b.mono||initials(org));
+  $('whoOrg').textContent = org || 'No customer selected';
+}
+
+/* ---------- units & maths ---------- */
+const IRREG = {boxes:'box', cases:'case', metres:'metre', meters:'meter', pieces:'piece'};
+function sing(w){
+  if(!w) return w;
+  if(IRREG[w]) return IRREG[w];
+  if(/(ches|shes|sses|xes|zes)$/.test(w)) return w.slice(0,-2);
+  if(w.length>3 && /s$/.test(w) && !/ss$/.test(w)) return w.slice(0,-1);
+  return w;
+}
+const PACK_WORDS = new Set(['case','box','pack','drum','coil','reel','pallet','carton','bag']);
+function isPackUnit(it, unit){
+  const u = sing(String(unit||'').toLowerCase());
+  return PACK_WORDS.has(u) || u === sing(String(it.packName||'').toLowerCase());
+}
+function baseQty(it,qty,unit){ return isPackUnit(it,unit) ? qty*(it.pack||1) : qty; }
+function fmt(n){ return (Math.round(n*100)/100).toLocaleString('en-IE'); }
+function plural(u,n){
+  if(!u) return '';
+  if(n===1||u==='each') return u;
+  if(/(x|ch|sh|ss|z)$/.test(u)) return u+'es';
+  if(/s$/.test(u)) return u;
+  return u+'s';
+}
+
+/* ---------- number words ---------- */
+const N1 = {zero:0,oh:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,a:1,an:1};
+const N10 = {twenty:20,thirty:30,forty:40,fourty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+const SCALE = {hundred:100,thousand:1000};
+function isNumTok(t){ return /^\d+([.,]\d+)?$/.test(t) || t in N1 || t in N10 || t in SCALE; }
+function wordsToNum(toks){
+  let total=0, cur=0, any=false;
+  for(const t of toks){
+    if(/^\d+([.,]\d+)?$/.test(t)){ cur += parseFloat(t.replace(',','')); any=true; continue; }
+    if(t in N1){ cur += N1[t]; any=true; continue; }
+    if(t in N10){ cur += N10[t]; any=true; continue; }
+    if(t==='hundred'){ cur=(cur||1)*100; any=true; continue; }
+    if(t==='thousand'){ total += (cur||1)*1000; cur=0; any=true; continue; }
+  }
+  return any ? total+cur : null;
+}
+function runEnd(toks,i){
+  let j=i;
+  while(j+1<toks.length){
+    if(isNumTok(toks[j+1])){ j++; continue; }
+    if(toks[j+1]==='and' && j+2<toks.length && isNumTok(toks[j+2])){ j+=2; continue; }
+    break;
+  }
+  return j;
+}
+/* English never puts two plain numbers side by side unless it's tens+unit,
+   so "one eight hundred" is an ID then a quantity — keep the valid tail. */
+function trimNum(rt){
+  let cut=0;
+  for(let i=0;i<rt.length-1;i++){
+    const a=rt[i], b=rt[i+1];
+    if((a in SCALE)||(b in SCALE)) continue;
+    const valid = (a in N10) && (b in N1) && N1[b]>=1 && N1[b]<=9;
+    if(!valid) cut=i+1;
+  }
+  return rt.slice(cut);
+}
+/* letters stay letters, number words become digits — for reg plates, drum IDs, shelf codes */
+function codeFrom(toks){
+  return toks.map(x=>{
+    if(x==='a'||x==='an') return 'a';
+    if(x==='oh') return '0';
+    if(x in N1) return String(N1[x]);
+    if(x in N10) return String(N10[x]);
+    return x;
+  }).join('').toUpperCase();
+}
+function fmtReg(toks){
+  const s = codeFrom(toks).replace(/[^A-Z0-9]/g,'');
+  let m = s.match(/^(\d{2,3})([A-Z]{1,2})(\d{1,6})$/);   /* Irish: 12-G-12345 */
+  if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  m = s.match(/^([A-Z]{2}\d{2})([A-Z]{3})$/);            /* UK: AB12 CDE */
+  if(m) return m[1]+' '+m[2];
+  return s;
+}
+
+/* ---------- parsing ---------- */
+const UNIT_SET = new Set(['bottle','can','case','box','keg','drum','metre','meter','m','each','unit','pack','coil','reel','packet','pallet','bag','carton','piece','length']);
+const FILLER = ['of','the','a','an','we','have','there','is','are','got','i','on','this','has','plus','okay','ok','right','em','eh','um','then','now','so','just','its'];
+const SPOT_WORDS = ['shelf','bay','rack','aisle','row','pallet','bin','locker','tray','box','level','position'];
+
+function norm(s){
+  return String(s==null?'':s).toLowerCase()
+    .replace(/[.,!?;:()\[\]{}"'\/\\_-]/g,' ')
+    .replace(/\bnought\b/g,'zero')
+    .replace(/\s+/g,' ').trim();
+}
+function unitOf(tok){
+  let u = sing(tok);
+  if(u==='m'||u==='meter') u='metre';
+  return UNIT_SET.has(u) ? u : null;
+}
+function candStrings(it){
+  const base=[it.short,it.long,it.code.replace(/[-_]/g,' ')]
+    .concat((it.alias||'').split(',')).map(s=>norm(s||'')).filter(Boolean);
+  const out=[];
+  for(const c of base) for(const v of spokenVariants(c)) if(!out.includes(v)) out.push(v);
+  return out;
+}
+function aliasSet(it){ return new Set((it.alias||'').split(',').map(a=>norm(a)).filter(Boolean)); }
+
+/* "twelve" and "12" are the same word to a stocktaker */
+function numCanon(w){
+  if(w==='a'||w==='an'||w==='oh') return w;
+  if(w in N1) return String(N1[w]);
+  if(w in N10) return String(N10[w]);
+  return w;
+}
+const ONES=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve',
+  'thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const TENS=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+function spellOut(n){
+  n=parseInt(n,10);
+  if(isNaN(n)||n<0||n>999) return null;
+  if(n<20) return ONES[n];
+  if(n<100) return (TENS[Math.floor(n/10)]+(n%10?' '+ONES[n%10]:''));
+  return ONES[Math.floor(n/100)]+' hundred'+(n%100? ' '+spellOut(n%100):'');
+}
+/* a name written "96 fibre" is said "ninety six fibre" — index both ways */
+function spokenVariants(c){
+  const out=[c];
+  const t=c.split(' ');
+  if(t.some(w=>/^\d{1,3}$/.test(w))){
+    const v=t.map(w=>/^\d{1,3}$/.test(w) ? (spellOut(w)||w) : w).join(' ');
+    if(v!==c) out.push(v);
+  }
+  return out;
+}
+
+/* every item whose name (or alias, or code) appears as a run of spoken words,
+   best match per item, longest phrase first */
+function extractAll(toks, cat, prefUnit){
+  const st = toks.map(t=>numCanon(sing(t)));
+  const per = new Map();
+  for(const it of items(cat)){
+    const als = aliasSet(it);
+    for(const c of candStrings(it)){
+      const ct = c.split(' ').map(t=>numCanon(sing(t)));
+      if(!ct.length) continue;
+      for(let i=0;i+ct.length<=st.length;i++){
+        let ok=true;
+        for(let j=0;j<ct.length;j++){ if(st[i+j]!==ct[j]){ ok=false; break; } }
+        if(!ok) continue;
+        const nameToks = norm(it.short).split(' ').filter(Boolean).length || 1;
+        const cand = {it, start:i, end:i+ct.length-1, len:ct.length,
+                      fromAlias:als.has(c), coverage:Math.min(1, ct.length/nameToks),
+                      score: ct.length*10 + c.length/100 +
+                             ((prefUnit && (sing(it.unit)===prefUnit || sing(it.packName||'')===prefUnit)) ? 5 : 0)};
+        const cur = per.get(it.code);
+        if(!cur || cand.score>cur.score) per.set(it.code, cand);
+      }
+    }
+  }
+  return [...per.values()].sort((a,b)=>b.score-a.score);
+}
+function extractItem(toks, cat, prefUnit){ return extractAll(toks,cat,prefUnit)[0] || null; }
+
+/* short forms people write in an item master but say out loud as words */
+const GLOSS = {ug:'underground', oh:'overhead', ext:'external', int:'internal', ss:'stainless',
+  gal:'galvanised', hd:'heavy duty', ln:'long neck', na:'non alcoholic', lv:'low voltage',
+  hv:'high voltage', sml:'small', lge:'large', blk:'black', wht:'white', gry:'grey'};
+function longWord(w){ return GLOSS[w] || w; }
+
+/* what tells these candidates apart, in the words a person would use */
+function distinguishers(list){
+  const sets = list.map(c=>new Set(norm(c.it.short+' '+c.it.long).split(' ').filter(Boolean)));
+  return list.map((c,i)=>{
+    const mine=[...sets[i]].filter(w=> sets.every((s,j)=> j===i || !s.has(w)));
+    const words = mine.filter(w=>w.length>1 && !/^\d+$/.test(w)).map(longWord);
+    const nums  = mine.filter(w=>/\d/.test(w));
+    return {c, words, nums, all:mine};
+  });
+}
+function matchItemAll(cat, words){
+  const q = words.map(w=>numCanon(sing(w))).filter(w=>w.length>2 || /^\d+$/.test(w));
+  if(!q.length) return [];
+  const per=new Map();
+  for(const it of items(cat)) for(const c of candStrings(it)){
+    const ct = c.split(' ').map(t=>numCanon(sing(t)));
+    const hits = q.filter(t=>ct.includes(t)).length;
+    const score = hits*20 + (ct.join(' ')===q.join(' ')?50:0);
+    const cur=per.get(it.code);
+    if(score>=20 && (!cur||score>cur.score)) per.set(it.code,{it, score, len:1, start:0, fromAlias:false, coverage:0.4});
+  }
+  const list=[...per.values()].sort((a,b)=>b.score-a.score);
+  if(!list.length) return [];
+  return list.filter(x=>x.score===list[0].score);
+}
+function matchItem(cat, words){ const l=matchItemAll(cat,words); return l.length? l[0].it : null; }
+function placeFromWords(t, cat, org){
+  let best=null, bl=0;
+  const list = (cat!=null) ? placeTypes(cat, org) : BASE_PLACES;
+  for(const p of list) for(const w of p.words){
+    if(t===w || t.startsWith(w+' ') || t.endsWith(' '+w) || t.includes(' '+w+' ')){
+      if(w.length>bl){ bl=w.length; best={p,w}; }
+    }
+  }
+  return best;
+}
+function cap(s){ return String(s||'').charAt(0).toUpperCase()+String(s||'').slice(1); }
+function curOrg(){ try{ return document.getElementById('fOrg').value; }catch(e){ return ''; } }
+
+function parse(text, cat){
+  const t = norm(text);
+  if(!t) return {kind:'none'};
+
+  if(/^(undo|scratch that|delete that|remove that|cancel that|take that off)\b/.test(t)) return {kind:'undo'};
+  if(/^(total|totals|what.?s the total|read the total|give me the total|read it back)\b/.test(t)) return {kind:'total'};
+
+  /* finished here */
+  let m = t.match(/^(?:that.?s |we.?re |i.?m )?(?:all )?(?:done|finished|complete)(?: (?:with|the|here|that))?\b(.*)$/);
+  const trailingDone = /\b(done|finished|complete)\s*$/.test(t) && t.split(' ').length<=6 && !t.split(' ').some(isNumTok);
+  if(m || trailingDone || /^(finish|close it|close out|end count)\b/.test(t)) return {kind:'finish'};
+
+  /* where am I — vehicle by reg */
+  m = t.match(/^(?:go to |move to |next |new |at |in |on )?(?:the )?(?:van|vehicle|truck|lorry|jeep|car|reg|registration|reg number|reg no)\s+(?:number\s+)?(.+)$/);
+  if(m) return {kind:'place', ptype:'van', label:fmtReg(m[1].split(' ').filter(Boolean))};
+  if(/^(?:next|new) (?:van|vehicle|truck)$/.test(t)) return {kind:'place', ptype:'van', label:''};
+
+  /* a bare registration or a registered location name, said on its own */
+  {
+    const bt = t.split(' ').filter(Boolean);
+    if(bt.length>=2 && bt.length<=9){
+      const k = codeFrom(bt).replace(/[^A-Z0-9]/g,'');
+      const reg = (typeof placesFor==='function') ? placesFor(cat, curOrg()) : [];
+      const known = reg.find(pl=>regKey(pl.label)===k) || reg.find(pl=>norm(pl.label)===t);
+      if(known) return {kind:'place', ptype:known.type||'van', label:known.label};
+      if(/^\d{2,3}[A-Z]{1,2}\d{1,6}$/.test(k) || /^[A-Z]{2}\d{2}[A-Z]{3}$/.test(k))
+        return {kind:'place', ptype:'van', label:fmtReg(bt)};
+    }
+  }
+
+  /* where am I — named place, with or without the word "location" */
+  m = t.match(/^(?:go to |move to |next |new |at |in |over (?:to|at) )?(?:the )?location\s+(.+)$/);
+  const named = m ? m[1] : null;
+  const probe = named!=null ? named : t;
+  const pf = placeFromWords(probe, cat, curOrg());
+  if(pf && (named!=null || probe===pf.w || probe.replace(/^(the|a|an|next|new|go to|move to|at|in) /,'')===pf.w)){
+    const rest = probe.replace(pf.w,'').replace(/\b(the|a|an|next|new|go to|move to|at|in)\b/g,'').trim();
+    const label = rest ? cap(rest)+' '+pf.w : cap(pf.w);
+    return {kind:'place', ptype:pf.p.k, label:cap(label)};
+  }
+
+  /* spot inside it */
+  m = t.match(new RegExp('^(?:go to |move to |next |new )?(?:the )?('+SPOT_WORDS.join('|')+')\\s*(?:number\\s*)?(.*)$'));
+  if(m){
+    const code = m[2].trim();
+    if(!code) return {kind:'spot', name:''};
+    return {kind:'spot', name:cap(m[1])+' '+codeFrom(code.split(' ').filter(Boolean))};
+  }
+  if(/^(next|new) (spot|location|position|place)$/.test(t)) return {kind:'spot', name:''};
+
+  const toks = t.split(' ').filter(Boolean);
+
+  /* drum carrying an ID */
+  if((toks[0]==='drum'||toks[0]==='reel') && toks.length>2){
+    const uIdx = toks.findIndex(x=>unitOf(x)==='metre');
+    if(uIdx>1){
+      let end=uIdx-1, start=end;
+      while(start>1){
+        if(isNumTok(toks[start-1])){ start--; continue; }
+        if(toks[start-1]==='and' && start-2>=1 && isNumTok(toks[start-2])){ start-=2; continue; }
+        break;
+      }
+      const run = toks.slice(start,end+1).filter(x=>x!=='and');
+      const kept = trimNum(run);
+      const qty = wordsToNum(kept);
+      const dropped = run.slice(0, run.length-kept.length);
+      const id = codeFrom(toks.slice(1,start).concat(dropped));
+      const tail = toks.slice(uIdx+1).filter(x=>!FILLER.includes(x));
+      const found = extractItem(tail, cat, 'metre');
+      const it = (found&&found.it) || items(cat).find(i=>i.drum);
+      if(qty!=null && it) return {kind:'line', it, qty, unit:'metre', drumId:id||null};
+    }
+  }
+
+  /* item phrase out first */
+  let all = extractAll(toks, cat, null);
+  let hit = all[0] || null;
+  if(hit){
+    const rem0 = toks.filter((x,i)=> i<hit.start || i>hit.end);
+    let pu=null;
+    for(const x of rem0){ const u=unitOf(x); if(u){ pu=u; break; } }
+    if(pu){ const a2=extractAll(toks,cat,pu); if(a2.length){ all=a2; hit=a2[0]; } }
+  }
+  const rest = hit ? toks.filter((x,i)=> i<hit.start||i>hit.end) : toks.slice();
+
+  let unit=null, unitIdx=-1;
+  for(let i=0;i<rest.length;i++){ const u=unitOf(rest[i]); if(u){ unit=u; unitIdx=i; break; } }
+
+  let qty=null; const runs=[];
+  for(let i=0;i<rest.length;i++){
+    if(i>0 && rest[i]==='and') continue;
+    if(isNumTok(rest[i])){ const e=runEnd(rest,i); runs.push({s:i,e}); i=e; }
+  }
+  let chosen=null;
+  if(runs.length){
+    chosen = unitIdx>=0 ? (runs.filter(r=>r.e<unitIdx).pop() || runs[0]) : runs[runs.length-1];
+    qty = wordsToNum(trimNum(rest.slice(chosen.s,chosen.e+1).filter(x=>x!=='and')));
+  }
+  if(!hit){
+    const leftover = rest.filter((x,i)=> !(chosen && i>=chosen.s && i<=chosen.e) && i!==unitIdx && !FILLER.includes(x));
+    const loose = matchItemAll(cat, leftover);
+    if(loose.length>1 && qty!=null) return {kind:'choose', options:loose.slice(0,5), qty, unit, drumId:null, said:t};
+    if(loose.length) { hit=loose[0]; all=loose; }
+    else return qty!=null ? {kind:'noitem', text:t, qty, unit, said:leftover.join(' ')} : {kind:'unclear', text:t};
+  }
+  if(qty==null) return {kind:'unclear', text:t};
+
+  const it = hit.it;
+  const full = rest.includes('full');
+  if(!unit) unit = full ? (it.packName||it.unit) : it.unit;
+  if(full && it.packName) unit = it.packName;
+
+  /* more than one item answers to what was said — ask rather than guess */
+  if(all && all.length>1){
+    const tied = all.filter(c=> c.len===hit.len && c.start===hit.start);
+    if(tied.length>1) return {kind:'choose', options:tied.slice(0,5), qty, unit, drumId:null, said:t};
+  }
+  /* only part of the item's description was said, and it wasn't a name they set — check it */
+  if(!hit.fromAlias && hit.coverage<0.6) return {kind:'verify', options:[hit], qty, unit, drumId:null, said:t};
+
+  return {kind:'line', it, qty, unit, drumId:null};
+}
+
+/* ============================================================
+   location register — counts must land on a real vehicle or room
+   ============================================================ */
+function placesFor(cat, org){
+  const reg = (S.places && S.places[cat]) || [];
+  if(!reg.length) return [];
+  const mine = reg.filter(p=>!p.org || p.org===org);
+  return mine.length ? mine : reg;
+}
+function regKey(v){ return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function dist(a,b){
+  if(a===b) return 0;
+  if(Math.abs(a.length-b.length)>3) return 9;
+  const m=a.length, n=b.length, d=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){
+    let prev=d[0]; d[0]=i;
+    for(let j=1;j<=n;j++){
+      const t=d[j];
+      d[j]=Math.min(d[j]+1, d[j-1]+1, prev+(a[i-1]===b[j-1]?0:1));
+      prev=t;
+    }
+  }
+  return d[n];
+}
+function matchPlace(cat, org, label){
+  const list = placesFor(cat,org);
+  if(!list.length) return {open:true, exact:null, near:[]};
+  const k = regKey(label), nm = norm(label);
+  const exact = list.find(p=>regKey(p.label)===k) || null;
+  if(exact) return {open:false, exact, near:[]};
+  const scored = list.map(p=>{
+    const pk=regKey(p.label), pn=norm(p.label);
+    let d = dist(k,pk);
+    if(nm && (pn.includes(nm)||nm.includes(pn))) d = Math.min(d, 1);
+    return {p,d};
+  }).filter(x=>x.d<=Math.max(2, Math.round(k.length*0.25))).sort((a,b)=>a.d-b.d);
+  return {open:false, exact:null, near:scored.slice(0,4).map(x=>x.p)};
+}
+function addPlace(cat, label, type, org){
+  S.places = S.places || {};
+  S.places[cat] = S.places[cat] || [];
+  if(!S.places[cat].some(p=>regKey(p.label)===regKey(label) && (p.org||'')===(org||'')))
+    S.places[cat].push({label, type:type||'van', org:org||''});
+  save();
+}
+
+/* ============================================================
+   session
+   ============================================================ */
+let PTYPE = 'van';
+let SPOT = '';
+
+function cur(){ return S.current; }
+function containerLabel(){
+  const v = $('fVan').value.trim();
+  return v || PL(PTYPE).ph;
+}
+function startSession(){
+  S.current = {id:'s'+Date.now().toString(36), cat:$('fCat').value, org:$('fOrg').value,
+    ctype:PTYPE, container:containerLabel(),
+    by: (isOwner() ? ($('fWho').value.trim() || me().name) : me().name),
+    job: $('fJob').value || S.job,
+    started:Date.now(), finished:null, lines:[]};
+  save();
+}
+function ensureSession(){
+  if(!S.current) startSession();
+  else { S.current.ctype=PTYPE; S.current.container=containerLabel(); }
+  return S.current;
+}
+function addLine(it,qty,unit,drumId,raw){
+  const s = ensureSession();
+  if(!SPOT) SPOT = (spotsFor()||CATALOGUES[s.cat].spots)[0];
+  s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code:it.code, qty, unit,
+    loc:SPOT, drumId:drumId||null, ts:Date.now(), raw:raw||null});
+  save();
+  return s.lines[s.lines.length-1];
+}
+function rollLines(lines, cat){
+  const by={};
+  for(const l of lines){
+    const it = item(l.cat||cat, l.code);
+    by[l.code] = by[l.code] || {it, base:0, packs:0, drums:[]};
+    by[l.code].base += baseQty(it,l.qty,l.unit);
+    if(isPackUnit(it,l.unit)) by[l.code].packs += l.qty;
+    if(l.drumId) by[l.code].drums.push(l.drumId+' ('+fmt(l.qty)+'m)');
+  }
+  return by;
+}
+function spotTotal(){
+  const s=cur(); if(!s) return {};
+  return rollLines(s.lines.filter(l=>l.loc===SPOT), s.cat);
+}
+/* ---------- reopening a closed count ---------- */
+function priorFor(cat, org, label){
+  const key = String(label||'').trim().toLowerCase();
+  if(!key) return null;
+  return visible(S.sessions).find(s => (s.cat||'')===cat && s.org===org && String(s.container).trim().toLowerCase()===key) || null;
+}
+function resume(id, announce){
+  const i = S.sessions.findIndex(s=>s.id===id);
+  if(i<0) return false;
+  if(!isOwner() && (S.sessions[i].by||'') !== me().name){
+    say('That count is someone else’s','Only the account owner can reopen another counter’s work.',true); return false;
+  }
+  if(S.current && S.current.lines.length) doFinish(true);
+  const s = S.sessions.splice(i,1)[0];
+  s.finished = null;
+  s.reopens = (s.reopens||0)+1;
+  s.example = false;
+  S.current = s;
+  if(S.synced) delete S.synced[s.id];
+  save();
+
+  $('fCat').value = s.cat || 'fibre';
+  PTYPE = s.ctype || CATALOGUES[$('fCat').value].defaultPlace;
+  fillOrgs(true);
+  $('fOrg').value = s.org;
+  $('fVan').value = s.container;
+  SPOT = s.lines.length ? s.lines[s.lines.length-1].loc : '';
+  syncPlaceUI(); applyBrand(); renderSpots(); renderTally(); refreshWhere(); renderMgr(); renderRecent();
+  showTab('count');
+  $('setup').classList.add('hidden');
+  if(announce!==false){
+    say('Back on '+s.container, s.lines.length+' lines already recorded here. Keep going — anything you say now is added to it.');
+    speak('Back on '+s.container+'. '+s.lines.length+' lines already recorded. Go ahead.');
+  }
+  return true;
+}
+function renderRecent(){
+  const el=$('recent'), cat=$('fCat').value, org=$('fOrg').value;
+  const list = visible(S.sessions).filter(s=>(s.cat||'')===cat && s.org===org).slice(0,5);
+  if(!list.length || (cur() && cur().lines.length)){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = '<h3>Already counted for '+esc(org)+' — tap to add to one</h3>' + list.map(s=>{
+    const by = rollLines(s.lines, s.cat);
+    return '<div class="rrow"><span class="ri"><b>'+esc(s.container)+' <span class="tag">'+esc(PL(s.ctype||'van').label)+'</span></b>'
+      + '<small>'+s.lines.length+' lines · '+Object.keys(by).length+' items · '
+      + new Date(s.finished||s.started).toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
+      + (s.reopens? ' · reopened '+s.reopens+'×':'')+'</small></span>'
+      + '<button data-re="'+s.id+'">Add to it</button></div>';
+  }).join('');
+  el.querySelectorAll('button[data-re]').forEach(b=> b.onclick=()=>resume(b.dataset.re));
+}
+
+function nextSpotName(){
+  const s = cur();
+  const used = new Set((s?s.lines:[]).map(l=>l.loc));
+  const m = String(SPOT||'').match(/^(.*?)([A-Z]?)(\d+)\s*$/i);
+  if(m){
+    const cand = (m[1]+m[2]+(parseInt(m[3],10)+1)).trim();
+    if(!used.has(cand)) return cand;
+  }
+  for(const o of CATALOGUES[$('fCat').value].spots){ if(!used.has(o) && o!==SPOT) return o; }
+  return 'Spot '+(used.size+1);
+}
+
+/* ============================================================
+   voice
+   ============================================================ */
+let rec=null, listening=false, wantListen=false;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let mediaStream=null, recorder=null, chunks=[], clipTarget=null, actx=null, analyser=null, rafId=null;
+function audioOn(){ const el=$('fRec'); return !el || el.checked; }
+
+let _db=null;
+function idb(){
+  return new Promise((res,rej)=>{
+    if(_db) return res(_db);
+    if(!window.indexedDB) return rej(new Error('no idb'));
+    const r = indexedDB.open('trucount-audio',1);
+    r.onupgradeneeded = ()=>{ if(!r.result.objectStoreNames.contains('clips')) r.result.createObjectStore('clips'); };
+    r.onsuccess = ()=>{ _db=r.result; res(_db); };
+    r.onerror = ()=>rej(r.error);
+  });
+}
+async function clipPut(k,v){ try{ const d=await idb(); d.transaction('clips','readwrite').objectStore('clips').put(v,k); }catch(e){} }
+async function clipGet(k){
+  try{ const d=await idb();
+    return await new Promise(res=>{ const r=d.transaction('clips').objectStore('clips').get(k); r.onsuccess=()=>res(r.result||null); r.onerror=()=>res(null); });
+  }catch(e){ return null; }
+}
+async function startAudio(){
+  if(mediaStream || !navigator.mediaDevices) return;
+  try{ mediaStream = await navigator.mediaDevices.getUserMedia({audio:true}); }catch(e){ mediaStream=null; return; }
+  meter();
+  if(audioOn() && window.MediaRecorder) armRecorder();
+}
+function armRecorder(){
+  if(!mediaStream) return;
+  try{ recorder = new MediaRecorder(mediaStream); }catch(e){ recorder=null; return; }
+  chunks=[];
+  recorder.ondataavailable = e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+  recorder.onstop = ()=>{
+    const blob = chunks.length ? new Blob(chunks,{type:chunks[0].type||'audio/webm'}) : null;
+    chunks=[];
+    if(clipTarget && blob && blob.size>800) clipPut(clipTarget, blob);
+    clipTarget=null;
+    if(wantListen && audioOn() && mediaStream){ try{ recorder.start(); }catch(e){} }
+  };
+  try{ recorder.start(); }catch(e){}
+}
+function captureClip(id){
+  if(!recorder || recorder.state!=='recording') return false;
+  clipTarget=id;
+  try{ recorder.stop(); return true; }catch(e){ clipTarget=null; return false; }
+}
+function meter(){
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    analyser = actx.createAnalyser(); analyser.fftSize=256;
+    actx.createMediaStreamSource(mediaStream).connect(analyser);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const tick = ()=>{
+      if(!analyser){ return; }
+      analyser.getByteTimeDomainData(buf);
+      let peak=0; for(let i=0;i<buf.length;i++){ const v=Math.abs(buf[i]-128)/128; if(v>peak) peak=v; }
+      $('ring').style.setProperty('--lvl', (1 + Math.min(peak,.6)*0.45).toFixed(3));
+      rafId = requestAnimationFrame(tick);
+    };
+    tick();
+  }catch(e){}
+}
+function stopAudio(){
+  if(recorder && recorder.state==='recording'){ clipTarget=null; try{ recorder.stop(); }catch(e){} }
+  if(rafId) cancelAnimationFrame(rafId);
+  rafId=null; analyser=null;
+  $('ring').style.setProperty('--lvl','1');
+  if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; }
+  recorder=null;
+}
+let nowPlaying=null;
+async function playClip(id, btn){
+  if(nowPlaying){ nowPlaying.pause(); nowPlaying=null; }
+  const blob = await clipGet(id);
+  if(!blob){ if(btn) btn.disabled=true; return; }
+  const a = new Audio(URL.createObjectURL(blob));
+  nowPlaying=a;
+  if(btn){ btn.textContent='■'; a.onended=()=>{ btn.textContent='▶'; nowPlaying=null; }; }
+  a.play().catch(()=>{ if(btn) btn.textContent='▶'; });
+}
+
+function speak(text){
+  try{
+    if(!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate=1.05;
+    const vs = window.speechSynthesis.getVoices();
+    const pick = vs.find(v=>/en-IE/.test(v.lang)) || vs.find(v=>/en-GB/.test(v.lang)) || vs.find(v=>/^en/.test(v.lang));
+    if(pick) u.voice=pick;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+function setMic(on){ $('mic').dataset.live = on?'1':'0'; $('micLbl').textContent = on?'Listening':'Tap to talk'; }
+
+function startListen(){
+  if(!SR){
+    say('Voice not available in this browser','Use the typing box below — it takes exactly the same phrases. Chrome on Android and Safari on iOS both do voice.',true);
+    return;
+  }
+  wantListen = true;
+  startAudio();
+  if(listening) return;
+  rec = new SR();
+  rec.lang='en-IE'; rec.continuous=true; rec.interimResults=true;
+  rec.onstart = ()=>{ listening=true; setMic(true); };
+  rec.onerror = e=>{ if(e.error==='not-allowed'||e.error==='service-not-allowed'){ wantListen=false; say('Microphone blocked','Allow microphone access for this page, then tap the mic again.',true); } };
+  rec.onend = ()=>{ listening=false; setMic(false); if(wantListen){ try{ rec.start(); }catch(e){} } };
+  rec.onresult = ev=>{
+    let interim='', final='';
+    for(let i=ev.resultIndex;i<ev.results.length;i++){
+      const r=ev.results[i];
+      if(r.isFinal) final += r[0].transcript+' '; else interim += r[0].transcript;
+    }
+    if(interim) $('heard').innerHTML = '<b>'+esc(interim)+'</b>';
+    if(final.trim()) handle(final.trim());
+  };
+  try{ rec.start(); }catch(e){}
+}
+function stopListen(){ wantListen=false; if(rec){ try{ rec.stop(); }catch(e){} } stopAudio(); setMic(false); }
+
+/* ============================================================
+   the conversation
+   ============================================================ */
+function say(l1,l2,err){
+  $('cf1').textContent = l1;
+  $('cf2').textContent = l2||'';
+  $('confirm').className = 'confirm'+(err?' err':'');
+}
+function whereLine(){
+  const s = cur();
+  const p = PL(PTYPE);
+  const label = s ? s.container : containerLabel();
+  return p.label+' · '+label + (SPOT ? ' · <b>'+esc(SPOT)+'</b>' : '');
+}
+function refreshWhere(){ $('whoWhere').innerHTML = whereLine(); }
+
+/* ---------- pending question ---------- */
+let PEND = null;
+const ORD = {one:1,first:1,'1':1,two:2,second:2,'2':2,three:3,third:3,'3':3,four:4,fourth:4,'4':4,five:5,fifth:5,'5':5};
+
+function askChoices(list, opts){
+  const el = $('choices');
+  el.classList.remove('hidden');
+  el.innerHTML = list.map((c,i)=>
+    '<button data-i="'+i+'"><span class="n">'+(i+1)+'</span><span class="t">'+esc(c.label)
+    + (c.sub? '<small>'+esc(c.sub)+'</small>':'')+'</span></button>').join('')
+    + (opts&&opts.extra ? '<button class="plain" data-i="x">'+esc(opts.extra)+'</button>' : '')
+    + '<button class="plain" data-i="c">Cancel</button>';
+  el.querySelectorAll('button').forEach(b=> b.onclick = ()=>{
+    const v=b.dataset.i;
+    if(v==='c') return clearPend('Cancelled');
+    if(v==='x') return PEND && PEND.onExtra && PEND.onExtra();
+    PEND && PEND.onPick(+v);
+  });
+}
+function clearPend(msg){
+  PEND=null; $('choices').classList.add('hidden'); $('choices').innerHTML='';
+  if(msg) say(msg,'Carry on.');
+}
+/* did the reply pick one of the options? */
+function resolvePick(text){
+  if(!PEND) return -2;
+  const t = norm(text), toks = t.split(' ').filter(Boolean);
+  if(/^(cancel|forget it|never mind|none|neither|no)\b/.test(t)) return -1;
+  if(PEND.kind==='verify' && /^(yes|yeah|yep|correct|that.?s (it|right)|go on)\b/.test(t)) return 0;
+  let best=-2, bs=0;
+  PEND.list.forEach((c,i)=>{
+    let sc=0;
+    for(const w of (c.keys||[])){ if(w && t.includes(w)) sc += w.length; }
+    if(sc>bs){ bs=sc; best=i; }
+  });
+  if(bs>0) return best;
+  for(const w of toks){ if(ORD[w]!=null && ORD[w]<=PEND.list.length) return ORD[w]-1; }
+  if(/\blast\b/.test(t)) return PEND.list.length-1;
+  return -2;
+}
+
+function handle(text){
+  $('heard').innerHTML = '<b>'+esc(text)+'</b>';
+  const cat = $('fCat').value;
+
+  if(PEND){
+    const r = resolvePick(text);
+    if(r===-1) return clearPend('Cancelled');
+    if(r>=0) return PEND.onPick(r);
+    if(PEND.kind==='verify' && /^(no|nope|wrong)\b/.test(norm(text))) return clearPend('Dropped that one');
+    /* not an answer — treat it as a fresh instruction */
+    clearPend();
+  }
+
+  const p = parse(text, cat);
+
+  if(p.kind==='choose' || p.kind==='verify'){
+    const diffs = distinguishers(p.options);
+    const list = p.options.map((c,i)=>({
+      label: c.it.short,
+      sub: c.it.code + (c.it.long && c.it.long!==c.it.short ? ' · '+c.it.long : ''),
+      keys: [norm(c.it.code)].concat(diffs[i].all).concat(diffs[i].words).filter(Boolean),
+      it: c.it
+    }));
+    PEND = {kind:p.kind, list, onPick:(i)=>{ const c=list[i]; clearPend(); writeLine(c.it, p.qty, p.unit, p.drumId, p.said); }};
+    askChoices(list);
+
+    let q, spoken;
+    if(p.kind==='verify'){
+      q = 'Did you mean '+list[0].label+'?';
+      spoken = q+' Say yes, or say it again.';
+    } else {
+      const pairs = diffs.map(d=> d.words[0] || d.nums[0] || '');
+      if(pairs.every(Boolean) && new Set(pairs).size===pairs.length && pairs.length<=3){
+        q = 'Which one — '+pairs.slice(0,-1).join(', ')+' or '+pairs[pairs.length-1]+'?';
+        spoken = q;
+      } else {
+        q = 'I have '+list.length+' that match. Which one?';
+        spoken = q+' '+list.map((c,i)=>(i+1)+', '+c.label).join('. ')+'.';
+      }
+    }
+    say(q, 'Say the number, the difference, or the code — or tap below.');
+    speak(spoken);
+    return;
+  }
+
+  if(p.kind==='undo') return doUndo();
+  if(p.kind==='total') return doTotal();
+  if(p.kind==='finish') return doFinish();
+
+  if(p.kind==='place'){
+    const org = $('fOrg').value;
+    const m = matchPlace(cat, org, p.label);
+    if(m.exact) return goPlace(m.exact.type||p.ptype, m.exact.label);
+    if(!m.open){
+      /* there is a register and this is not on it */
+      if(m.near.length){
+        const list = m.near.map(pl=>({label:pl.label, sub:PL(pl.type||'van').label,
+          keys:[norm(pl.label), regKey(pl.label).toLowerCase()], pl}));
+        PEND = {kind:'place', list,
+          onPick:(i)=>{ const c=list[i]; clearPend(); goPlace(c.pl.type||p.ptype, c.pl.label); },
+          onExtra:()=>{ clearPend(); addPlace(cat, p.label, p.ptype, org); goPlace(p.ptype, p.label); }};
+        askChoices(list, {extra:'Add “'+p.label+'” to the register'});
+        say('“'+p.label+'” is not on the register', 'Closest matches below — say the number, or add it.');
+        speak(p.label+' is not on the register. Did you mean '+list.map((c,i)=>(i+1)+', '+c.label).join('. ')+'?');
+        return;
+      }
+      const only = [{label:'Add “'+p.label+'” to the register', keys:[]}];
+      PEND = {kind:'place', list:only, onPick:()=>{ clearPend(); addPlace(cat,p.label,p.ptype,org); goPlace(p.ptype,p.label); }};
+      askChoices(only);
+      say('“'+p.label+'” is not on the register', 'Nothing close to it. Add it, or say the location again.');
+      speak(p.label+' is not on the register. Say it again, or add it.');
+      return;
+    }
+    return goPlace(p.ptype, p.label);
+  }
+  if(p.kind==='spot'){
+    SPOT = (p.name||'').trim() || nextSpotName();
+    say('Moved to '+SPOT, 'Previous spot saved. Go ahead.');
+    speak('Moved to '+SPOT+'. Go ahead.');
+    renderSpots(); renderTally(); refreshWhere(); return;
+  }
+  if(p.kind==='noitem'){
+    say('Didn’t catch the item','I heard the quantity but not the product. Try the short description, or add it in the Data tab.',true);
+    speak('I got the quantity but not the item. Say it again.'); return;
+  }
+  if(p.kind==='unclear' || p.kind==='none'){
+    say('Say that again','Give me an item and a quantity — "Coke twenty bottles".',true);
+    speak('Say that again.'); return;
+  }
+
+  writeLine(p.it, p.qty, p.unit, p.drumId, text);
+}
+
+function goPlace(ptype, label){
+  const cat = $('fCat').value;
+  const shown = label || PL(ptype).label;
+  const prior = priorFor(cat, $('fOrg').value, label);
+  if(prior){ resume(prior.id); return; }
+  if(cur() && cur().lines.length) doFinish(true);
+  PTYPE = ptype;
+  $('fVan').value = label || '';
+  SPOT = '';
+  syncPlaceUI(); fillPlaces();
+  say('Now counting '+shown, PL(PTYPE).label+'. Say the spot — "shelf A1" — or start counting straight away.');
+  speak('Now counting '+shown+'. Go ahead.');
+  renderTally(); refreshWhere(); renderRecent();
+}
+
+function writeLine(it, qty, unit, drumId, text){
+  const cat = $('fCat').value;
+  if(!SPOT) SPOT = (spotsFor()||CATALOGUES[cat].spots)[0];
+  const line = addLine(it, qty, unit, drumId, text);
+  const p = {it, qty, unit, drumId};
+  if(captureClip(line.id)){ line.audio=true; save(); }
+
+  const base = baseQty(it,p.qty,p.unit);
+  const st = spotTotal();
+  const spotBase = st[it.code] ? st[it.code].base : base;
+
+  let l1 = it.short+' — '+fmt(p.qty)+' '+plural(p.unit,p.qty);
+  if(p.drumId) l1 += ' · drum '+p.drumId;
+  let l2 = 'Confirmed. ';
+  if(base!==p.qty) l2 += fmt(p.qty)+' '+plural(p.unit,p.qty)+' × '+it.pack+' = '+fmt(base)+' '+plural(it.unit,base)+'. ';
+  l2 += SPOT+' now holds '+fmt(spotBase)+' '+plural(it.unit,spotBase)+' of '+it.short+'.';
+  say(l1,l2);
+
+  let spoken = it.short+', '+fmt(p.qty)+' '+plural(p.unit,p.qty)+(p.drumId? ', drum '+p.drumId.split('').join(' '):'')+', confirmed. ';
+  if(base!==p.qty) spoken += 'That is '+fmt(base)+' '+plural(it.unit,base)+'. ';
+  spoken += SPOT+' total, '+fmt(spotBase)+' '+plural(it.unit,spotBase)+'.';
+  speak(spoken);
+
+  renderSpots(); renderTally(); refreshWhere();
+}
+
+function doUndo(){
+  const s=cur();
+  if(!s||!s.lines.length){ say('Nothing to undo','No lines recorded here yet.',true); speak('Nothing to undo.'); return; }
+  const l=s.lines.pop(); save(); renderTally(); renderSpots();
+  const it=item(s.cat,l.code);
+  say('Removed', it.short+' '+fmt(l.qty)+' '+plural(l.unit,l.qty)+' taken off '+l.loc+'.');
+  speak('Removed '+it.short+', '+fmt(l.qty)+' '+plural(l.unit,l.qty)+'.');
+}
+function doTotal(){
+  const s=cur();
+  if(!s||!s.lines.length){ say('Nothing counted yet','Start with an item and a quantity.',true); speak('Nothing counted yet.'); return; }
+  const by = rollLines(s.lines, s.cat);
+  const parts = Object.values(by).map(r=> fmt(r.base)+' '+plural(r.it.unit,r.base)+' of '+r.it.short);
+  say('Total — '+s.container, parts.join(' · '));
+  speak('Total for '+s.container+'. '+parts.join(', ')+'.');
+}
+function doFinish(quiet){
+  const s=cur();
+  if(!s||!s.lines.length){ if(!quiet){ say('Nothing to close','Nothing counted here yet.',true); } return; }
+  s.finished = Date.now();
+  S.sessions.unshift(s); S.current=null; save();
+  const by = rollLines(s.lines, s.cat);
+  if(!quiet){
+    say('Closed — '+s.container, Object.keys(by).length+' item types, '+s.lines.length+' lines. You can reopen it and add to it any time.');
+    speak(s.container+' closed. '+Object.keys(by).length+' item types, '+s.lines.length+' lines.');
+    $('fVan').value=''; SPOT='';
+    $('setup').classList.remove('hidden');
+  }
+  renderTally(); renderSpots(); renderMgr(); refreshWhere(); renderRecent(); syncUp();
+}
+
+/* ============================================================
+   rendering — count
+   ============================================================ */
+let EDIT_TYPES = false;
+function slugType(name){
+  const base = norm(name).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'place';
+  let k = base, i = 2;
+  while(BASE_PLACES.some(p=>p.k===k) || customTypes().some(p=>p.k===k)) k = base+'-'+(i++);
+  return k;
+}
+function addType(name){
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const cfg = typeCfg(cat, org);
+  const label = String(name||'').trim().replace(/\s+/g,' ');
+  if(!label) return;
+  const n = norm(label);
+  const exists = placeTypes(cat,org).find(p=>norm(p.label)===n);
+  if(exists){ PTYPE=exists.k; save(); syncPlaceUI(); return; }
+  const revive = BASE_PLACES.find(p=>norm(p.label)===n);
+  if(revive){ cfg.hidden=(cfg.hidden||[]).filter(k=>k!==revive.k); PTYPE=revive.k; }
+  else {
+    const k = slugType(label);
+    cfg.custom = (cfg.custom||[]).concat([{k, label, field:label+' name', ph:label,
+      icon:GENERIC_ICON, words:[n].concat(n.includes(' ')? [n.split(' ').pop()] : [])}]);
+    PTYPE = k;
+  }
+  save(); syncPlaceUI(); fillPlaces(); renderTypeAdmin();
+}
+function removeType(k){
+  const cat=$('fCat').value, org=$('fOrg').value, cfg=typeCfg(cat,org);
+  if((cfg.custom||[]).some(p=>p.k===k)) cfg.custom = cfg.custom.filter(p=>p.k!==k);
+  else if(!(cfg.hidden||[]).includes(k)) cfg.hidden = (cfg.hidden||[]).concat([k]);
+  const left = placeTypes(cat,org);
+  if(!left.length){ cfg.hidden = (cfg.hidden||[]).filter(x=>x!=='van'); }
+  if(!placeTypes(cat,org).some(p=>p.k===PTYPE)) PTYPE = placeTypes(cat,org)[0].k;
+  save(); syncPlaceUI(); renderTypeAdmin();
+}
+function renderSegs(){
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const list = placeTypes(cat, org);
+  $('segs').className = 'segs'+(EDIT_TYPES?' editing':'');
+  $('segs').innerHTML = list.map(p=>
+    '<button data-p="'+esc(p.k)+'" aria-pressed="'+(p.k===PTYPE)+'">'
+    + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="'+p.icon+'"></path></svg>'
+    + esc(p.label)
+    + (EDIT_TYPES ? '<span class="x" data-x="'+esc(p.k)+'" title="Remove">×</span>' : '')
+    + '</button>').join('')
+    ;
+  const add=$('addType');
+  add.classList.toggle('hidden', !EDIT_TYPES);
+  $('segs').querySelectorAll('button[data-p]').forEach(b=>{
+    b.onclick = e=>{
+      if(e.target.dataset && e.target.dataset.x!=null){ e.stopPropagation(); return removeType(e.target.dataset.x); }
+      PTYPE=b.dataset.p;
+      /* the reg you had belongs to a different kind of place — start clean */
+      const cur=$('fVan').value.trim();
+      const known=placesFor($('fCat').value,$('fOrg').value).find(x=>regKey(x.label)===regKey(cur));
+      if(known && (known.type||'van')!==PTYPE){ $('fVan').value=''; SPOT=''; if(S.current&&!S.current.lines.length) S.current=null; }
+      syncPlaceUI(); fillPlaces(); refreshWhere(); renderRecent();
+    };
+  });
+  $('editTypes').textContent = EDIT_TYPES ? 'Done' : 'Edit';
+}
+function renderTypeAdmin(){
+  const el=$('typeAdmin'); if(!el) return;
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const cfg=((S.placeTypes||{})[cat+'|'+org])||{};
+  const list=placeTypes(cat,org);
+  el.innerHTML = '<div class="jrow"><span class="ji"><b>'+esc(org)+'</b><small>'
+    + list.map(p=>esc(p.label)).join(' · ')
+    + ((cfg.hidden||[]).length ? '<br>Removed: '+(cfg.hidden||[]).map(k=>esc(PL(k).label)).join(', ') : '')
+    + '</small></span><button class="btn" id="typeReset">Reset to standard</button></div>';
+  const r=$('typeReset');
+  if(r) r.onclick=()=>{ if(S.placeTypes) delete S.placeTypes[cat+'|'+org]; save(); syncPlaceUI(); renderTypeAdmin(); };
+}
+function syncPlaceUI(){
+  const avail = placeTypes($('fCat').value, $('fOrg').value);
+  if(avail.length && !avail.some(x=>x.k===PTYPE)) PTYPE = avail[0].k;
+  const p = PL(PTYPE);
+  $('lVan').textContent = p.field;
+  $('fVan').placeholder = p.ph;
+  $('aFinish').textContent = 'Finish '+(PTYPE==='van'?'this vehicle':'here');
+  renderSegs(); refreshWhere();
+  if(S.current && !S.current.lines.length) S.current=null;
+}
+function renderSpots(){
+  const s = cur();
+  const cat = $('fCat').value;
+  const used = [];
+  if(s) for(const l of s.lines) if(!used.includes(l.loc)) used.push(l.loc);
+  const reg = spotsFor();
+  const base = reg || CATALOGUES[cat].spots.slice(0,3);
+  const list = [...new Set(used.concat(SPOT?[SPOT]:[]).concat(base))].filter(Boolean);
+  $('spots').innerHTML = list.map(x=>'<button class="spot" data-s="'+esc(x)+'" aria-pressed="'+(x===SPOT)+'">'+esc(x)+'</button>').join('')
+    + '<button class="spot add" id="spotAdd">+ new spot</button>';
+  $('spots').querySelectorAll('.spot[data-s]').forEach(b=>{
+    b.onclick = ()=>{ SPOT=b.dataset.s; renderSpots(); renderTally(); refreshWhere(); };
+  });
+  $('spotAdd').onclick = ()=>{ SPOT = nextSpotName(); renderSpots(); renderTally(); refreshWhere(); };
+}
+function renderProg(){
+  const s = cur();
+  const lines = s? s.lines : [];
+  const spots = new Set(lines.map(l=>l.loc));
+  const by = rollLines(lines, s?s.cat:$('fCat').value);
+  $('prog').innerHTML =
+     '<div><div class="v">'+spots.size+'</div><div class="k">Spots</div></div>'
+   + '<div><div class="v">'+lines.length+'</div><div class="k">Lines</div></div>'
+   + '<div><div class="v">'+Object.keys(by).length+'</div><div class="k">Items</div></div>';
+}
+function renderTally(){
+  renderProg();
+  const s = cur(), el = $('tally');
+  if(!s || !s.lines.length){
+    el.innerHTML = '<h3>This location</h3><div class="empty">Nothing counted yet. Say an item and a quantity to begin.</div>';
+    return;
+  }
+  const locs=[]; for(const l of s.lines) if(!locs.includes(l.loc)) locs.push(l.loc);
+  let h = '<h3>'+esc(PL(s.ctype||'van').label)+' · '+esc(s.container)+' · '+esc(s.org)+'</h3>';
+  for(const loc of locs){
+    const by = rollLines(s.lines.filter(l=>l.loc===loc), s.cat);
+    h += '<div class="grp2">'+esc(loc)+'</div>';
+    for(const r of Object.values(by)){
+      h += '<div class="line"><span class="code">'+esc(r.it.code)+'</span><span class="nm">'+esc(r.it.short)
+         + (r.drums.length? '<small>'+esc(r.drums.join(', '))+'</small>':'')
+         + (r.packs? '<small>incl. '+fmt(r.packs)+' '+esc(plural(r.it.packName||'case',r.packs))+'</small>':'')
+         + '</span><span class="q">'+fmt(r.base)+'<small>'+esc(plural(r.it.unit,r.base))+'</small></span></div>';
+    }
+  }
+  const all = rollLines(s.lines, s.cat);
+  h += '<div class="sum"><span>Running total</span><b>'+Object.keys(all).length+' items · '+s.lines.length+' lines</b></div>';
+
+  h += '<div class="calls"><h3>As called out</h3>';
+  for(const l of s.lines.slice(-8).reverse()){
+    const it = item(s.cat,l.code);
+    const said = l.raw || (it.short+' '+fmt(l.qty)+' '+plural(l.unit,l.qty));
+    h += '<div class="call"><span class="t">'+new Date(l.ts).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+'</span>'
+       + '<span class="said">'+esc(said)+'</span>'
+       + (l.audio? '<button class="play" data-clip="'+l.id+'" title="Play what was said">▶</button>'
+                 : '<button class="play" disabled title="No recording">▶</button>')+'</div>';
+  }
+  h += '</div>';
+  el.innerHTML = h;
+  el.querySelectorAll('.play[data-clip]').forEach(b=> b.addEventListener('click',()=>playClip(b.dataset.clip,b)));
+}
+
+/* ============================================================
+   rendering — rollup
+   ============================================================ */
+function allSessions(){
+  const list = S.sessions.slice();
+  if(S.current && S.current.lines.length) list.unshift(Object.assign({},S.current,{open:true}));
+  return list;
+}
+function scopedSessions(){ return visible(allSessions()); }
+function tile(k,v,s){ return '<div class="tile"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="s">'+esc(s||'')+'</div></div>'; }
+
+function renderMgr(){
+  const sess = scopedSessions();
+  const lines = sess.flatMap(s=>s.lines.map(l=>Object.assign({},l,{org:s.org, container:s.container, cat:s.cat||l.cat})));
+  const orgs = [...new Set(sess.map(s=>s.org))];
+  const places = [...new Set(sess.map(s=>s.org+'|'+s.container))];
+  const vehicles = sess.filter(s=>s.ctype==='van').length;
+  const lastTs = sess.length ? Math.max(...sess.map(s=>s.finished||s.started)) : null;
+
+  $('tiles').innerHTML = [
+    tile('Customers', orgs.length, orgs.join(', ')),
+    tile('Locations counted', places.length, vehicles+' vehicle'+(vehicles===1?'':'s')+', '+(places.length-vehicles)+' stores and yards'),
+    tile('Counters', new Set(sess.map(x=>x.by||'—')).size, isOwner()? 'across the account':'you'),
+    tile('Lines called out', lines.length, 'across '+sess.length+' stocktakes'),
+    tile('Last count', lastTs? new Date(lastTs).toLocaleDateString('en-IE',{day:'numeric',month:'short'}):'—',
+         lastTs? new Date(lastTs).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'')
+  ].join('');
+
+  let h = '<thead><tr><th>Customer / location / item</th><th class="r">Quantity</th><th>Unit</th><th class="r">Packs</th><th>Status</th></tr></thead><tbody>';
+  for(const org of orgs){
+    const os = sess.filter(s=>s.org===org);
+    const oLines = os.flatMap(s=>s.lines);
+    const oid = 'o'+org.replace(/\W/g,'');
+    const col = brandFor(os[0].cat||'fibre', org).color;
+    h += '<tr class="grp" data-t="'+oid+'"><td><span class="caret">▸</span> <span class="dotc" style="background:'+col+'"></span>'+esc(org)+'</td>'
+       + '<td class="r">'+os.length+'</td><td>location'+(os.length===1?'':'s')+'</td><td class="r">'+oLines.length+' lines</td>'
+       + '<td>'+(os.some(s=>s.example)?'<span class="tag ex">Example data</span>':'')+(os.some(s=>s.open)?' <span class="tag open">Counting</span>':'')+'</td></tr>';
+    for(const s of os){
+      const vid = oid+'v'+s.id.replace(/\W/g,'');
+      const vBy = rollLines(s.lines, s.cat);
+      h += '<tr class="grp sub '+oid+' hidden" data-t="'+vid+'"><td><span class="caret">▸</span> '+esc(s.container)
+         + ' <span class="tag">'+esc(PL(s.ctype||'van').label)+'</span></td>'
+         + '<td class="r">'+Object.keys(vBy).length+'</td><td>items</td><td class="r">'+s.lines.length+' lines</td>'
+         + '<td>'+new Date(s.finished||s.started).toLocaleDateString('en-IE',{day:'numeric',month:'short'})+'</td></tr>';
+      for(const r of Object.values(vBy)){
+        h += '<tr class="leaf '+vid+' hidden"><td>'+esc(r.it.short)+' <span class="tag">'+esc(r.it.code)+'</span>'
+           + (r.drums.length?'<br><small style="color:var(--ink-3)">'+esc(r.drums.join(', '))+'</small>':'')+'</td>'
+           + '<td class="r">'+fmt(r.base)+'</td><td>'+esc(plural(r.it.unit,r.base))+'</td><td class="r">'+(r.packs?fmt(r.packs):'—')+'</td><td></td></tr>';
+      }
+    }
+  }
+  h += '</tbody>';
+  $('tblOrg').innerHTML = h;
+  $('tblOrg').querySelectorAll('.grp').forEach(tr=>{
+    tr.addEventListener('click', ()=>{
+      const t = tr.dataset.t;
+      const kids = document.querySelectorAll('.'+t);
+      const wasHidden = kids.length && kids[0].classList.contains('hidden');
+      kids.forEach(k=>{
+        if(wasHidden) k.classList.remove('hidden');
+        else { k.classList.add('hidden'); document.querySelectorAll('.'+(k.dataset.t||'__none')).forEach(g=>g.classList.add('hidden')); }
+      });
+      tr.querySelector('.caret').textContent = wasHidden ? '▾' : '▸';
+    });
+  });
+
+  const byItem={};
+  for(const l of lines){
+    const it = item(l.cat,l.code), k=l.cat+'|'+l.code;
+    byItem[k] = byItem[k] || {it, base:0, packs:0, orgs:new Set()};
+    byItem[k].base += baseQty(it,l.qty,l.unit);
+    if(isPackUnit(it,l.unit)) byItem[k].packs += l.qty;
+    byItem[k].orgs.add(l.org);
+  }
+  const rows = Object.values(byItem).sort((a,b)=>b.base-a.base);
+  if(!rows.length) $('tblItem').innerHTML = '<tbody><tr><td class="empty">No counts yet.</td></tr></tbody>';
+  else {
+    let h2 = '<thead><tr><th>Code</th><th>Item</th><th class="r">Total</th><th>Unit</th><th class="r">Whole packs</th><th class="r">Held by</th></tr></thead><tbody>';
+    for(const r of rows){
+      const whole = r.it.pack>1 ? Math.floor(r.base/r.it.pack) : 0;
+      h2 += '<tr><td class="mono" style="font-size:12px">'+esc(r.it.code)+'</td>'
+          + '<td>'+esc(r.it.short)+'<br><small style="color:var(--ink-3)">'+esc(r.it.long)+'</small></td>'
+          + '<td class="r"><b>'+fmt(r.base)+'</b></td><td>'+esc(plural(r.it.unit,r.base))+'</td>'
+          + '<td class="r">'+(whole? fmt(whole)+' '+esc(plural(r.it.packName||'case',whole)) : '—')+'</td>'
+          + '<td class="r">'+r.orgs.size+'</td></tr>';
+    }
+    $('tblItem').innerHTML = h2+'</tbody>';
+  }
+
+  /* by job */
+  let hj='<thead><tr><th>Job</th><th>Type</th><th>Due</th><th class="r">Locations</th><th class="r">Lines</th><th class="r">Counters</th><th>Progress</th></tr></thead><tbody>';
+  for(const j of jobs()){
+    const js = sess.filter(x=>x.job===j.id);
+    const locs = new Set(js.map(x=>x.org+'|'+x.container)).size;
+    const who = new Set(js.map(x=>x.by||'—')).size;
+    const pct = j.target ? Math.min(100, Math.round(locs/j.target*100)) : (locs?100:0);
+    hj += '<tr><td><b>'+esc(j.name)+'</b></td><td>'+esc(j.kind)+'</td>'
+        + '<td>'+(j.due? new Date(j.due).toLocaleDateString('en-IE',{day:'numeric',month:'short'}):'—')+'</td>'
+        + '<td class="r">'+locs+(j.target? ' / '+j.target:'')+'</td>'
+        + '<td class="r">'+js.reduce((n,x)=>n+x.lines.length,0)+'</td><td class="r">'+who+'</td>'
+        + '<td><span class="bar2" style="display:inline-block;vertical-align:middle"><i style="width:'+pct+'%"></i></span> '+pct+'%</td></tr>';
+  }
+  if($('tblJob')) $('tblJob').innerHTML = hj+'</tbody>';
+
+  /* still to count — the register, minus what has been done on the live job */
+  if($('tblTodo')){
+    const cat=$('fCat').value, jid=$('fJob').value||S.job;
+    const reg=(S.places&&S.places[cat])||[];
+    const done=new Set(sess.filter(x=>x.job===jid).map(x=>regKey(x.container)));
+    const todo=reg.filter(pl=>!done.has(regKey(pl.label)));
+    $('todoHint').textContent = reg.length
+      ? jobName(jid)+' — '+(reg.length-todo.length)+' of '+reg.length+' registered locations counted'
+      : 'Import a register of vehicle regs and locations to track what is outstanding';
+    if(!reg.length) $('tblTodo').innerHTML='<tbody><tr><td class="empty">No location register imported yet.</td></tr></tbody>';
+    else if(!todo.length) $('tblTodo').innerHTML='<tbody><tr><td class="empty">Every registered location has been counted on this job.</td></tr></tbody>';
+    else {
+      let ht='<thead><tr><th>Location</th><th>Type</th><th>Customer</th></tr></thead><tbody>';
+      for(const pl of todo) ht+='<tr><td><b>'+esc(pl.label)+'</b></td><td>'+esc(PL(pl.type||'van').label)+'</td><td>'+esc(pl.org||'—')+'</td></tr>';
+      $('tblTodo').innerHTML=ht+'</tbody>';
+    }
+  }
+
+  /* by counter */
+  const byWho={};
+  for(const x of sess){
+    const k=x.by||'Unassigned';
+    byWho[k]=byWho[k]||{locs:new Set(), lines:0, orgs:new Set(), last:0};
+    byWho[k].locs.add(x.org+'|'+x.container);
+    byWho[k].lines+=x.lines.length;
+    byWho[k].orgs.add(x.org);
+    byWho[k].last=Math.max(byWho[k].last, x.finished||x.started);
+  }
+  let hw='<thead><tr><th>Counter</th><th class="r">Locations</th><th class="r">Lines</th><th class="r">Customers</th><th>Last count</th></tr></thead><tbody>';
+  for(const k of Object.keys(byWho).sort()){
+    const v=byWho[k];
+    hw += '<tr><td><b>'+esc(k)+'</b></td><td class="r">'+v.locs.size+'</td><td class="r">'+v.lines
+        + '</td><td class="r">'+v.orgs.size+'</td><td>'+new Date(v.last).toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+'</td></tr>';
+  }
+  if($('tblWho')) $('tblWho').innerHTML = hw+'</tbody>';
+
+  let h3 = '<thead><tr><th>When</th><th>Counter</th><th>Job</th><th>Customer</th><th>Location</th><th class="r">Lines</th><th>Status</th><th></th></tr></thead><tbody>';
+  for(const s of sess){
+    h3 += '<tr><td>'+new Date(s.finished||s.started).toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+'</td>'
+        + '<td>'+esc(s.by||'—')+'</td><td>'+esc(jobName(s.job))+'</td>'
+        + '<td>'+esc(s.org)+'</td><td>'+esc(s.container)+' <span class="tag">'+esc(PL(s.ctype||'van').label)+'</span></td>'
+        + '<td class="r">'+s.lines.length+'</td>'
+        + '<td>'+(s.open?'<span class="tag open">Counting</span>':'<span class="tag">Closed</span>')
+        + (s.reopens?' <span class="tag">Reopened '+s.reopens+'×</span>':'')
+        + (s.example?' <span class="tag ex">Example</span>':'')+'</td>'
+        + '<td class="r">'+(s.open?'':'<button class="btn" data-re="'+s.id+'">Reopen</button>')+'</td></tr>';
+  }
+  $('tblSess').innerHTML = h3+'</tbody>';
+  $('tblSess').querySelectorAll('button[data-re]').forEach(b=> b.onclick=()=>resume(b.dataset.re));
+  renderVar();
+}
+
+function renderVar(){
+  const cat = $('fCat').value;
+  const base = (S.baseline && S.baseline[cat]) || {};
+  const codes = Object.keys(base);
+  if(!codes.length){
+    $('varHint').textContent = 'Import a file with an expected-quantity column, then count and compare';
+    $('tblVar').innerHTML = '<tbody><tr><td class="empty">No expected figures loaded yet. Import last month’s stocktake with its quantity column and every count from then on is checked against it.</td></tr></tbody>';
+    return;
+  }
+  const counted={};
+  for(const s of scopedSessions()){
+    if((s.cat||'')!==cat) continue;
+    for(const l of s.lines){ const it=item(cat,l.code); counted[l.code]=(counted[l.code]||0)+baseQty(it,l.qty,l.unit); }
+  }
+  const all=[...new Set(codes.concat(Object.keys(counted)))];
+  let matched=0,diffs=0,uncounted=0;
+  let h='<thead><tr><th>Code</th><th>Item</th><th class="r">Expected</th><th class="r">Counted</th><th class="r">Difference</th><th>Unit</th></tr></thead><tbody>';
+  for(const c of all.sort()){
+    const it=item(cat,c), e=base[c], got=counted[c];
+    const d = (got==null||e==null) ? null : got-e;
+    if(d===0) matched++; else if(d!==null) diffs++; else if(got==null) uncounted++;
+    h += '<tr><td class="mono" style="font-size:12px">'+esc(c)+'</td><td>'+esc(it.short)+'</td>'
+       + '<td class="r">'+(e==null?'—':fmt(e))+'</td>'
+       + '<td class="r">'+(got==null?'<span style="color:var(--ink-3)">not counted</span>':fmt(got))+'</td>'
+       + '<td class="r">'+(d==null?'—':(d===0?'<span class="pos">✓</span>':'<span class="'+(d>0?'pos':'neg')+'">'+(d>0?'+':'')+fmt(d)+'</span>'))+'</td>'
+       + '<td>'+esc(plural(it.unit,2))+'</td></tr>';
+  }
+  $('tblVar').innerHTML = h+'</tbody>';
+  $('varHint').textContent = matched+' matched exactly · '+diffs+' with a difference · '+uncounted+' not yet counted';
+}
+
+function renderCat(){
+  const cat=$('fCat').value, base=(S.baseline&&S.baseline[cat])||{};
+  let h='<thead><tr><th>Code</th><th>Short description</th><th>Long description</th><th>Unit</th><th class="r">Pack size</th><th class="r">Expected</th><th>Spoken as</th></tr></thead><tbody>';
+  for(const it of items(cat)){
+    h += '<tr><td class="mono" style="font-size:12px">'+esc(it.code)+'</td><td>'+esc(it.short)+'</td>'
+       + '<td style="color:var(--ink-2)">'+esc(it.long)+'</td><td>'+esc(it.unit)+'</td>'
+       + '<td class="r">'+(it.pack>1? it.pack+' per '+esc(it.packName||'case'):'—')+'</td>'
+       + '<td class="r">'+(base[it.code]!=null? fmt(base[it.code]):'—')+'</td>'
+       + '<td style="color:var(--ink-3)">'+esc(it.alias||'')+'</td></tr>';
+  }
+  $('tblCat').innerHTML = h+'</tbody>';
+}
+
+function renderBrands(){
+  const cat=$('fCat').value;
+  $('brandList').innerHTML = orgsFor(cat).map(o=>{
+    const b = brandFor(cat,o);
+    return '<div class="brandrow">'
+      + '<span class="badge" style="background:'+b.color+';color:'+(lum(b.color)>0.55?'#12191C':'#fff')+'">'
+      + (b.logo? '<img src="'+esc(b.logo)+'" alt="">' : esc(b.mono||initials(o)))+'</span>'
+      + '<span class="n">'+esc(o)+'</span>'
+      + '<input type="color" value="'+b.color+'" data-col="'+esc(o)+'" title="Brand colour">'
+      + '<label class="lbl-btn">Upload logo<input type="file" accept="image/*" data-logo="'+esc(o)+'" class="hidden"></label>'
+      + (b.logo? '<button class="lbl-btn" data-clear="'+esc(o)+'">Remove</button>':'')
+      + '</div>';
+  }).join('');
+  $('brandList').querySelectorAll('input[data-col]').forEach(i=>{
+    i.onchange = ()=>{ setBrand(cat,i.dataset.col,{color:i.value}); renderBrands(); applyBrand(); renderMgr(); };
+  });
+  $('brandList').querySelectorAll('input[data-logo]').forEach(i=>{
+    i.onchange = e=>{ const f=e.target.files[0]; if(f) shrinkLogo(f, url=>{ setBrand(cat,i.dataset.logo,{logo:url}); renderBrands(); applyBrand(); }); };
+  });
+  $('brandList').querySelectorAll('button[data-clear]').forEach(b=>{
+    b.onclick = ()=>{ setBrand(cat,b.dataset.clear,{logo:null}); renderBrands(); applyBrand(); };
+  });
+}
+function shrinkLogo(file, cb){
+  const rd=new FileReader();
+  rd.onload = ()=>{
+    const img=new Image();
+    img.onload = ()=>{
+      const max=160, sc=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      try{ cb(c.toDataURL('image/png')); }catch(e){ cb(rd.result); }
+    };
+    img.onerror = ()=>cb(rd.result);
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(file);
+}
+
+/* ============================================================
+   import
+   ============================================================ */
+const FIELDS = [
+  {key:'code',     label:'Item code',         syn:['sap','sap code','sap number','sap material','material','material number','material no','material code','item code','item no','item number','part number','part no','partno','part code','stock code','stock number','product code','sku','invoice code','invoice ref','code','ref','reference','catalogue number','cat no','article number','article']},
+  {key:'short',    label:'Short description', syn:['short description','short desc','short text','description','desc','item description','item name','material description','name','product name','product description','title']},
+  {key:'long',     label:'Long description',  syn:['long description','long desc','long text','extended description','full description','details','detail','specification','spec','notes','comment']},
+  {key:'unit',     label:'Unit of measure',   syn:['uom','unit','unit of measure','units','base unit','base uom','measure','issue unit','stock unit','sales unit']},
+  {key:'pack',     label:'Pack size',         syn:['pack size','pack','packsize','pack qty','pack quantity','qty per pack','units per pack','case size','units per case','qty per case','box qty','box quantity','per box','per pack','per case','conversion','conversion factor','multiplier','inner qty','outer qty','drum length','coil length','standard length']},
+  {key:'packName', label:'Pack name',         syn:['pack type','pack name','packaging','case type','pack uom','purchase unit','order unit','buying unit']},
+  {key:'expected', label:'Expected quantity', syn:['qty','quantity','stock on hand','on hand','soh','closing stock','opening stock','balance','count','last count','stock','current stock','book stock','qty on hand','physical','system qty','expected','total']},
+  {key:'price',    label:'Unit price',        syn:['price','unit price','cost','unit cost','value','rate','standard price','list price','net price']},
+  {key:'alias',    label:'Spoken as',         syn:['spoken as','alias','aliases','nickname','common name','also known as','short name','local name']},
+  {key:'owner',    label:'Customer',          syn:['contractor','subcontractor','supplier','vendor','owner','held by','customer','company','account','client','region']},
+  {key:'placeLabel',label:'Location / reg',    syn:['registration','reg','reg no','reg number','registration number','vehicle reg','vehicle','van reg','van','fleet no','fleet number','fleet','plate','number plate','asset','asset number','unit number','location','location name','place','room','area','bar','store name','yard name','site name','depot','warehouse']},
+  {key:'placeType', label:'Location type',     syn:['type','location type','place type','vehicle type','category','kind','class']},
+  {key:'spot',      label:'Shelf / spot',      syn:['shelf','shelf no','shelf number','shelves','spot','bay','bay no','rack','rack no','position','aisle','bin','bin location','sub location','compartment','level']}
+];
+const FKEY={}; FIELDS.forEach(f=>FKEY[f.key]=f);
+const UOM_MAP = {ea:'each',each:'each',pc:'each',pcs:'each',piece:'each',unit:'each',un:'each',no:'each',nr:'each',item:'each',
+  m:'metre',mtr:'metre',mtrs:'metre',met:'metre',metre:'metre',meter:'metre',lm:'metre',km:'kilometre',
+  cs:'case',case:'case',bx:'box',box:'box',pk:'pack',pack:'pack',pkt:'packet',ctn:'carton',
+  drm:'drum',drum:'drum',coil:'coil',reel:'reel',rl:'reel',bag:'bag',pal:'pallet',plt:'pallet',
+  btl:'bottle',bot:'bottle',bottle:'bottle',keg:'keg',can:'can',l:'litre',ltr:'litre',kg:'kilo',roll:'roll'};
+function normUom(v){ const k=String(v||'').toLowerCase().replace(/[^a-z]/g,''); return UOM_MAP[k] || (k||'each'); }
+function hnorm(s){ return String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim(); }
+function synScore(header){
+  const h=hnorm(header); if(!h) return null;
+  let best=null,bs=0;
+  for(const f of FIELDS) for(const sy of f.syn){
+    let sc=0;
+    if(h===sy) sc=100;
+    else if(h.replace(/ /g,'')===sy.replace(/ /g,'')) sc=95;
+    else if(sy.length>3 && h.includes(sy)) sc=60+sy.length;
+    else if(h.length>3 && sy.includes(h)) sc=50+h.length;
+    if(sc>bs){ bs=sc; best=f.key; }
+  }
+  return bs>=50 ? {key:best,score:bs} : null;
+}
+function parseCSV(text){
+  const rows=[]; let row=[],cell='',q=false;
+  const first=text.split('\n')[0]||'';
+  const d = first.split('\t').length > first.split(',').length ? '\t' : ',';
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ cell+='"'; i++; } else q=false; } else cell+=c; }
+    else if(c==='"') q=true;
+    else if(c===d){ row.push(cell); cell=''; }
+    else if(c==='\n'){ row.push(cell); rows.push(row); row=[]; cell=''; }
+    else if(c!=='\r') cell+=c;
+  }
+  if(cell||row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+let IMP=null;
+function analyse(rows){
+  let hi=0,hbest=-1;
+  for(let i=0;i<Math.min(rows.length,20);i++){
+    const r=rows[i]||[]; let hits=0,filled=0;
+    for(const c of r){ if(String(c||'').trim()){ filled++; if(synScore(c)) hits++; } }
+    const score=hits*10+filled;
+    if(hits>0 && score>hbest){ hbest=score; hi=i; }
+  }
+  const headers=(rows[hi]||[]).map(h=>String(h==null?'':h).trim());
+  const claim={};
+  headers.forEach((h,ci)=>{ const g=synScore(h); if(!g) return; if(!claim[g.key]||g.score>claim[g.key].score) claim[g.key]={ci,score:g.score}; });
+  const map=headers.map(()=>'');
+  for(const k in claim) map[claim[k].ci]=k;
+  return {rows,headerIdx:hi,headers,map};
+}
+function renderMap(){
+  if(!IMP) return;
+  const dataRows = IMP.rows.slice(IMP.headerIdx+1).filter(r=>r.some(c=>String(c||'').trim()));
+  $('mapInfo').textContent = 'Headings found on row '+(IMP.headerIdx+1)+' · '+IMP.headers.length+' columns · '+dataRows.length+' rows below';
+  const opts = k => ['<option value="">— ignore —</option>'].concat(FIELDS.map(f=>'<option value="'+f.key+'"'+(k===f.key?' selected':'')+'>'+f.label+'</option>')).join('');
+  $('mapRows').innerHTML = IMP.headers.map((h,i)=>{
+    const sample=(dataRows[0]||[])[i];
+    return '<div class="maprow"><div class="h">'+esc(h||'(no heading)')+'<small>'+esc(String(sample==null?'':sample).slice(0,40)||'—')+'</small></div>'
+         + '<select data-ci="'+i+'" class="'+(IMP.map[i]?'set':'')+'">'+opts(IMP.map[i])+'</select></div>';
+  }).join('');
+  $('mapRows').querySelectorAll('select').forEach(sel=>{
+    sel.onchange = ()=>{
+      const ci=+sel.dataset.ci, v=sel.value;
+      if(v) IMP.map.forEach((m,j)=>{ if(m===v && j!==ci) IMP.map[j]=''; });
+      IMP.map[ci]=v; renderMap();
+    };
+  });
+  let h='<thead><tr>'+IMP.headers.map((x,i)=>'<th>'+esc(IMP.map[i]? FKEY[IMP.map[i]].label : (x||'—'))+'</th>').join('')+'</tr></thead><tbody>';
+  for(const r of dataRows.slice(0,5)) h += '<tr>'+IMP.headers.map((x,i)=>'<td>'+esc(String(r[i]==null?'':r[i]).slice(0,32))+'</td>').join('')+'</tr>';
+  $('tblPrev').innerHTML = h+'</tbody>';
+  const hasCode = IMP.map.includes('code');
+  const hasPlace = !hasCode && IMP.map.includes('placeLabel');
+  $('mapCount').textContent = hasCode ? dataRows.length+' items ready to import'
+    : hasPlace ? dataRows.length+' locations ready to register'
+    : 'Pick which column holds the item code, or the vehicle reg / location name';
+  $('impAdd').disabled = $('impReplace').disabled = !(hasCode||hasPlace);
+  $('impAdd').textContent = hasPlace ? 'Add to register' : 'Add to existing';
+  $('impReplace').textContent = hasPlace ? 'Replace register' : 'Replace item master';
+  $('mapWrap').classList.remove('hidden');
+}
+function buildItems(){
+  const ci={}; FIELDS.forEach(f=> ci[f.key]=IMP.map.indexOf(f.key));
+  const out=[], baseline={}, owners=new Set();
+  for(const r of IMP.rows.slice(IMP.headerIdx+1)){
+    const get = k => ci[k]>=0 ? String(r[ci[k]]==null?'':r[ci[k]]).trim() : '';
+    const code=get('code'); if(!code) continue;
+    const short=get('short')||code;
+    const pack=Math.max(1,Math.round(parseFloat(get('pack').replace(/[^0-9.]/g,''))||1));
+    const aliasBits=new Set();
+    get('alias').split(/[,;]/).forEach(a=>{ a=norm(a); if(a) aliasBits.add(a); });
+    const nt=norm(short).split(' ').filter(Boolean);
+    aliasBits.add(nt.join(' '));
+    const noNums=nt.filter(w=>!/\d/.test(w));
+    if(noNums.length) aliasBits.add(noNums.join(' '));
+    if(nt.length>2){ aliasBits.add(nt.slice(0,2).join(' ')); aliasBits.add(nt.slice(-2).join(' ')); }
+    aliasBits.delete('');
+    out.push({code, short, long:get('long')||short, unit:normUom(get('unit')), pack,
+      packName: get('packName')? normUom(get('packName')) : (pack>1?'case':''),
+      alias:[...aliasBits].join(', '),
+      price: parseFloat(get('price').replace(/[^0-9.]/g,''))||null});
+    const exp=parseFloat(get('expected').replace(/[^0-9.\-]/g,''));
+    if(!isNaN(exp)) baseline[code]=(baseline[code]||0)+exp;
+    const own=get('owner'); if(own) owners.add(own);
+  }
+  return {out, baseline, owners:[...owners]};
+}
+const PTYPE_WORDS = {van:'van', vehicle:'van', truck:'van', lorry:'van', car:'van', jeep:'van',
+  'inside store':'store-in', 'internal store':'store-in', store:'store-in', warehouse:'store-in', bar:'store-in', room:'store-in',
+  'outside store':'store-out', 'external store':'store-out',
+  yard:'yard', compound:'yard', depot:'yard', container:'container', cabin:'container',
+  site:'site', job:'site'};
+function toPtype(v){
+  const k = norm(v);
+  if(!k) return null;
+  if(PTYPE_WORDS[k]) return PTYPE_WORDS[k];
+  for(const w in PTYPE_WORDS){ if(k.includes(w)) return PTYPE_WORDS[w]; }
+  for(const pl of BASE_PLACES.concat(customTypes())) for(const w of pl.words){ if(k.includes(w)) return pl.k; }
+  return null;
+}
+function guessPtype(label){
+  const k = regKey(label);
+  if(/^\d{2,3}[A-Z]{1,2}\d{1,6}$/.test(k)) return 'van';      /* Irish plate */
+  if(/^[A-Z]{2}\d{2}[A-Z]{3}$/.test(k)) return 'van';           /* UK plate */
+  const n = norm(label);
+  return toPtype(n) || 'store-in';
+}
+function importPlaces(replace){
+  const cat=$('fCat').value;
+  const ci={}; FIELDS.forEach(f=> ci[f.key]=IMP.map.indexOf(f.key));
+  const out=[], owners=new Set(), byKey={};
+  for(const r of IMP.rows.slice(IMP.headerIdx+1)){
+    const get = k => ci[k]>=0 ? String(r[ci[k]]==null?'':r[ci[k]]).trim() : '';
+    const label=get('placeLabel'); if(!label) continue;
+    const org=get('owner'), k=regKey(label);
+    if(!byKey[k]){
+      byKey[k] = {label, type: toPtype(get('placeType')) || guessPtype(label), org, spots:[]};
+      out.push(byKey[k]);
+    }
+    /* several rows for one location just add shelves to it */
+    for(const sp of get('spot').split(/[,;|]/).map(x=>x.trim()).filter(Boolean))
+      if(!byKey[k].spots.includes(sp)) byKey[k].spots.push(sp);
+    if(org) owners.add(org);
+  }
+  out.forEach(o=>{ o.spots.sort(natCmp); });
+  if(!out.length) return;
+  S.places = S.places || {};
+  S.places[cat] = replace ? out
+    : (S.places[cat]||[]).filter(p=>!out.some(o=>regKey(o.label)===regKey(p.label))).concat(out);
+  if(owners.size){
+    S.orgs = S.orgs || {};
+    S.orgs[cat] = [...new Set((replace?[]:(S.orgs[cat]||orgsFor(cat))).concat([...owners]))];
+  }
+  save();
+  const byType = {};
+  for(const o of out) byType[o.type]=(byType[o.type]||0)+1;
+  const withSpots = out.filter(o=>o.spots.length).length;
+  $('impNote').textContent = out.length+' locations registered — '
+    + Object.keys(byType).map(k=>byType[k]+' '+PL(k).label.toLowerCase()).join(', ')
+    + (withSpots? ', '+withSpots+' with their own shelf list':'')
+    + '. Counts now have to land on one of these.';
+  $('mapWrap').classList.add('hidden'); IMP=null;
+  fillOrgs(); renderPlaces(); renderMgr();
+}
+function doImport(replace){
+  if(!IMP) return;
+  if(!IMP.map.includes('code') && IMP.map.includes('placeLabel')) return importPlaces(replace);
+  const cat=$('fCat').value;
+  const {out,baseline,owners}=buildItems();
+  if(!out.length) return;
+  S.custom=S.custom||{}; S.baseline=S.baseline||{}; S.orgs=S.orgs||{}; S.hideBuiltin=S.hideBuiltin||{}; S.mapping=S.mapping||{};
+  if(replace){ S.custom[cat]=out; S.hideBuiltin[cat]=true; S.baseline[cat]=baseline; }
+  else {
+    S.custom[cat]=(S.custom[cat]||[]).filter(i=>!out.some(o=>o.code===i.code)).concat(out);
+    S.baseline[cat]=Object.assign({},S.baseline[cat]||{},baseline);
+  }
+  if(owners.length) S.orgs[cat]=[...new Set((replace?[]:(S.orgs[cat]||orgsFor(cat))).concat(owners))];
+  S.mapping[cat]={headers:IMP.headers, map:IMP.map};
+  save();
+  $('impNote').textContent = out.length+' items imported'
+    + (Object.keys(baseline).length? ', '+Object.keys(baseline).length+' with an expected quantity to count against':'')
+    + (owners.length? ', '+owners.length+' customers picked up':'')+'.';
+  $('mapWrap').classList.add('hidden'); IMP=null;
+  fillOrgs(); renderCat(); renderOrgBox(); renderBrands(); renderMgr();
+}
+function readFile(f){
+  if(!f) return;
+  const isX=/\.(xlsx|xls)$/i.test(f.name), rd=new FileReader();
+  rd.onload = ()=>{
+    let rows;
+    try{
+      if(isX){
+        if(!window.XLSX){ $('impNote').textContent='Excel reader did not load — save the sheet as CSV and try again.'; return; }
+        const wb=XLSX.read(rd.result,{type:'array'});
+        rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+      } else rows=parseCSV(String(rd.result));
+    }catch(e){ $('impNote').textContent='Could not read that file. CSV or .xlsx both work.'; return; }
+    rows=(rows||[]).filter(r=>Array.isArray(r));
+    if(!rows.length){ $('impNote').textContent='That file came through empty.'; return; }
+    IMP=analyse(rows); $('impNote').textContent=f.name; renderMap();
+  };
+  if(isX) rd.readAsArrayBuffer(f); else rd.readAsText(f);
+}
+function renderOrgBox(){
+  const cat=$('fCat').value;
+  $('orgBox').value = orgsFor(cat).join('\n');
+  $('orgCount').textContent = orgsFor(cat).length+' customers';
+}
+
+/* ============================================================
+   roles, jobs, location picker
+   ============================================================ */
+function me(){ S.me = S.me || {role:'counter', name:'Seán M'}; return S.me; }
+function isOwner(){ return me().role==='owner'; }
+function visible(list){ return isOwner() ? list : list.filter(s=>(s.by||'')===me().name); }
+
+function applyRole(){
+  const owner = isOwner();
+  document.querySelectorAll('.owner-only').forEach(el=>el.classList.toggle('hidden', !owner));
+  $('roleBtn').className = 'rolechip'+(owner?' owner':'');
+  $('roleTxt').textContent = owner ? 'Owner view' : (me().name || 'Counter');
+  $('whoWrap').classList.toggle('hidden', !owner);
+  $('scope').innerHTML = owner
+    ? '<b>Owner view.</b>&nbsp;Every counter, every location, every job across the account.'
+    : '<b>Your counts only.</b>&nbsp;You can see what you counted. Totals across the account go to the owner.';
+  renderMgr(); renderRecent(); renderJobsAdmin();
+}
+function openPin(){
+  $('pinBar').classList.remove('hidden');
+  $('pinMsg').textContent=''; $('pinIn').value='';
+  setTimeout(()=>$('pinIn').focus(), 30);
+}
+function closePin(){ $('pinBar').classList.add('hidden'); $('pinMsg').textContent=''; }
+function tryPin(){
+  if(String($('pinIn').value).trim() !== String(S.pin||'1234')){
+    $('pinMsg').textContent='Wrong PIN'; $('pinIn').select(); return;
+  }
+  me().role='owner'; save(); closePin(); applyRole(); fillOrgs();
+}
+function switchRole(){
+  if(isOwner()){ me().role='counter'; save(); applyRole(); return; }
+  openPin();
+}
+
+function fillJobs(){
+  const cat=$('fCat').value;
+  const list = jobs().filter(j=>!j.cat || j.cat===cat);
+  $('fJob').innerHTML = list.map(j=>'<option value="'+esc(j.id)+'">'+esc(j.name)+' · '+esc(j.kind)+'</option>').join('')
+    || '<option value="">No job for this catalogue</option>';
+  if(list.some(j=>j.id===S.job)) $('fJob').value=S.job;
+  else if(list.length){ S.job=list[0].id; $('fJob').value=S.job; }
+}
+/* natural order: 12-G-12345 before 191-D-…, and 2 before 10 */
+function natCmp(a,b){ return String(a).localeCompare(String(b), 'en', {numeric:true, sensitivity:'base'}); }
+
+function pickList(q){
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const all = placesFor(cat,org);
+  let list = all.filter(pl=>(pl.type||'van')===PTYPE);
+  let other = all.filter(pl=>(pl.type||'van')!==PTYPE);
+  const term = String(q||'').trim().toLowerCase();
+  const hit = pl => !term || pl.label.toLowerCase().includes(term) || regKey(pl.label).toLowerCase().includes(regKey(term).toLowerCase());
+  list = list.filter(hit).sort((a,b)=>natCmp(a.label,b.label));
+  other = other.filter(hit).sort((a,b)=>natCmp(a.label,b.label));
+  return {list, other, total:all.length};
+}
+function hl(label, term){
+  if(!term) return esc(label);
+  const i = label.toLowerCase().indexOf(term.toLowerCase());
+  if(i<0) return esc(label);
+  return esc(label.slice(0,i))+'<mark>'+esc(label.slice(i,i+term.length))+'</mark>'+esc(label.slice(i+term.length));
+}
+let PICK_OPEN=false;
+function renderPickMenu(){
+  const menu=$('pickMenu'), inp=$('fVan');
+  if(!PICK_OPEN){ menu.classList.add('hidden'); inp.setAttribute('aria-expanded','false'); return; }
+  const term = inp.value.trim();
+  const {list, other, total} = pickList(term);
+  if(!total){
+    menu.innerHTML = '<div class="none">No location register for this customer yet. Type the name and it will be used as-is, or import a register in the Data tab.</div>';
+  } else if(!list.length && !other.length){
+    menu.innerHTML = '<div class="none">Nothing on the register matches “'+esc(term)+'”. Type it in full to add it.</div>';
+  } else {
+    const row = pl => '<button data-v="'+esc(pl.label)+'" data-t="'+esc(pl.type||'van')+'"'
+      + (regKey(pl.label)===regKey(inp.value)?' class="on"':'')+'>'
+      + '<span>'+hl(pl.label, term)+'</span><span class="ty">'+esc(PL(pl.type||'van').label)+'</span></button>';
+    menu.innerHTML = (list.length ? list.map(row).join('') : '<div class="none">No '+esc(PL(PTYPE).label.toLowerCase())+' matches</div>')
+      + (other.length ? '<div class="grp3">Other location types</div>'+other.map(row).join('') : '');
+  }
+  menu.querySelectorAll('button[data-v]').forEach(b=> b.onclick = ()=>{
+    if(b.dataset.t && b.dataset.t!==PTYPE){ PTYPE=b.dataset.t; renderSegs(); syncPlaceUI(); }
+    $('fVan').value = b.dataset.v;
+    closePick();
+    if(S.current&&!S.current.lines.length) S.current=null;
+    SPOT=''; renderSpots(); refreshWhere(); renderRecent();
+  });
+  menu.classList.remove('hidden');
+  inp.setAttribute('aria-expanded','true');
+}
+function openPick(){ PICK_OPEN=true; renderPickMenu(); }
+function closePick(){ PICK_OPEN=false; renderPickMenu(); }
+
+function fillPlaces(){
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const inp=$('fVan');
+  const all = placesFor(cat,org);
+  const mine = all.filter(pl=>(pl.type||'van')===PTYPE).sort((a,b)=>natCmp(a.label,b.label));
+  const p = PL(PTYPE);
+  inp.placeholder = all.length ? (mine.length>1 ? 'Search '+mine.length+' '+p.label.toLowerCase()+'s…' : (p.ph||'Name')) : (p.ph||'Name');
+  /* one store, one yard — no point making them pick it */
+  const cur = inp.value.trim();
+  if(mine.length===1 && (!cur || !all.some(x=>regKey(x.label)===regKey(cur)))) inp.value = mine[0].label;
+  const known = all.find(x=>regKey(x.label)===regKey(inp.value.trim()));
+  if(known && known.type && known.type!==PTYPE){ PTYPE=known.type; renderSegs(); }
+  if(PICK_OPEN) renderPickMenu();
+  renderSpots();
+}
+/* shelf numbers can be uploaded against a location */
+function spotsFor(){
+  const cat=$('fCat').value, org=$('fOrg').value, label=$('fVan').value.trim();
+  const pl = placesFor(cat,org).find(x=>regKey(x.label)===regKey(label));
+  return (pl && pl.spots && pl.spots.length) ? pl.spots.slice() : null;
+}
+function renderPlaces(){ fillPlaces(); renderPlaceAdmin(); }
+function renderPlaceAdmin(){
+  const el=$('placeAdmin'); if(!el) return;
+  const cat=$('fCat').value, list=(S.places&&S.places[cat])||[];
+  if(!list.length){ el.innerHTML='<p class="note">No register yet. Import a file of vehicle regs or location names above and counts will have to land on one of them.</p>'; return; }
+  const byT={}; list.forEach(p=>{ (byT[p.type]=byT[p.type]||[]).push(p); });
+  el.innerHTML = Object.keys(byT).map(t=>
+    '<div class="jrow"><span class="ji"><b>'+esc(PL(t).label)+'</b>'
+    + '<small>'+byT[t].slice(0,8).map(p=>esc(p.label)).join(' · ')+(byT[t].length>8?' … +'+(byT[t].length-8):'')+'</small></span>'
+    + '<span class="tag">'+byT[t].length+'</span></div>').join('')
+    + '<div class="bar"><span class="sp">'+list.length+' locations registered</span><button class="btn" id="placeClear">Clear register</button></div>';
+  const c=$('placeClear');
+  if(c) c.onclick=()=>{ S.places[cat]=[]; save(); renderPlaces(); };
+}
+
+function renderJobsAdmin(){
+  const el=$('jobList'); if(!el) return;
+  const all = visible(allSessions());
+  el.className='joblist';
+  el.innerHTML = jobs().map(j=>{
+    const ss = all.filter(s=>s.job===j.id);
+    const done = new Set(ss.map(s=>s.org+'|'+s.container)).size;
+    const pct = j.target ? Math.min(100, Math.round(done/j.target*100)) : (done?100:0);
+    return '<div class="jrow"><span class="ji"><b>'+esc(j.name)+'</b><small>'+esc(j.kind)
+      + (j.cat? ' · '+esc(CATALOGUES[j.cat].label):'')
+      + (j.due? ' · due '+new Date(j.due).toLocaleDateString('en-IE',{day:'numeric',month:'short'}):'')
+      + ' · '+done+(j.target? ' of '+j.target:'')+' locations counted</small></span>'
+      + '<span class="bar2"><i style="width:'+pct+'%"></i></span>'
+      + '<button class="btn" data-del="'+esc(j.id)+'">Remove</button></div>';
+  }).join('');
+  el.querySelectorAll('button[data-del]').forEach(b=> b.onclick=()=>{
+    S.jobs = jobs().filter(j=>j.id!==b.dataset.del); save(); fillJobs(); renderJobsAdmin(); renderMgr();
+  });
+}
+
+/* ============================================================
+   sync + export
+   ============================================================ */
+let DB=null;
+async function initSync(){
+  try{
+    if(!window.claude || !claude.use) return setSync('local');
+    DB = await claude.use('db');
+    if(!DB) return setSync('local');
+    setSync('online'); syncUp();
+  }catch(e){ setSync('local'); }
+}
+function setSync(mode){
+  $('sync').className = 'sync'+(mode==='online'?' on':mode==='queued'?' queued':'');
+  $('syncTxt').textContent = mode==='online'?'Synced':mode==='queued'?'Queued':'On device';
+}
+async function syncUp(){
+  if(!DB) return;
+  const pending = S.sessions.filter(s=>!s.example && !(S.synced||{})[s.id]);
+  if(!pending.length) return setSync('online');
+  setSync('queued');
+  for(const s of pending){
+    try{ await DB.doc('stocktakes/'+s.id).set(s); S.synced=S.synced||{}; S.synced[s.id]=Date.now(); }
+    catch(e){ return setSync('queued'); }
+  }
+  save(); setSync('online');
+}
+function csv(){
+  const rows=[['Stocktake','Date','Customer','Location type','Location','Spot','Code','Short description','Qty as called','Unit','Base qty','Base unit','Drum ID','Recorded']];
+  for(const s of scopedSessions()) for(const l of s.lines){
+    const it=item(s.cat||l.cat,l.code);
+    rows.push([s.id,new Date(l.ts).toISOString(),s.org,PL(s.ctype||'van').label,s.container,l.loc,it.code,it.short,
+      l.qty,l.unit,baseQty(it,l.qty,l.unit),it.unit,l.drumId||'',l.audio?'yes':'no']);
+  }
+  return rows.map(r=>r.map(c=>{ const v=String(c==null?'':c); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(',')).join('\n');
+}
+async function doExport(){
+  const data=csv();
+  try{
+    const d = window.claude&&claude.use ? await claude.use('downloads') : null;
+    if(d){ await d.save({filename:'trucount-stocktake.csv', data}); return; }
+  }catch(e){}
+  const w=window.open('','_blank');
+  if(w){ w.document.write('<pre style="font:12px monospace;white-space:pre">'+esc(data)+'</pre>'); w.document.close(); }
+}
+
+/* ============================================================
+   wiring
+   ============================================================ */
+function fillOrgs(keepPlace){
+  const cat=$('fCat').value;
+  $('fOrg').innerHTML = orgsFor(cat).map(o=>'<option>'+esc(o)+'</option>').join('');
+  if(!keepPlace){
+    PTYPE = CATALOGUES[cat].defaultPlace;
+    SPOT = SPOT || CATALOGUES[cat].spots[0];
+  }
+  $('heard').innerHTML = cat==='fibre'
+    ? '<b>“reg number one two G one two three four five”</b> · <b>“shelf A1”</b> · <b>“three full drums of ninety six fibre”</b>'
+    : '<b>“Coke, twenty bottles”</b> · <b>“ten cases of Coke”</b> · <b>“next shelf”</b>';
+  fillJobs(); fillPlaces();
+  syncPlaceUI(); applyBrand(); renderSpots(); renderCat(); renderRecent();
+}
+function showTab(which){
+  for(const [t,v] of [['t-count','v-count'],['t-mgr','v-mgr'],['t-cat','v-cat']]){
+    const on = t==='t-'+which;
+    $(t).setAttribute('aria-selected', on?'true':'false');
+    $(v).classList.toggle('hidden', !on);
+  }
+  $('band').classList.toggle('hidden', which!=='count');
+  if(which==='mgr') renderMgr();
+  if(which==='cat'){ renderCat(); renderOrgBox(); renderBrands(); renderJobsAdmin(); renderPlaceAdmin(); renderTypeAdmin(); }
+}
+$('roleBtn').onclick = switchRole;
+$('editTypes').onclick = ()=>{ EDIT_TYPES=!EDIT_TYPES; renderSegs(); };
+$('fJob').onchange = ()=>{ S.job=$('fJob').value; save(); if(S.current&&!S.current.lines.length) S.current=null; };
+$('pickToggle').onclick = e=>{ e.preventDefault(); PICK_OPEN? closePick() : openPick(); };
+$('fVan').addEventListener('focus', openPick);
+$('fVan').addEventListener('keydown', e=>{
+  if(e.key==='Escape') return closePick();
+  if(e.key==='Enter'){
+    const {list, other} = pickList($('fVan').value.trim());
+    const first = list[0]||other[0];
+    if(first && PICK_OPEN){ e.preventDefault(); $('fVan').value=first.label;
+      if((first.type||'van')!==PTYPE){ PTYPE=first.type; renderSegs(); syncPlaceUI(); }
+      closePick(); SPOT=''; renderSpots(); refreshWhere(); renderRecent(); }
+    else closePick();
+  }
+});
+document.addEventListener('click', e=>{ if(PICK_OPEN && !e.target.closest('.picker')) closePick(); });
+$('aSave').onclick = ()=>{
+  const wantOwner = $('aRole').value==='owner';
+  const nm = $('aName').value.trim();
+  if(nm) me().name = nm;
+  if($('aPin').value.trim()) S.pin = $('aPin').value.trim();
+  if(!wantOwner) me().role='counter';
+  save(); applyRole(); fillOrgs();
+  if(wantOwner && !isOwner()) openPin();
+};
+$('pinGo').onclick = tryPin;
+$('pinX').onclick = ()=>{ closePin(); $('aRole').value = me().role; };
+$('pinIn').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); tryPin(); } });
+$('newTypeGo').onclick = ()=>{ const v=$('newType').value.trim(); if(v){ addType(v); $('newType').value=''; } };
+$('newType').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('newTypeGo').click(); } });
+$('jAdd').onclick = ()=>{
+  const name=$('jName').value.trim(); if(!name) return;
+  S.jobs = jobs().concat([{id:'j'+Date.now().toString(36), name, kind:$('jKind').value,
+    cat:$('jCat').value, due:$('jDue').value, target:parseInt($('jTarget').value,10)||0}]);
+  save(); ['jName','jDue','jTarget'].forEach(id=>$(id).value='');
+  fillJobs(); renderJobsAdmin(); renderMgr();
+};
+$('t-count').onclick=()=>showTab('count');
+$('t-mgr').onclick=()=>showTab('mgr');
+$('t-cat').onclick=()=>showTab('cat');
+
+$('btnSetup').onclick = ()=>{ showTab('count'); $('setup').classList.toggle('hidden'); };
+$('btnStart').onclick = ()=>{
+  const prior = priorFor($('fCat').value, $('fOrg').value, $('fVan').value.trim());
+  if(prior){ resume(prior.id); return; }
+  ensureSession(); $('setup').classList.add('hidden');
+  refreshWhere(); renderSpots(); renderTally(); renderRecent();
+};
+$('fCat').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; SPOT=''; fillOrgs(); renderTally(); renderOrgBox(); renderBrands(); renderVar(); renderPlaceAdmin(); };
+$('fOrg').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; applyBrand(); syncPlaceUI(); fillPlaces(); refreshWhere(); renderRecent(); renderTypeAdmin(); };
+$('fVan').oninput = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; openPick(); refreshWhere(); };
+$('fRec').onchange = ()=>{ if(!audioOn()){ if(recorder&&recorder.state==='recording'){ clipTarget=null; try{recorder.stop();}catch(e){} } recorder=null; } else if(wantListen) armRecorder(); };
+
+$('mic').onclick = ()=>{ if(wantListen||listening) stopListen(); else { $('setup').classList.add('hidden'); startListen(); } };
+$('typeGo').onclick = ()=>{ const v=$('typeIn').value.trim(); if(v){ handle(v); $('typeIn').value=''; } };
+$('typeIn').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('typeGo').click(); } });
+$('aUndo').onclick=doUndo;
+$('aTotal').onclick=doTotal;
+$('aNextLoc').onclick=()=>handle('next spot');
+$('aFinish').onclick=()=>doFinish();
+$('expCsv').onclick=doExport;
+
+const drop=$('drop');
+drop.onclick=()=>$('file').click();
+$('file').onchange=e=>readFile(e.target.files[0]);
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e=>{ if(e.dataTransfer.files&&e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+$('impCancel').onclick=()=>{ IMP=null; $('mapWrap').classList.add('hidden'); $('impNote').textContent='Import cancelled.'; };
+$('impAdd').onclick=()=>doImport(false);
+$('impReplace').onclick=()=>doImport(true);
+$('orgSave').onclick=()=>{
+  const cat=$('fCat').value;
+  S.orgs=S.orgs||{};
+  S.orgs[cat]=$('orgBox').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  save(); fillOrgs(); renderOrgBox(); renderBrands();
+};
+$('nAdd').onclick=()=>{
+  const cat=$('fCat').value, code=$('nCode').value.trim().toUpperCase();
+  if(!code) return;
+  S.custom=S.custom||{}; S.custom[cat]=S.custom[cat]||[];
+  S.custom[cat].push({code, short:$('nShort').value.trim()||code,
+    long:$('nLong').value.trim()||$('nShort').value.trim()||code,
+    unit:normUom($('nUnit').value.trim()||'each'), pack:parseInt($('nPack').value,10)||1,
+    packName:'case', alias:$('nAlias').value.trim().toLowerCase()});
+  save(); renderCat();
+  ['nCode','nShort','nLong','nUnit','nPack','nAlias'].forEach(id=>$(id).value='');
+};
+
+$('aRole').value = me().role;
+$('aName').value = me().name || '';
+$('fWho').value = me().name || '';
+fillOrgs();
+applyRole();
+renderTally();
+renderMgr();
+renderCat();
+renderOrgBox();
+renderBrands();
+renderRecent();
+refreshWhere();
+if(window.speechSynthesis) window.speechSynthesis.getVoices();
+initSync();
+</script>
+
+</body>
+</html>
