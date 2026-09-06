@@ -336,13 +336,14 @@
   </div>
 </div>
 
-<div class="pinbar hidden" id="pinBar">
+<div class="pinbar hidden" id="roleBar">
   <div class="pinin">
-    <span class="pl">Owner view</span>
-    <input id="pinIn" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
-    <button class="btn dark" id="pinGo">Unlock</button>
-    <button class="btn" id="pinX">Cancel</button>
-    <span class="pinmsg" id="pinMsg"></span>
+    <span class="pl">This device is</span>
+    <select id="roleSel"><option value="nbi">NBI</option><option value="contractor">A contractor</option></select>
+    <select id="roleOrg"></select>
+    <button class="btn dark" id="roleGo">Use this view</button>
+    <button class="btn" id="roleX">Cancel</button>
+    <span class="pinmsg" id="roleMsg"></span>
   </div>
 </div>
 
@@ -368,14 +369,14 @@
         </div>
         <div class="bar"><span class="sp" id="njNote"></span><button class="btn" id="njCancel">Cancel</button><button class="btn dark" id="njAdd">Create job</button></div>
       </div>
-      <div class="field">
+      <div class="field" id="catField">
         <label for="fCat">Catalogue</label>
         <select id="fCat">
           <option value="fibre">Fibre / NBI build</option>
           <option value="pub">Pub &amp; bar</option>
         </select>
       </div>
-      <div class="field">
+      <div class="field" id="orgField">
         <label for="fOrg">Counting for</label>
         <select id="fOrg"></select>
       </div>
@@ -550,14 +551,26 @@
     </div>
 
     <div class="panel">
+      <header><h2>Moving counts between devices</h2><span class="hint">A stop-gap until there is a shared back end</span></header>
+      <p class="note" id="shareWhy"></p>
+      <div class="bar">
+        <span class="sp" id="shareNote"></span>
+        <button class="btn" id="expJob">Export job</button>
+        <button class="btn dark" id="impJobBtn">Import job</button>
+        <input type="file" id="jobFile" accept=".json,application/json,.txt" class="hidden">
+      </div>
+      <p class="note" id="shareMsg"></p>
+    </div>
+
+    <div class="panel">
       <header><h2>Access</h2><span class="hint">Who is using this device, and what they can see</span></header>
       <div class="catgrid">
-        <div class="field"><label for="aRole">This device is</label><select id="aRole"><option value="counter">A counter — sees only their own counts</option><option value="owner">The account owner — sees everything</option></select></div>
+        <div class="field"><label for="aRole">This device is</label><select id="aRole"><option value="nbi">NBI — sees every contractor</option><option value="contractor">A contractor — sees only their own stock</option></select></div>
+        <div class="field"><label for="aOrg">Which contractor</label><select id="aOrg"></select></div>
         <div class="field"><label for="aName">Counter name</label><input id="aName" placeholder="Seán M"></div>
-        <div class="field"><label for="aPin">Owner PIN</label><input id="aPin" placeholder="1234" inputmode="numeric"></div>
         <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="aSave">Save</button></div>
       </div>
-      <p class="note">In the shipped product this is a real account login. Here it is a switch so you can see both sides: a counter opens the app and sees only the vans they counted; the owner sees every counter, every location and the estate total.</p>
+      <p class="note">In the shipped product this is a real account login with hard separation between contractors. Here it is a switch, with no password, so you can see both sides: a contractor opens the app fixed to their own stock and the fibre catalogue; NBI sees every contractor that has reached this device, and can sum them.</p>
     </div>
 
     <div class="panel">
@@ -886,8 +899,11 @@ function rgba(hex,a){
   return 'rgba('+parseInt(n.slice(0,2),16)+','+parseInt(n.slice(2,4),16)+','+parseInt(n.slice(4,6),16)+','+a+')';
 }
 function applyBrand(){
-  const cat = $('fCat').value, org = $('fOrg').value || orgsFor(cat)[0] || '';
-  const b = brandFor(cat, org);
+  const cat = $('fCat').value;
+  const sel = $('fOrg').value;
+  const all = sel===ALL_ORGS;
+  const org = all ? '' : (sel || orgsFor(cat)[0] || '');
+  const b = all ? {color:'#3F4C7A', mono:'ALL', logo:null} : brandFor(cat, org);
   const r = document.documentElement.style;
   r.setProperty('--accent', b.color);
   r.setProperty('--accent-soft', rgba(b.color,.13));
@@ -896,7 +912,7 @@ function applyBrand(){
   const badge = $('badge');
   badge.style.background = b.color;
   badge.innerHTML = b.logo ? '<img src="'+esc(b.logo)+'" alt="">' : esc(b.mono||initials(org));
-  $('whoOrg').textContent = org || 'No customer selected';
+  $('whoOrg').textContent = all ? 'All contractors' : (org || 'No customer selected');
 }
 
 /* ---------- units & maths ---------- */
@@ -1361,8 +1377,8 @@ function priorFor(cat, org, label){
 function resume(id, announce){
   const i = S.sessions.findIndex(s=>s.id===id);
   if(i<0) return false;
-  if(!isOwner() && (S.sessions[i].by||'') !== me().name){
-    say('That count is someone else’s','Only the account owner can reopen another counter’s work.',true); return false;
+  if(!isNBI() && (S.sessions[i].org||'') !== me().org){
+    say('That count is another contractor’s','This device only holds '+(me().org||'your')+' stock.',true); return false;
   }
   if(S.current && S.current.lines.length) doFinish(true);
   const s = S.sessions.splice(i,1)[0];
@@ -1933,7 +1949,7 @@ function renderMgr(){
   $('tiles').innerHTML = [
     tile('Customers', orgs.length, orgs.join(', ')),
     tile('Locations counted', places.length, vehicles+' vehicle'+(vehicles===1?'':'s')+', '+(places.length-vehicles)+' stores and yards'),
-    tile('Counters', new Set(sess.map(x=>x.by||'—')).size, isOwner()? 'across the account':'you'),
+    tile('Counters', new Set(sess.map(x=>x.by||'—')).size, isNBI()? (viewOrg()? 'for '+viewOrg() : 'across every contractor') : (me().org||'your team')),
     tile('Lines called out', lines.length, 'across '+sess.length+' stocktakes'),
     tile('Last count', lastTs? new Date(lastTs).toLocaleDateString('en-IE',{day:'numeric',month:'short'}):'—',
          lastTs? new Date(lastTs).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'')
@@ -2460,37 +2476,97 @@ function renderOrgBox(){
 /* ============================================================
    roles, jobs, location picker
    ============================================================ */
-function me(){ S.me = S.me || {role:'counter', name:'Seán M'}; return S.me; }
-function isOwner(){ return me().role==='owner'; }
-function visible(list){ return isOwner() ? list : list.filter(s=>(s.by||'')===me().name); }
+const ALL_ORGS = '__all';
+function me(){
+  const m = S.me = S.me || {};
+  /* an older device may still be on the counter / owner pair */
+  if(m.role==='owner') m.role='nbi';
+  if(m.role==='counter' || !m.role) m.role='contractor';
+  if(m.role==='contractor' && !m.org) m.org = CATALOGUES.fibre.orgs[0] || '';
+  if(!m.name) m.name='Seán M';
+  return m;
+}
+function isNBI(){ return me().role==='nbi'; }
+function isOwner(){ return isNBI(); }          /* .owner-only markup still reads this */
+/* '' means every contractor; anything else scopes the views to one */
+function viewOrg(){
+  const m = me();
+  if(m.role!=='nbi') return m.org || '';
+  const el = $('fOrg');
+  const v = el ? el.value : '';
+  return (!v || v===ALL_ORGS) ? '' : v;
+}
+/* Views are scoped to the catalogue on screen as well as the contractor, so an
+   NBI estate total is fibre stock and does not quietly absorb a pub. */
+function visible(list){
+  const el = $('fCat');
+  const cat = el ? el.value : '';
+  const o = viewOrg();
+  return list.filter(s => (!cat || (s.cat||'fibre')===cat) && (!o || s.org===o));
+}
 
 function applyRole(){
-  const owner = isOwner();
-  document.querySelectorAll('.owner-only').forEach(el=>el.classList.toggle('hidden', !owner));
-  $('roleBtn').className = 'rolechip'+(owner?' owner':'');
-  $('roleTxt').textContent = owner ? 'Owner view' : (me().name || 'Counter');
-  $('whoWrap').classList.toggle('hidden', !owner);
-  $('scope').innerHTML = owner
-    ? '<b>Owner view.</b>&nbsp;Every counter, every location, every job across the account.'
-    : '<b>Your counts only.</b>&nbsp;You can see what you counted. Totals across the account go to the owner.';
-  renderMgr(); renderRecent(); renderJobsAdmin();
+  const nbi = isNBI(), m = me();
+  document.querySelectorAll('.owner-only').forEach(el=>el.classList.toggle('hidden', !nbi));
+  $('roleBtn').className = 'rolechip'+(nbi?' owner':'');
+  $('roleTxt').textContent = nbi ? 'NBI' : (m.org || 'Contractor');
+  $('whoWrap').classList.toggle('hidden', !nbi);
+  /* a contractor is fixed to their own stock and the fibre catalogue */
+  $('catField').classList.toggle('hidden', !nbi);
+  $('orgField').classList.toggle('hidden', !nbi);
+  if(!nbi && $('fCat').value!=='fibre') $('fCat').value='fibre';
+  fillOrgs(true);
+  renderScope(); syncStartable();
+  renderMgr(); renderRecent(); renderJobsAdmin(); renderShare(); renderHistory();
 }
-function openPin(){
-  $('pinBar').classList.remove('hidden');
-  $('pinMsg').textContent=''; $('pinIn').value='';
-  setTimeout(()=>$('pinIn').focus(), 30);
-}
-function closePin(){ $('pinBar').classList.add('hidden'); $('pinMsg').textContent=''; }
-function tryPin(){
-  if(String($('pinIn').value).trim() !== String(S.pin||'1234')){
-    $('pinMsg').textContent='Wrong PIN'; $('pinIn').select(); return;
+function renderScope(){
+  const el=$('scope'); if(!el) return;
+  if(!isNBI()){
+    el.innerHTML = '<b>'+esc(me().org||'Contractor')+' only.</b>&nbsp;Your own stock. '
+      + 'No other contractor\u2019s counts are on this device, and yours do not leave it until you export them.';
+    return;
   }
-  me().role='owner'; save(); closePin(); applyRole(); fillOrgs();
+  const o = viewOrg();
+  el.innerHTML = o
+    ? '<b>NBI view \u2014 '+esc(o)+'.</b>&nbsp;Every location and job for this contractor. '
+      + 'Switch \u201CCounting for\u201D to All contractors for the estate total.'
+    : '<b>NBI view \u2014 all contractors.</b>&nbsp;Summed across every contractor whose counts have reached this device. '
+      + 'Pick a contractor to count into one.';
 }
-function switchRole(){
-  if(isOwner()){ me().role='counter'; save(); applyRole(); return; }
-  openPin();
+/* counting needs a real contractor, so All is a view scope only */
+function syncStartable(){
+  const all = isNBI() && $('fOrg').value===ALL_ORGS;
+  const b=$('btnStart'); if(b){ b.disabled = all; b.title = all ? 'Pick a contractor to count into' : ''; }
 }
+function openRoleBar(){
+  const m = me();
+  $('roleSel').value = m.role;
+  fillRoleOrgs();
+  $('roleMsg').textContent='';
+  $('roleBar').classList.remove('hidden');
+}
+function closeRoleBar(){ $('roleBar').classList.add('hidden'); }
+function contractorList(){
+  const set = new Set();
+  Object.keys(CATALOGUES).forEach(c=>orgsFor(c).forEach(o=>set.add(o)));
+  (S.sessions||[]).forEach(s=>{ if(s.org) set.add(s.org); });
+  return [...set].sort();
+}
+function fillRoleOrgs(){
+  const m = me(), on = $('roleSel').value==='contractor';
+  $('roleOrg').innerHTML = contractorList().map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('');
+  if(m.org) $('roleOrg').value = m.org;
+  $('roleOrg').classList.toggle('hidden', !on);
+}
+function saveRole(role, org){
+  const m = me();
+  m.role = role==='nbi' ? 'nbi' : 'contractor';
+  if(m.role==='contractor' && org) m.org = org;
+  save();
+  if(S.current && !S.current.lines.length) S.current=null;
+  applyRole();
+}
+function switchRole(){ openRoleBar(); }
 
 /* ============================================================
    closing a job — the snapshot
@@ -3008,14 +3084,132 @@ function csv(){
       }
   return rows.map(r=>r.map(c=>{ const v=String(c==null?'':c); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(',')).join('\n');
 }
-async function doExport(){
-  const data=csv();
+async function saveFile(filename, data){
   try{
     const d = window.claude&&claude.use ? await claude.use('downloads') : null;
-    if(d){ await d.save({filename:'trucount-stocktake.csv', data}); return; }
+    if(d){ await d.save({filename, data}); return true; }
+  }catch(e){}
+  try{
+    const url = URL.createObjectURL(new Blob([data],{type:'application/octet-stream'}));
+    const a = document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    return true;
   }catch(e){}
   const w=window.open('','_blank');
-  if(w){ w.document.write('<pre style="font:12px monospace;white-space:pre">'+esc(data)+'</pre>'); w.document.close(); }
+  if(w){ w.document.write('<pre style="font:12px monospace;white-space:pre-wrap">'+esc(data)+'</pre>'); w.document.close(); return true; }
+  return false;
+}
+async function doExport(){ await saveFile('trucount-stocktake.csv', csv()); }
+
+/* ============================================================
+   moving a job between devices
+   A stop-gap. Counts live on the device that made them, so the NBI
+   estate total is only ever as complete as the files imported here.
+   ============================================================ */
+function slug(v){ return String(v||'job').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48) || 'job'; }
+function shareSay(html, err){
+  const el=$('shareMsg'); if(!el) return;
+  el.innerHTML = html;
+  el.style.color = err ? 'var(--bad)' : '';
+}
+function exportJobFile(){
+  const j = job(S.job);
+  if(!j){ shareSay('Pick a counting job first.', true); return; }
+  const o = viewOrg();
+  const sess = allSessions().filter(x=>x.job===j.id && x.lines.length && (!o || x.org===o));
+  if(!sess.length){ shareSay('Nothing has been counted on '+esc(j.name)+(o? ' for '+esc(o):'')+' yet, so there is nothing to export.', true); return; }
+  /* carry the item records too, so the receiving device can describe and value the counts */
+  const used={};
+  for(const x of sess){
+    const cat = x.cat || j.cat || 'fibre';
+    for(const l of x.lines){
+      const k = cat+'|'+l.code;
+      if(used[k]) continue;
+      const it = item(cat, l.code);
+      used[k] = {cat, code:it.code, short:it.short, long:it.long||it.short, unit:it.unit,
+                 pack:it.pack||1, packName:it.packName||'', alias:it.alias||'',
+                 group:groupOf(it), price:unitValue(it)};
+    }
+  }
+  const payload = {
+    kind:'trucount-job', v:1, exportedAt:Date.now(),
+    exportedBy:{role:me().role, org:o||'', name:me().name},
+    job:{id:j.id, name:j.name, kind:j.kind, cat:j.cat||'', due:j.due||'', target:j.target||0},
+    sessions: sess.map(x=>{ const c=Object.assign({},x); delete c.open; return c; }),
+    items: Object.values(used)
+  };
+  const lines = sess.reduce((n,x)=>n+x.lines.length,0);
+  saveFile('trucount-'+slug(j.name)+(o? '-'+slug(o):'')+'-'+new Date().toISOString().slice(0,10)+'.json',
+           JSON.stringify(payload,null,2));
+  shareSay('<b>'+sess.length+' location'+(sess.length===1?'':'s')+' · '+lines+' line'+(lines===1?'':'s')+'</b> exported for '
+    + esc(j.name)+(o? ' ('+esc(o)+')':'')+'. Send that file to whoever holds the NBI device.');
+}
+function importJobFile(file){
+  if(!file) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    let d;
+    try{ d = JSON.parse(String(rd.result)); }
+    catch(e){ shareSay('That file would not parse. It should be a job file exported from TruCount.', true); return; }
+    if(!d || d.kind!=='trucount-job' || !Array.isArray(d.sessions)){
+      shareSay('That is not a TruCount job export.', true); return;
+    }
+    const cat = (d.job && d.job.cat) || 'fibre';
+    let addedJob=false;
+    if(d.job && d.job.id && !jobs().some(j=>j.id===d.job.id)){
+      S.jobs = jobs().concat([Object.assign({}, d.job)]); addedJob=true;
+    }
+    S.custom = S.custom || {};
+    let addedItems=0;
+    for(const it of (d.items||[])){
+      const c = it.cat || cat;
+      if(items(c).some(x=>x.code===it.code)) continue;
+      S.custom[c] = (S.custom[c]||[]).concat([{code:it.code, short:it.short, long:it.long, unit:it.unit,
+        pack:it.pack||1, packName:it.packName||'', alias:it.alias||'', group:it.group||UNASSIGNED, price:it.price}]);
+      addedItems++;
+    }
+    const have = new Set((S.sessions||[]).map(x=>x.id));
+    const orgs = new Set();
+    let added=0, dupes=0;
+    for(const x of d.sessions){
+      if(!x || !x.id || !Array.isArray(x.lines)) continue;
+      if(have.has(x.id)){ dupes++; continue; }
+      const c = Object.assign({}, x); delete c.open; c.imported = d.exportedAt || Date.now();
+      S.sessions.unshift(c); have.add(x.id); added++;
+      if(x.org) orgs.add(x.org);
+    }
+    if(orgs.size){
+      S.orgs = S.orgs || {};
+      S.orgs[cat] = [...new Set((S.orgs[cat] || orgsFor(cat)).concat([...orgs]))];
+    }
+    save();
+    fillOrgs(true); fillJobs(); renderMgr(); renderRecent(); renderJobsAdmin(); renderCat(); renderShare();
+    shareSay('<b>'+added+' location'+(added===1?'':'s')+' imported</b>'
+      + (dupes? ', '+dupes+' already on this device and skipped':'')
+      + (addedJob? ', job \u201C'+esc(d.job.name)+'\u201D added':'')
+      + (addedItems? ', '+addedItems+' item'+(addedItems===1?'':'s')+' new to this catalogue':'')
+      + (orgs.size? ', from '+esc([...orgs].join(', ')):'')
+      + '.' + (added? ' Switch \u201CCounting for\u201D to All contractors to see them in the estate total.':''));
+  };
+  rd.readAsText(file);
+}
+function renderShare(){
+  const why=$('shareWhy'); if(!why) return;
+  why.innerHTML = 'Counts live on the device that made them — there is no server yet. '
+    + '<b>NBI\u2019s All contractors total is only as complete as the files imported onto this device.</b> '
+    + 'A contractor exports a job, sends the file over, and NBI imports it here.';
+  $('shareNote').textContent = isNBI()
+    ? 'This device is NBI — import contractors\u2019 files here.'
+    : 'This device is '+(me().org||'a contractor')+' — export your job and send it on.';
+}
+function renderAccess(){
+  const m = me();
+  $('aRole').value = m.role;
+  $('aOrg').innerHTML = contractorList().map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('');
+  if(m.org) $('aOrg').value = m.org;
+  $('aName').value = m.name || '';
+  $('aOrg').closest('.field').classList.toggle('hidden', m.role!=='contractor');
 }
 
 /* ============================================================
@@ -3023,7 +3217,15 @@ async function doExport(){
    ============================================================ */
 function fillOrgs(keepPlace){
   const cat=$('fCat').value;
-  $('fOrg').innerHTML = orgsFor(cat).map(o=>'<option>'+esc(o)+'</option>').join('');
+  const m = me();
+  let list = orgsFor(cat).slice();
+  /* a contractor is pinned to their own name, even if the register has not caught up */
+  if(m.role==='contractor' && m.org && !list.includes(m.org)) list = [m.org].concat(list);
+  const want = $('fOrg').value;
+  $('fOrg').innerHTML = list.map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('')
+    + (isNBI() ? '<option value="'+ALL_ORGS+'">All contractors</option>' : '');
+  if(m.role==='contractor') $('fOrg').value = m.org;
+  else if(want && (want===ALL_ORGS || list.includes(want))) $('fOrg').value = want;
   if(!keepPlace){
     PTYPE = CATALOGUES[cat].defaultPlace;
     SPOT = SPOT || CATALOGUES[cat].spots[0];
@@ -3043,7 +3245,7 @@ function showTab(which){
   $('band').classList.toggle('hidden', which!=='count');
   if(which==='mgr') renderMgr();
   if(which==='hist') renderHistory();
-  if(which==='cat'){ renderCat(); renderOrgBox(); renderBrands(); renderJobsAdmin(); renderPlaceAdmin(); renderTypeAdmin(); }
+  if(which==='cat'){ renderCat(); renderOrgBox(); renderBrands(); renderJobsAdmin(); renderPlaceAdmin(); renderTypeAdmin(); renderShare(); renderAccess(); }
 }
 $('roleBtn').onclick = switchRole;
 $('editTypes').onclick = ()=>{ EDIT_TYPES=!EDIT_TYPES; renderSegs(); };
@@ -3071,17 +3273,17 @@ $('fVan').addEventListener('keydown', e=>{
 });
 document.addEventListener('click', e=>{ if(PICK_OPEN && !e.target.closest('.picker')) closePick(); });
 $('aSave').onclick = ()=>{
-  const wantOwner = $('aRole').value==='owner';
   const nm = $('aName').value.trim();
   if(nm) me().name = nm;
-  if($('aPin').value.trim()) S.pin = $('aPin').value.trim();
-  if(!wantOwner) me().role='counter';
-  save(); applyRole(); fillOrgs();
-  if(wantOwner && !isOwner()) openPin();
+  saveRole($('aRole').value, $('aOrg').value);
 };
-$('pinGo').onclick = tryPin;
-$('pinX').onclick = ()=>{ closePin(); $('aRole').value = me().role; };
-$('pinIn').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); tryPin(); } });
+$('aRole').onchange = ()=>{ $('aOrg').closest('.field').classList.toggle('hidden', $('aRole').value!=='contractor'); };
+$('expJob').onclick = exportJobFile;
+$('impJobBtn').onclick = ()=>$('jobFile').click();
+$('jobFile').onchange = e=>{ const f=e.target.files[0]; importJobFile(f); e.target.value=''; };
+$('roleSel').onchange = fillRoleOrgs;
+$('roleGo').onclick = ()=>{ saveRole($('roleSel').value, $('roleOrg').value); closeRoleBar(); };
+$('roleX').onclick = closeRoleBar;
 $('newTypeGo').onclick = ()=>{ const v=$('newType').value.trim(); if(v){ addType(v); $('newType').value=''; } };
 $('newType').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('newTypeGo').click(); } });
 $('jAdd').onclick = ()=>{
@@ -3101,13 +3303,17 @@ $('t-cat').onclick=()=>showTab('cat');
 
 $('btnSetup').onclick = ()=>{ showTab('count'); $('setup').classList.toggle('hidden'); };
 $('btnStart').onclick = ()=>{
+  if(isNBI() && $('fOrg').value===ALL_ORGS){
+    say('Pick a contractor','All contractors is a view, not a place to count into. Choose one to start counting.',true);
+    return;
+  }
   const prior = priorFor($('fCat').value, $('fOrg').value, $('fVan').value.trim());
   if(prior){ resume(prior.id); return; }
   ensureSession(); $('setup').classList.add('hidden');
   refreshWhere(); renderSpots(); renderTally(); renderRecent();
 };
-$('fCat').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; SPOT=''; clearRegNote(); closeNewJob(); fillOrgs(); renderTally(); renderOrgBox(); renderBrands(); renderVar(); renderPlaceAdmin(); };
-$('fOrg').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; clearRegNote(); applyBrand(); syncPlaceUI(); fillPlaces(); refreshWhere(); renderRecent(); renderTypeAdmin(); };
+$('fCat').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; SPOT=''; clearRegNote(); closeNewJob(); fillOrgs(); renderScope(); syncStartable(); renderMgr(); renderTally(); renderOrgBox(); renderBrands(); renderVar(); renderPlaceAdmin(); };
+$('fOrg').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; clearRegNote(); applyBrand(); syncPlaceUI(); fillPlaces(); refreshWhere(); renderRecent(); renderTypeAdmin(); renderScope(); syncStartable(); renderMgr(); renderShare(); };
 $('fVan').oninput = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; openPick(); refreshWhere(); };
 $('fRec').onchange = ()=>{ if(!audioOn()){ if(recorder&&recorder.state==='recording'){ clipTarget=null; try{recorder.stop();}catch(e){} } recorder=null; } else if(wantListen) armRecorder(); };
 

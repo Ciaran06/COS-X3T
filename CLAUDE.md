@@ -80,8 +80,21 @@ treat it as a specification of behaviour that must survive a rewrite.
   See `regFromSpeech()`, `lev()`, `regVoiceMatch()`, `resolveRegVoice()`, `regListen()`.
 - **Editable place types per customer.** Delete "Outside store", add "Cold room" — persists for that
   business and voice picks it up immediately.
-- **Roles.** Counter sees only their own counts; owner sees every counter, location and job. This is
-  a client-side switch with a PIN, purely to demonstrate the model — it is **not** security.
+- **Roles.** Two roles, **NBI** and **Contractor**, switched from the chip in the header. No login and
+  no PIN — it is a client-side switch to demonstrate the model, and it is **not** security.
+  A contractor is fixed to their own stock and the fibre catalogue: the Catalogue and Counting-for
+  dropdowns are hidden, and every view is filtered to their org. NBI sees each contractor and gets an
+  extra **All contractors** entry in Counting-for that sums the estate; counting into All is refused,
+  since it is a view and not a place. Views are scoped by catalogue as well as contractor, so an NBI
+  estate total is fibre stock and does not quietly absorb a pub. See `me()`, `isNBI()`, `viewOrg()`,
+  `visible()`, `applyRole()`, `renderScope()`.
+- **Moving counts between devices.** Counts live on the device that made them. There is no server, so
+  **NBI's All contractors total is only as complete as the files imported onto that device.** As a
+  stop-gap, Data → *Moving counts between devices* has **Export job** (writes the selected job's
+  sessions as JSON, carrying the item records — description, group, unit, pack and unit value — so the
+  receiving device can describe and value them) and **Import job** (merges sessions, skipping any id
+  already present, and adds the job, any unknown items and any new contractor). Re-importing the same
+  file changes nothing. See `exportJobFile()`, `importJobFile()`, `saveFile()`.
 - **Jobs.** Counts belong to a named job (month-end, daily, etc.) with progress against a target.
   The job dropdown on the count screen ends in **+ New job…**, which opens an inline form — name,
   type (Month end / Mid-year / Year end / Ad hoc) and date — and the job it creates becomes the
@@ -127,7 +140,13 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
    Offline-first must survive the move — local writes first, sync when there's signal, never block
    the counter on a network call.
 2. **Real authentication and multi-tenancy.** The role switch is a demo. An account owner, counters
-   under them, and hard isolation between customers.
+   under them, and hard isolation between customers. Export/Import job is a hand-carried stand-in for
+   the real thing; replacing it needs, roughly: accounts and org membership with server-enforced
+   isolation; a sync endpoint the phone posts sessions and lines to, keyed by a stable client id so a
+   retry cannot double-count; an outbox on the device so a counter is never blocked without signal;
+   a per-line conflict rule with the device clock recorded, since two people can count the same van;
+   and a read model for NBI that aggregates across contractors without giving one contractor sight of
+   another. The frozen-snapshot rule from a closed job has to hold server-side too.
 3. **Supervisor sign-off.** A count is not final until approved. This is what makes the number usable
    in a contract dispute, and it is the feature that gets it past procurement.
 4. **A count sheet.** Show the counter last month's lines for this location as a checklist so nothing
