@@ -84,6 +84,8 @@
   .sync .led{width:7px; height:7px; border-radius:50%; background:var(--header-ink-2)}
   .sync.on .led{background:var(--ok)} .sync.queued .led{background:var(--accent)}
   @media (max-width:560px){ .sync{display:none} .tabs button{padding:6px 9px; font-size:12.5px} .rolechip{padding:5px 8px} .mark .nm small{display:none} }
+  /* four tabs need the room on a narrow phone — the mic square still carries the brand */
+  @media (max-width:480px){ .mark .nm{display:none} .tabs button{padding:6px 7px} }
   @media (max-width:400px){ .mark .nm{display:none} }
 
   /* customer band */
@@ -315,6 +317,7 @@
     <div class="tabs" role="tablist">
       <button role="tab" id="t-count" aria-selected="true">Count</button>
       <button role="tab" id="t-mgr" aria-selected="false">Rollup</button>
+      <button role="tab" id="t-hist" aria-selected="false">History</button>
       <button role="tab" id="t-cat" aria-selected="false">Data</button>
     </div>
     <button class="rolechip" id="roleBtn" title="Switch view"><span class="rl" id="roleLed"></span><span id="roleTxt">Counter</span></button>
@@ -350,8 +353,12 @@
 
     <div class="card setup" id="setup">
       <div class="field full">
-        <label for="fJob">Counting job</label>
+        <label class="lblrow" for="fJob">Counting job<button class="lnk" id="closeJobBtn">Close job</button></label>
         <select id="fJob"></select>
+      </div>
+      <div class="field full newjob hidden" id="closeJobBox">
+        <p class="note" id="cjNote"></p>
+        <div class="bar"><span class="sp"></span><button class="btn" id="cjCancel">Cancel</button><button class="btn dark" id="cjGo">Close job</button></div>
       </div>
       <div class="field full newjob hidden" id="newJob">
         <div class="catgrid">
@@ -493,6 +500,17 @@
   </section>
 
   <!-- ================= DATA ================= -->
+  <section id="v-hist" class="hidden mgr">
+    <div class="panel">
+      <header>
+        <h2>Closed stocktakes</h2>
+        <span class="hint">Frozen the day the job was closed — these numbers never move again</span>
+      </header>
+      <div id="histList"></div>
+    </div>
+    <div id="histDetail"></div>
+  </section>
+
   <section id="v-cat" class="hidden mgr">
 
     <div class="panel">
@@ -792,7 +810,7 @@ function load(){
   try{ const raw = localStorage.getItem(LS); if(raw){ const p=JSON.parse(raw); if(p&&p.sessions) return p; } }catch(e){}
   return {sessions:seedSessions(), current:null, synced:{}, custom:{fibre:[],pub:[]},
           hideBuiltin:{}, baseline:{}, orgs:{}, mapping:{}, brand:{},
-          me:{role:'counter', name:'Seán M'}, pin:'1234', job:'j-nbi-me', jobs:seedJobs()};
+          me:{role:'counter', name:'Seán M'}, pin:'1234', job:'j-nbi-me', jobs:seedJobs(), closed:[]};
 }
 function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
 
@@ -2474,10 +2492,83 @@ function switchRole(){
   openPin();
 }
 
+/* ============================================================
+   closing a job — the snapshot
+   Item details are copied in at close time, so a later price change
+   or a new count can never move a closed number.
+   ============================================================ */
+function closedJobs(){ return (S.closed||[]).slice().sort((a,b)=>b.closedAt-a.closedAt); }
+function buildSnapshot(j){
+  const sess = allSessions().filter(x=>x.job===j.id && x.lines.length);
+  const rows = [];
+  for(const x of sess){
+    const cat = x.cat || j.cat;
+    for(const l of x.lines){
+      const it = item(cat, l.code);
+      const uv = unitValue(it);
+      const base = baseQty(it, l.qty, l.unit);
+      rows.push({
+        org:x.org, container:x.container, ctype:x.ctype||'van', spot:l.loc, by:x.by||'', ts:l.ts,
+        code:it.code, short:it.short, long:it.long||it.short, group:groupOf(it),
+        unit:it.unit, pack:it.pack||1, packName:it.packName||'',
+        qty:l.qty, asUnit:l.unit, base, price:uv, value:(uv==null? null : base*uv),
+        drumId:l.drumId||null
+      });
+    }
+  }
+  const qty={}; let value=0, unpriced=false;
+  for(const r of rows){
+    qty[r.unit] = (qty[r.unit]||0) + r.base;
+    if(r.price==null) unpriced=true; else value += r.value;
+  }
+  return {
+    id:'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    jobId:j.id, name:j.name, kind:j.kind, cat:j.cat||'', due:j.due||'', closedAt:Date.now(),
+    orgs:[...new Set(rows.map(r=>r.org))].sort(),
+    counters:[...new Set(rows.map(r=>r.by).filter(Boolean))].sort(),
+    rows,
+    totals:{lines:rows.length, locations:new Set(rows.map(r=>r.org+'|'+r.container)).size, qty, value, unpriced}
+  };
+}
+function openCloseJob(){
+  const j = job(S.job);
+  if(!j){ say('No job selected','Pick a counting job before closing one.',true); return; }
+  const snap = buildSnapshot(j);
+  $('newJob').classList.add('hidden');
+  $('cjNote').innerHTML = 'Close <b>'+esc(j.name)+'</b>?'
+    + (snap.totals.lines
+      ? ' This freezes <b>'+snap.totals.lines+'</b> line'+(snap.totals.lines===1?'':'s')
+        + ' across <b>'+snap.totals.locations+'</b> location'+(snap.totals.locations===1?'':'s')
+        + (snap.orgs.length? ' for '+esc(snap.orgs.join(', ')):'')
+        + ' at <b>'+valCell(snap.totals.value, snap.totals.unpriced)+'</b>.'
+      : ' <b>Nothing has been counted on this job yet</b>, so it will be frozen empty.')
+    + ' It comes off the active list and moves to History, where it cannot change again.';
+  $('closeJobBox').classList.remove('hidden');
+}
+function closeCloseJob(){ $('closeJobBox').classList.add('hidden'); }
+function doCloseJob(){
+  const j = job(S.job); if(!j) return;
+  /* an open count on this job is finished first so its lines make the snapshot */
+  if(S.current && S.current.lines.length && S.current.job===j.id) doFinish(true);
+  const snap = buildSnapshot(j);
+  S.closed = (S.closed||[]).concat([snap]);
+  S.jobs = jobs().map(x=> x.id===j.id ? Object.assign({}, x, {closed:snap.closedAt}) : x);
+  if(S.current && S.current.job===j.id) S.current=null;
+  save();
+  closeCloseJob();
+  fillJobs(); renderJobsAdmin(); renderMgr(); renderTally(); renderRecent(); renderHistory();
+  $('setup').classList.remove('hidden');
+  say('Closed — '+j.name,
+      snap.totals.lines+' line'+(snap.totals.lines===1?'':'s')+' across '+snap.totals.locations
+      +' location'+(snap.totals.locations===1?'':'s')+', '+eur(snap.totals.value)
+      +'. Frozen in History; it will not change again.');
+  speak(j.name+' closed. '+snap.totals.lines+' lines, '+snap.totals.value.toFixed(2)+' euro. Frozen in history.');
+}
+
 const NEW_JOB = '__new';
 function fillJobs(){
   const cat=$('fCat').value;
-  const list = jobs().filter(j=>!j.cat || j.cat===cat);
+  const list = jobs().filter(j=>(!j.cat || j.cat===cat) && !j.closed);
   const opts = list.map(j=>'<option value="'+esc(j.id)+'">'+esc(j.name)+' · '+esc(j.kind)+'</option>').join('')
     || '<option value="">No job for this catalogue</option>';
   $('fJob').innerHTML = opts + '<option value="'+NEW_JOB+'">+ New job…</option>';
@@ -2485,6 +2576,7 @@ function fillJobs(){
   else if(list.length){ S.job=list[0].id; $('fJob').value=S.job; }
 }
 function openNewJob(){
+  closeCloseJob();
   $('newJob').classList.remove('hidden');
   $('njNote').textContent='';
   setTimeout(()=>$('njName').focus(), 30);
@@ -2717,6 +2809,126 @@ function renderPlaceAdmin(){
   if(c) c.onclick=()=>{ S.places[cat]=[]; save(); renderPlaces(); };
 }
 
+/* ============================================================
+   rendering — history
+   Everything here is drawn from the frozen snapshot, never from the
+   live catalogue, so a closed stocktake reads the same forever.
+   ============================================================ */
+function renderHistory(){
+  const el=$('histList'); if(!el) return;
+  const list = closedJobs();
+  if(!list.length){
+    el.className='';
+    el.innerHTML = '<p class="note">No closed stocktakes yet. Close a counting job on the Count tab and it is frozen here — '
+      + 'the numbers exactly as they stood that day, whatever happens to prices or counts afterwards.</p>';
+    $('histDetail').innerHTML=''; return;
+  }
+  el.className='joblist';
+  el.innerHTML = list.map(h=>
+    '<div class="jrow"><span class="ji"><b>'+esc(h.name)+'</b><small>'
+    + esc(h.kind)
+    + ' · closed '+new Date(h.closedAt).toLocaleDateString('en-IE',{day:'numeric',month:'long',year:'numeric'})
+    + ' · '+(h.orgs.length? esc(h.orgs.join(', ')) : 'no contractor')
+    + ' · '+h.totals.lines+' line'+(h.totals.lines===1?'':'s')
+    + ' · '+qtyByUnit(h.totals.qty)
+    + '</small></span>'
+    + '<span class="tag">'+valCell(h.totals.value,h.totals.unpriced)+'</span>'
+    + '<button class="btn" data-h="'+esc(h.id)+'">Open</button></div>').join('');
+  el.querySelectorAll('button[data-h]').forEach(b=> b.onclick=()=>{
+    renderHistoryDetail(b.dataset.h);
+    $('histDetail').scrollIntoView({behavior:'smooth', block:'start'});
+  });
+}
+function renderHistoryDetail(id){
+  const el=$('histDetail');
+  const h = (S.closed||[]).find(x=>x.id===id);
+  if(!h){ el.innerHTML=''; return; }
+  const pre = 'h'+h.id.replace(/\W/g,'');
+
+  /* contractor -> location -> item */
+  const byOrg={};
+  for(const r of h.rows){
+    const o = byOrg[r.org] = byOrg[r.org] || {locs:{}, value:0, unpriced:false, lines:0};
+    const L = o.locs[r.container] = o.locs[r.container] || {ctype:r.ctype, items:{}, value:0, unpriced:false, lines:0};
+    const I = L.items[r.code] = L.items[r.code] || {short:r.short, code:r.code, unit:r.unit, base:0, value:0, unpriced:false, drums:[]};
+    I.base += r.base; L.lines++; o.lines++;
+    if(r.price==null){ I.unpriced=true; L.unpriced=true; o.unpriced=true; }
+    else { I.value+=r.value; L.value+=r.value; o.value+=r.value; }
+    if(r.drumId) I.drums.push(r.drumId);
+  }
+  /* contractor -> product group */
+  const byGrp={};
+  for(const r of h.rows){
+    const o = byGrp[r.org] = byGrp[r.org] || {groups:{}, value:0, unpriced:false};
+    const g = o.groups[r.group] = o.groups[r.group] || {qty:{}, value:0, unpriced:false, codes:new Set()};
+    g.qty[r.unit]=(g.qty[r.unit]||0)+r.base; g.codes.add(r.code);
+    if(r.price==null){ g.unpriced=true; o.unpriced=true; } else { g.value+=r.value; o.value+=r.value; }
+  }
+
+  let out = '<div class="panel"><header><h2>'+esc(h.name)+'</h2>'
+    + '<span class="hint">Frozen '+new Date(h.closedAt).toLocaleString('en-IE',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</span>'
+    + '<button class="btn" id="histHide">Hide</button></header>'
+    + '<div class="tiles">'
+    + tile('Stock value', valCell(h.totals.value,h.totals.unpriced), h.orgs.join(', '))
+    + tile('Lines', h.totals.lines, h.totals.locations+' location'+(h.totals.locations===1?'':'s'))
+    + tile('Quantity', qtyByUnit(h.totals.qty), 'as counted on the day')
+    + tile('Type', esc(h.kind), h.cat && CATALOGUES[h.cat] ? CATALOGUES[h.cat].label : '')
+    + '</div></div>';
+
+  if(!h.rows.length){
+    el.innerHTML = out + '<div class="panel"><div class="empty">This job was closed with nothing counted against it.</div></div>';
+    const hb=$('histHide'); if(hb) hb.onclick=()=>{ el.innerHTML=''; };
+    return;
+  }
+
+  out += '<div class="panel"><header><h2>Rollup as it stood</h2><span class="hint">Tap a contractor to open its locations</span></header>'
+       + '<div class="scroll"><table><thead><tr><th>Contractor / location / item</th><th class="r">Stock value</th><th class="r">Quantity</th><th>Unit</th></tr></thead><tbody>';
+  for(const org of Object.keys(byOrg).sort()){
+    const o=byOrg[org], oid=pre+'o'+org.replace(/\W/g,'');
+    const locNames=Object.keys(o.locs).sort(natCmp);
+    out += '<tr class="grp" data-t="'+oid+'"><td><span class="caret">▸</span> <b>'+esc(org)+'</b></td>'
+         + '<td class="r"><b>'+valCell(o.value,o.unpriced)+'</b></td>'
+         + '<td class="r">'+locNames.length+'</td><td>location'+(locNames.length===1?'':'s')+'</td></tr>';
+    for(const ln of locNames){
+      const L=o.locs[ln], lid=oid+'l'+ln.replace(/\W/g,'');
+      const codes=Object.keys(L.items).sort();
+      out += '<tr class="grp sub '+oid+' hidden" data-t="'+lid+'"><td><span class="caret">▸</span> '+esc(ln)
+           + ' <span class="tag">'+esc(PL(L.ctype).label)+'</span></td>'
+           + '<td class="r">'+valCell(L.value,L.unpriced)+'</td>'
+           + '<td class="r">'+codes.length+'</td><td>item'+(codes.length===1?'':'s')+'</td></tr>';
+      for(const c of codes){
+        const I=L.items[c];
+        out += '<tr class="leaf '+lid+' hidden"><td>'+esc(I.short)+' <span class="tag">'+esc(I.code)+'</span>'
+             + (I.drums.length? '<br><small style="color:var(--ink-3)">'+esc(I.drums.join(', '))+'</small>':'')+'</td>'
+             + '<td class="r">'+valCell(I.value,I.unpriced)+'</td>'
+             + '<td class="r">'+fmt(I.base)+'</td><td>'+esc(plural(I.unit,I.base))+'</td></tr>';
+      }
+    }
+  }
+  out += '</tbody></table></div></div>';
+
+  out += '<div class="panel"><header><h2>Stock value by product group</h2><span class="hint">As frozen</span></header>'
+       + '<div class="scroll"><table><thead><tr><th>Contractor / product group</th><th class="r">Stock value</th></tr></thead><tbody>';
+  for(const org of Object.keys(byGrp).sort()){
+    const o=byGrp[org], gid=pre+'g'+org.replace(/\W/g,'');
+    const gn=Object.keys(o.groups).sort(groupCmp);
+    out += '<tr class="grp" data-t="'+gid+'"><td><span class="caret">▸</span> <b>'+esc(org)+'</b>'
+         + '<br><small style="color:var(--ink-3)">'+gn.length+' product group'+(gn.length===1?'':'s')+'</small></td>'
+         + '<td class="r"><b>'+valCell(o.value,o.unpriced)+'</b></td></tr>';
+    for(const g of gn){
+      const gr=o.groups[g];
+      out += '<tr class="leaf '+gid+' hidden"><td'+(g===UNASSIGNED? ' style="color:var(--bad)"':'')+'>'+esc(g)
+           + '<br><small style="color:var(--ink-3)">'+qtyByUnit(gr.qty)+' · '+gr.codes.size+' item'+(gr.codes.size===1?'':'s')+'</small></td>'
+           + '<td class="r">'+valCell(gr.value,gr.unpriced)+'</td></tr>';
+    }
+  }
+  out += '</tbody></table></div></div>';
+
+  el.innerHTML = out;
+  el.querySelectorAll('table').forEach(t=>wireTree(t));
+  const hb=$('histHide'); if(hb) hb.onclick=()=>{ el.innerHTML=''; };
+}
+
 function renderJobsAdmin(){
   const el=$('jobList'); if(!el) return;
   const all = visible(allSessions());
@@ -2725,7 +2937,9 @@ function renderJobsAdmin(){
     const ss = all.filter(s=>s.job===j.id);
     const done = new Set(ss.map(s=>s.org+'|'+s.container)).size;
     const pct = j.target ? Math.min(100, Math.round(done/j.target*100)) : (done?100:0);
-    return '<div class="jrow"><span class="ji"><b>'+esc(j.name)+'</b><small>'+esc(j.kind)
+    return '<div class="jrow"><span class="ji"><b>'+esc(j.name)+'</b>'
+      + (j.closed? ' <span class="tag">Closed '+new Date(j.closed).toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'})+'</span>':'')
+      + '<small>'+esc(j.kind)
       + (j.cat? ' · '+esc(CATALOGUES[j.cat].label):'')
       + (j.due? ' · due '+new Date(j.due).toLocaleDateString('en-IE',{day:'numeric',month:'short'}):'')
       + ' · '+done+(j.target? ' of '+j.target:'')+' locations counted</small></span>'
@@ -2821,13 +3035,14 @@ function fillOrgs(keepPlace){
   syncPlaceUI(); applyBrand(); renderSpots(); renderCat(); renderRecent();
 }
 function showTab(which){
-  for(const [t,v] of [['t-count','v-count'],['t-mgr','v-mgr'],['t-cat','v-cat']]){
+  for(const [t,v] of [['t-count','v-count'],['t-mgr','v-mgr'],['t-hist','v-hist'],['t-cat','v-cat']]){
     const on = t==='t-'+which;
     $(t).setAttribute('aria-selected', on?'true':'false');
     $(v).classList.toggle('hidden', !on);
   }
   $('band').classList.toggle('hidden', which!=='count');
   if(which==='mgr') renderMgr();
+  if(which==='hist') renderHistory();
   if(which==='cat'){ renderCat(); renderOrgBox(); renderBrands(); renderJobsAdmin(); renderPlaceAdmin(); renderTypeAdmin(); }
 }
 $('roleBtn').onclick = switchRole;
@@ -2878,6 +3093,10 @@ $('jAdd').onclick = ()=>{
 };
 $('t-count').onclick=()=>showTab('count');
 $('t-mgr').onclick=()=>showTab('mgr');
+$('t-hist').onclick=()=>showTab('hist');
+$('closeJobBtn').onclick = e=>{ e.preventDefault(); openCloseJob(); };
+$('cjCancel').onclick = closeCloseJob;
+$('cjGo').onclick = doCloseJob;
 $('t-cat').onclick=()=>showTab('cat');
 
 $('btnSetup').onclick = ()=>{ showTab('count'); $('setup').classList.toggle('hidden'); };
