@@ -87,6 +87,17 @@ treat it as a specification of behaviour that must survive a rewrite.
   type (Month end / Mid-year / Year end / Ad hoc) and date — and the job it creates becomes the
   selected one. Note the older job admin on the Data tab still offers its own type list
   (Month end / Daily / Weekly / Spot check / Ad hoc); the two lists have not been reconciled.
+- **Closing a job, and History.** *Close job* sits beside the job dropdown on the count screen. It
+  shows what is about to be frozen — lines, locations, contractors, value — and on confirmation takes
+  a **snapshot**: every line of every session on that job, with the item's description, product group,
+  unit, pack and unit value all *copied in at close time*. The job then drops out of the active
+  dropdown and appears on the **History** tab with its name, date closed, contractors, total lines,
+  total quantity and total value. Opening one shows the full rollup — contractor, location, item, and
+  the product-group breakdown — drawn entirely from the snapshot and never from the live catalogue,
+  so a later price change or a new count cannot move a closed number. An open count on the job is
+  finished first so its lines make the snapshot. Closed jobs live in `S.closed` and are never pruned,
+  so they persist year over year. See `buildSnapshot()`, `doCloseJob()`, `renderHistory()`,
+  `renderHistoryDetail()`.
 - **Audio evidence.** Each spoken line is recorded (on by default, switchable) and played back
   against the line. Stored in IndexedDB.
 - **Reconciliation.** Import a file with an expected-quantity column and every count is compared
