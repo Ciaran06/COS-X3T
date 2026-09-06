@@ -47,6 +47,26 @@ treat it as a specification of behaviour that must survive a rewrite.
   (SAP code, material number, invoice code, part number…). It finds the header row wherever it sits
   in the file and guesses every column, then shows the guesses for correction. Same importer
   handles the location register and shelf lists. See `FIELDS`, `analyse()`, `renderMap()`.
+  The item master is read from six columns, matched case-insensitively in any order: `Item code`,
+  `Description`, `Product Group`, `Unit value`, `Pack size`, `Unit of measure`. **A missing column
+  never fails the import** — every one of them is optional except the item code. After each import
+  the app reports which of the six were found (and under which heading in the file) and which were
+  missing, along with how many rows landed in Unassigned and how many items have no unit value.
+  See `EXPECTED_COLS`, `columnReport()`.
+- **Product groups.** Every item carries a Product Group. For the fibre / NBI catalogue the list is
+  fixed — see `PRODUCT_GROUPS`, 17 entries, some of which deliberately share a number prefix
+  (`06. Duct` and `06. Sub Duct`). Matching is on the text, case- and punctuation-insensitive, and
+  works with or without the number prefix ("Poles" finds "01. Poles"); `&` and "and" are equivalent.
+  Anything unrecognised or blank goes to a visible **Unassigned** bucket and is never dropped.
+  Outside the fibre catalogue there is no fixed list, so whatever the file says is kept as written.
+  See `matchGroup()`, `groupOf()`, `groupCmp()`.
+- **Stock value.** Every item carries a Unit value in euro. Stock value is counted quantity in base
+  units × unit value, and is shown everywhere a quantity is — the count screen, the estate rollup at
+  contractor, location and item level, the by-item table, and the catalogue. An item with no unit
+  value contributes zero and is marked with an asterisk so a total is never quietly understated.
+  The Rollup tab breaks stock value down by Product Group under each contractor, with quantity and
+  euro on every row, and the CSV export carries the same breakdown. Quantity is kept per base unit
+  rather than summed across metres and each. See `unitValue()`, `valCell()`, `qtyByUnit()`, `eur()`.
 - **Location register.** Counts must land on a registered vehicle reg or named location. Unregistered
   ones are challenged with the nearest matches. Searchable picker, filtered by place type.
 - **Editable place types per customer.** Delete "Outside store", add "Cold room" — persists for that

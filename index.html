@@ -445,6 +445,14 @@
     </div>
 
     <div class="panel">
+      <header>
+        <h2>Stock value by product group</h2>
+        <span class="hint">Tap a contractor to open its product groups</span>
+      </header>
+      <div class="scroll"><table id="tblGrp"></table></div>
+    </div>
+
+    <div class="panel">
       <header><h2>Count against expected</h2><span class="hint" id="varHint"></span></header>
       <div class="scroll"><table id="tblVar"></table></div>
     </div>
@@ -605,6 +613,68 @@ function typeCfg(cat, org){
   return S.placeTypes[key];
 }
 
+/* ---------- product groups ---------- */
+const UNASSIGNED = 'Unassigned';
+/* Fixed list for the fibre / NBI catalogue. Duplicate number prefixes are in the
+   source list on purpose — these are distinct groups that share a number. */
+const PRODUCT_GROUPS = [
+  '01. Poles',
+  '02. Poles - Accessories',
+  '03. Fibre - Overhead',
+  '04. Fibre - Underground',
+  '05. Fibre - Accessories',
+  '06. Duct',
+  '06. Sub Duct',
+  '07. Duct - Accessories',
+  '07. Duct - Duct Repair Kits',
+  '08. Enclosures',
+  '09. Enclosures - Accessories',
+  '10. Covers & Accessories',
+  '11. Connections',
+  '11. Connections - MDUs',
+  '12. Nokia Spares',
+  '13. Mast Backhaul',
+  '14. Radio Network'
+];
+function gnorm(v){ return String(v==null?'':v).toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim(); }
+const GKEY = {};
+PRODUCT_GROUPS.forEach(g=>{
+  GKEY[gnorm(g)] = g;                                /* "01. Poles" as written   */
+  const bare = gnorm(g.replace(/^\d+\.\s*/,''));     /* "Poles" without the number */
+  if(bare && !GKEY[bare]) GKEY[bare] = g;
+});
+/* Match the text of a group against the fixed list. Outside the fibre catalogue
+   there is no fixed list, so whatever the file says is kept as written.
+   Anything unrecognised or blank lands in a visible Unassigned bucket. */
+function matchGroup(raw, cat){
+  const k = gnorm(raw);
+  if(!k) return UNASSIGNED;
+  if(GKEY[k]) return GKEY[k];
+  if(cat && cat !== 'fibre') return String(raw).trim();
+  return UNASSIGNED;
+}
+function groupOf(it){ return (it && it.group) || UNASSIGNED; }
+/* Sort so the numbered groups keep their given order and Unassigned sits last. */
+function groupCmp(a,b){
+  if(a===UNASSIGNED) return 1;
+  if(b===UNASSIGNED) return -1;
+  const ia=PRODUCT_GROUPS.indexOf(a), ib=PRODUCT_GROUPS.indexOf(b);
+  if(ia>=0 && ib>=0) return ia-ib;
+  if(ia>=0) return -1;
+  if(ib>=0) return 1;
+  return a.localeCompare(b);
+}
+
+/* ---------- stock value ---------- */
+function unitValue(it){
+  const raw = it && it.price;
+  const v = typeof raw === 'string' ? parseFloat(raw.replace(/[^0-9.\-]/g,'')) : raw;
+  return (typeof v === 'number' && isFinite(v) && v >= 0) ? v : null;
+}
+function eur(n){
+  return '\u20AC' + (Math.round(n*100)/100).toLocaleString('en-IE',{minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
 /* ---------- catalogues ---------- */
 const CATALOGUES = {
   fibre: {
@@ -613,16 +683,16 @@ const CATALOGUES = {
     defaultPlace:'van',
     spots:['Shelf A1','Shelf A2','Shelf A3','Bay 1','Bay 2','Roof rack','Floor'],
     items:[
-      {code:'FIB-96F', short:'96F fibre drum', long:'96 fibre ADSS cable, 4km drum', unit:'metre', pack:4000, packName:'drum', alias:'ninety six fibre, 96 fibre, ninety six f', drum:true},
-      {code:'FIB-48F', short:'48F fibre drum', long:'48 fibre ADSS cable, 4km drum', unit:'metre', pack:4000, packName:'drum', alias:'forty eight fibre, 48 fibre', drum:true},
-      {code:'FIB-24F', short:'24F fibre drum', long:'24 fibre ADSS cable, 2km drum', unit:'metre', pack:2000, packName:'drum', alias:'twenty four fibre, 24 fibre', drum:true},
-      {code:'DUCT-32', short:'32mm duct coil', long:'32mm HDPE sub-duct, 200m coil', unit:'metre', pack:200, packName:'coil', alias:'duct, thirty two duct, sub duct'},
-      {code:'POLE-9', short:'9m pole', long:'9 metre creosote distribution pole', unit:'each', pack:1, alias:'pole, nine metre pole, poles'},
-      {code:'HANG-STD', short:'Cable hanger', long:'Standard aerial cable hanger, box of 100', unit:'each', pack:100, packName:'box', alias:'hanger, hangers, cable hanger'},
-      {code:'MH-D400', short:'Manhole cover D400', long:'D400 composite manhole cover and frame', unit:'each', pack:1, alias:'manhole cover, cover, manhole'},
-      {code:'CONN-KIT', short:'Connection kit', long:'Standard premises connection kit', unit:'each', pack:1, alias:'connection kit, conn kit, kit, kits'},
-      {code:'SCREW-100', short:'Fixing screws', long:'Stainless fixing screws, box of 100', unit:'each', pack:100, packName:'box', alias:'screws, screw, fixings'},
-      {code:'CLOS-24', short:'24-way closure', long:'24 way inline splice closure', unit:'each', pack:1, alias:'closure, closures, twenty four way closure'}
+      {code:'FIB-96F', short:'96F fibre drum', long:'96 fibre ADSS cable, 4km drum', unit:'metre', pack:4000, packName:'drum', alias:'ninety six fibre, 96 fibre, ninety six f', drum:true, group:'03. Fibre - Overhead', price:1.10},
+      {code:'FIB-48F', short:'48F fibre drum', long:'48 fibre ADSS cable, 4km drum', unit:'metre', pack:4000, packName:'drum', alias:'forty eight fibre, 48 fibre', drum:true, group:'03. Fibre - Overhead', price:0.85},
+      {code:'FIB-24F', short:'24F fibre drum', long:'24 fibre ADSS cable, 2km drum', unit:'metre', pack:2000, packName:'drum', alias:'twenty four fibre, 24 fibre', drum:true, group:'03. Fibre - Overhead', price:0.62},
+      {code:'DUCT-32', short:'32mm duct coil', long:'32mm HDPE sub-duct, 200m coil', unit:'metre', pack:200, packName:'coil', alias:'duct, thirty two duct, sub duct', group:'06. Sub Duct', price:0.95},
+      {code:'POLE-9', short:'9m pole', long:'9 metre creosote distribution pole', unit:'each', pack:1, alias:'pole, nine metre pole, poles', group:'01. Poles', price:148.00},
+      {code:'HANG-STD', short:'Cable hanger', long:'Standard aerial cable hanger, box of 100', unit:'each', pack:100, packName:'box', alias:'hanger, hangers, cable hanger', group:'02. Poles - Accessories', price:0.42},
+      {code:'MH-D400', short:'Manhole cover D400', long:'D400 composite manhole cover and frame', unit:'each', pack:1, alias:'manhole cover, cover, manhole', group:'10. Covers & Accessories', price:210.00},
+      {code:'CONN-KIT', short:'Connection kit', long:'Standard premises connection kit', unit:'each', pack:1, alias:'connection kit, conn kit, kit, kits', group:'11. Connections', price:38.50},
+      {code:'SCREW-100', short:'Fixing screws', long:'Stainless fixing screws, box of 100', unit:'each', pack:100, packName:'box', alias:'screws, screw, fixings', group:'02. Poles - Accessories', price:0.18},
+      {code:'CLOS-24', short:'24-way closure', long:'24 way inline splice closure', unit:'each', pack:1, alias:'closure, closures, twenty four way closure', group:'08. Enclosures', price:96.00}
     ]
   },
   pub: {
@@ -631,15 +701,15 @@ const CATALOGUES = {
     defaultPlace:'store-in',
     spots:['Back bar','Shelf 1','Shelf 2','Shelf 3','Under-bar fridge','Cellar'],
     items:[
-      {code:'COKE-330', short:'Coke 330ml', long:'Coca-Cola 330ml glass bottle', unit:'bottle', pack:24, packName:'case', alias:'coke, cola, coca cola'},
-      {code:'SPRT-330', short:'Sprite 330ml', long:'Sprite 330ml glass bottle', unit:'bottle', pack:24, packName:'case', alias:'sprite'},
-      {code:'HEIN-KEG', short:'Heineken keg', long:'Heineken 50 litre keg', unit:'keg', pack:1, alias:'heineken, heino'},
-      {code:'GUIN-KEG', short:'Guinness keg', long:'Guinness 50 litre keg', unit:'keg', pack:1, alias:'guinness, stout'},
-      {code:'HEIN-BTL', short:'Heineken bottle', long:'Heineken 330ml bottle', unit:'bottle', pack:24, packName:'case', alias:'heineken bottles, bottled heineken'},
-      {code:'JAM-70', short:'Jameson 70cl', long:'Jameson Irish Whiskey 70cl', unit:'bottle', pack:6, packName:'case', alias:'jameson, jemmy'},
-      {code:'SMIR-70', short:'Smirnoff 70cl', long:'Smirnoff Red vodka 70cl', unit:'bottle', pack:6, packName:'case', alias:'smirnoff, vodka'},
-      {code:'TONIC-200', short:'Tonic 200ml', long:'Schweppes tonic water 200ml', unit:'bottle', pack:24, packName:'case', alias:'tonic, schweppes'},
-      {code:'CRISP-BOX', short:'Crisps', long:'Assorted crisps, box of 48', unit:'packet', pack:48, packName:'box', alias:'crisps, taytos, tayto'}
+      {code:'COKE-330', short:'Coke 330ml', long:'Coca-Cola 330ml glass bottle', unit:'bottle', pack:24, packName:'case', alias:'coke, cola, coca cola', group:'Minerals', price:0.62},
+      {code:'SPRT-330', short:'Sprite 330ml', long:'Sprite 330ml glass bottle', unit:'bottle', pack:24, packName:'case', alias:'sprite', group:'Minerals', price:0.62},
+      {code:'HEIN-KEG', short:'Heineken keg', long:'Heineken 50 litre keg', unit:'keg', pack:1, alias:'heineken, heino', group:'Draught', price:165.00},
+      {code:'GUIN-KEG', short:'Guinness keg', long:'Guinness 50 litre keg', unit:'keg', pack:1, alias:'guinness, stout', group:'Draught', price:178.00},
+      {code:'HEIN-BTL', short:'Heineken bottle', long:'Heineken 330ml bottle', unit:'bottle', pack:24, packName:'case', alias:'heineken bottles, bottled heineken', group:'Bottled beer', price:1.35},
+      {code:'JAM-70', short:'Jameson 70cl', long:'Jameson Irish Whiskey 70cl', unit:'bottle', pack:6, packName:'case', alias:'jameson, jemmy', group:'Spirits', price:22.50},
+      {code:'SMIR-70', short:'Smirnoff 70cl', long:'Smirnoff Red vodka 70cl', unit:'bottle', pack:6, packName:'case', alias:'smirnoff, vodka', group:'Spirits', price:18.90},
+      {code:'TONIC-200', short:'Tonic 200ml', long:'Schweppes tonic water 200ml', unit:'bottle', pack:24, packName:'case', alias:'tonic, schweppes', group:'Minerals', price:0.48},
+      {code:'CRISP-BOX', short:'Crisps', long:'Assorted crisps, box of 48', unit:'packet', pack:48, packName:'box', alias:'crisps, taytos, tayto', group:'Snacks', price:0.34}
     ]
   }
 };
@@ -1198,12 +1268,43 @@ function rollLines(lines, cat){
   const by={};
   for(const l of lines){
     const it = item(l.cat||cat, l.code);
-    by[l.code] = by[l.code] || {it, base:0, packs:0, drums:[]};
-    by[l.code].base += baseQty(it,l.qty,l.unit);
+    by[l.code] = by[l.code] || {it, base:0, packs:0, drums:[], value:0, unpriced:false};
+    const b = baseQty(it,l.qty,l.unit);
+    by[l.code].base += b;
+    const uv = unitValue(it);
+    if(uv==null) by[l.code].unpriced = true; else by[l.code].value += b*uv;
     if(isPackUnit(it,l.unit)) by[l.code].packs += l.qty;
     if(l.drumId) by[l.code].drums.push(l.drumId+' ('+fmt(l.qty)+'m)');
   }
   return by;
+}
+/* A euro cell, marked when some of what it covers has no unit value. */
+function valCell(v, unpriced){
+  return eur(v||0) + (unpriced ? '<abbr title="Includes items with no unit value in the item master">*</abbr>' : '');
+}
+function sumValue(by){
+  let v=0, unpriced=false;
+  for(const r of Object.values(by)){ v += r.value; if(r.unpriced) unpriced=true; }
+  return {value:v, unpriced};
+}
+function wireTree(tbl){
+  if(!tbl) return;
+  tbl.querySelectorAll('.grp').forEach(tr=>{
+    tr.addEventListener('click', ()=>{
+      const t = tr.dataset.t;
+      const kids = document.querySelectorAll('.'+t);
+      const wasHidden = kids.length && kids[0].classList.contains('hidden');
+      kids.forEach(k=>{
+        if(wasHidden) k.classList.remove('hidden');
+        else { k.classList.add('hidden'); document.querySelectorAll('.'+(k.dataset.t||'__none')).forEach(g=>g.classList.add('hidden')); }
+      });
+      const c = tr.querySelector('.caret'); if(c) c.textContent = wasHidden ? '▾' : '▸';
+    });
+  });
+}
+/* Quantity across a mixed group is not one number \u2014 keep it per base unit. */
+function qtyByUnit(map){
+  return Object.keys(map).sort().map(u=>fmt(map[u])+' '+esc(plural(u,map[u]))).join(' \u00B7 ') || '\u2014';
 }
 function spotTotal(){
   const s=cur(); if(!s) return {};
@@ -1747,11 +1848,12 @@ function renderTally(){
       h += '<div class="line"><span class="code">'+esc(r.it.code)+'</span><span class="nm">'+esc(r.it.short)
          + (r.drums.length? '<small>'+esc(r.drums.join(', '))+'</small>':'')
          + (r.packs? '<small>incl. '+fmt(r.packs)+' '+esc(plural(r.it.packName||'case',r.packs))+'</small>':'')
-         + '</span><span class="q">'+fmt(r.base)+'<small>'+esc(plural(r.it.unit,r.base))+'</small></span></div>';
+         + '</span><span class="q">'+fmt(r.base)+'<small>'+esc(plural(r.it.unit,r.base))+' \u00B7 '+valCell(r.value,r.unpriced)+'</small></span></div>';
     }
   }
   const all = rollLines(s.lines, s.cat);
-  h += '<div class="sum"><span>Running total</span><b>'+Object.keys(all).length+' items · '+s.lines.length+' lines</b></div>';
+  const allVal = sumValue(all);
+  h += '<div class="sum"><span>Running total</span><b>'+Object.keys(all).length+' items · '+s.lines.length+' lines · '+valCell(allVal.value,allVal.unpriced)+'</b></div>';
 
   h += '<div class="calls"><h3>As called out</h3>';
   for(const l of s.lines.slice(-8).reverse()){
@@ -1795,65 +1897,107 @@ function renderMgr(){
          lastTs? new Date(lastTs).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'')
   ].join('');
 
-  let h = '<thead><tr><th>Customer / location / item</th><th class="r">Quantity</th><th>Unit</th><th class="r">Packs</th><th>Status</th></tr></thead><tbody>';
+  let h = '<thead><tr><th>Customer / location / item</th><th class="r">Stock value</th><th class="r">Quantity</th><th>Unit</th><th class="r">Packs</th><th>Status</th></tr></thead><tbody>';
   for(const org of orgs){
     const os = sess.filter(s=>s.org===org);
     const oLines = os.flatMap(s=>s.lines);
     const oid = 'o'+org.replace(/\W/g,'');
     const col = brandFor(os[0].cat||'fibre', org).color;
+    const oVal = sumValue(rollLines(oLines, os[0].cat));
     h += '<tr class="grp" data-t="'+oid+'"><td><span class="caret">▸</span> <span class="dotc" style="background:'+col+'"></span>'+esc(org)+'</td>'
+       + '<td class="r"><b>'+valCell(oVal.value,oVal.unpriced)+'</b></td>'
        + '<td class="r">'+os.length+'</td><td>location'+(os.length===1?'':'s')+'</td><td class="r">'+oLines.length+' lines</td>'
        + '<td>'+(os.some(s=>s.example)?'<span class="tag ex">Example data</span>':'')+(os.some(s=>s.open)?' <span class="tag open">Counting</span>':'')+'</td></tr>';
     for(const s of os){
       const vid = oid+'v'+s.id.replace(/\W/g,'');
       const vBy = rollLines(s.lines, s.cat);
+      const vVal = sumValue(vBy);
       h += '<tr class="grp sub '+oid+' hidden" data-t="'+vid+'"><td><span class="caret">▸</span> '+esc(s.container)
          + ' <span class="tag">'+esc(PL(s.ctype||'van').label)+'</span></td>'
+         + '<td class="r">'+valCell(vVal.value,vVal.unpriced)+'</td>'
          + '<td class="r">'+Object.keys(vBy).length+'</td><td>items</td><td class="r">'+s.lines.length+' lines</td>'
          + '<td>'+new Date(s.finished||s.started).toLocaleDateString('en-IE',{day:'numeric',month:'short'})+'</td></tr>';
       for(const r of Object.values(vBy)){
         h += '<tr class="leaf '+vid+' hidden"><td>'+esc(r.it.short)+' <span class="tag">'+esc(r.it.code)+'</span>'
            + (r.drums.length?'<br><small style="color:var(--ink-3)">'+esc(r.drums.join(', '))+'</small>':'')+'</td>'
+           + '<td class="r">'+valCell(r.value,r.unpriced)+'</td>'
            + '<td class="r">'+fmt(r.base)+'</td><td>'+esc(plural(r.it.unit,r.base))+'</td><td class="r">'+(r.packs?fmt(r.packs):'—')+'</td><td></td></tr>';
       }
     }
   }
   h += '</tbody>';
   $('tblOrg').innerHTML = h;
-  $('tblOrg').querySelectorAll('.grp').forEach(tr=>{
-    tr.addEventListener('click', ()=>{
-      const t = tr.dataset.t;
-      const kids = document.querySelectorAll('.'+t);
-      const wasHidden = kids.length && kids[0].classList.contains('hidden');
-      kids.forEach(k=>{
-        if(wasHidden) k.classList.remove('hidden');
-        else { k.classList.add('hidden'); document.querySelectorAll('.'+(k.dataset.t||'__none')).forEach(g=>g.classList.add('hidden')); }
-      });
-      tr.querySelector('.caret').textContent = wasHidden ? '▾' : '▸';
-    });
-  });
+  wireTree($('tblOrg'));
 
   const byItem={};
   for(const l of lines){
     const it = item(l.cat,l.code), k=l.cat+'|'+l.code;
-    byItem[k] = byItem[k] || {it, base:0, packs:0, orgs:new Set()};
-    byItem[k].base += baseQty(it,l.qty,l.unit);
+    byItem[k] = byItem[k] || {it, base:0, packs:0, orgs:new Set(), value:0, unpriced:false};
+    const b = baseQty(it,l.qty,l.unit);
+    byItem[k].base += b;
+    const uv = unitValue(it);
+    if(uv==null) byItem[k].unpriced = true; else byItem[k].value += b*uv;
     if(isPackUnit(it,l.unit)) byItem[k].packs += l.qty;
     byItem[k].orgs.add(l.org);
   }
   const rows = Object.values(byItem).sort((a,b)=>b.base-a.base);
   if(!rows.length) $('tblItem').innerHTML = '<tbody><tr><td class="empty">No counts yet.</td></tr></tbody>';
   else {
-    let h2 = '<thead><tr><th>Code</th><th>Item</th><th class="r">Total</th><th>Unit</th><th class="r">Whole packs</th><th class="r">Held by</th></tr></thead><tbody>';
+    let h2 = '<thead><tr><th>Item</th><th class="r">Stock value</th><th class="r">Total</th><th>Unit</th><th>Product Group</th><th class="r">Whole packs</th><th class="r">Held by</th></tr></thead><tbody>';
     for(const r of rows){
       const whole = r.it.pack>1 ? Math.floor(r.base/r.it.pack) : 0;
-      h2 += '<tr><td class="mono" style="font-size:12px">'+esc(r.it.code)+'</td>'
-          + '<td>'+esc(r.it.short)+'<br><small style="color:var(--ink-3)">'+esc(r.it.long)+'</small></td>'
+      const g = groupOf(r.it);
+      h2 += '<tr><td>'+esc(r.it.short)+'<br><small class="mono" style="color:var(--ink-3)">'+esc(r.it.code)+'</small></td>'
+          + '<td class="r"><b>'+valCell(r.value,r.unpriced)+'</b></td>'
           + '<td class="r"><b>'+fmt(r.base)+'</b></td><td>'+esc(plural(r.it.unit,r.base))+'</td>'
+          + '<td'+(g===UNASSIGNED? ' style="color:var(--bad)"':'')+'>'+esc(g)+'</td>'
           + '<td class="r">'+(whole? fmt(whole)+' '+esc(plural(r.it.packName||'case',whole)) : '—')+'</td>'
           + '<td class="r">'+r.orgs.size+'</td></tr>';
     }
     $('tblItem').innerHTML = h2+'</tbody>';
+  }
+
+  /* by product group, per contractor */
+  if($('tblGrp')){
+    const byOrgGroup = {};
+    for(const l of lines){
+      const it = item(l.cat,l.code), g = groupOf(it);
+      const o = byOrgGroup[l.org] = byOrgGroup[l.org] || {value:0, unpriced:false, lines:0, groups:{}};
+      const gr = o.groups[g] = o.groups[g] || {qty:{}, value:0, unpriced:false, codes:new Set()};
+      const b = baseQty(it,l.qty,l.unit);
+      gr.qty[it.unit] = (gr.qty[it.unit]||0) + b;
+      gr.codes.add(it.code);
+      o.lines++;
+      const uv = unitValue(it);
+      if(uv==null){ gr.unpriced = true; o.unpriced = true; }
+      else { gr.value += b*uv; o.value += b*uv; }
+    }
+    const orgNames = Object.keys(byOrgGroup).sort();
+    if(!orgNames.length) $('tblGrp').innerHTML = '<tbody><tr><td class="empty">No counts yet.</td></tr></tbody>';
+    else {
+      let hg = '<thead><tr><th>Contractor / product group</th><th class="r">Stock value</th></tr></thead><tbody>';
+      let estate = 0, estateUnpriced = false;
+      for(const org of orgNames){
+        const o = byOrgGroup[org];
+        const gid = 'pg'+org.replace(/\W/g,'');
+        const gnames = Object.keys(o.groups).sort(groupCmp);
+        estate += o.value; if(o.unpriced) estateUnpriced = true;
+        hg += '<tr class="grp" data-t="'+gid+'"><td><span class="caret">▸</span> <b>'+esc(org)+'</b>'
+            + '<br><small style="color:var(--ink-3)">'+gnames.length+' product group'+(gnames.length===1?'':'s')+' · '+o.lines+' lines</small></td>'
+            + '<td class="r"><b>'+valCell(o.value,o.unpriced)+'</b></td></tr>';
+        for(const g of gnames){
+          const gr = o.groups[g];
+          hg += '<tr class="leaf '+gid+' hidden"><td'+(g===UNASSIGNED? ' style="color:var(--bad)"':'')+'>'+esc(g)
+              + '<br><small style="color:var(--ink-3)">'+qtyByUnit(gr.qty)+' · '+gr.codes.size+' item'+(gr.codes.size===1?'':'s')+'</small></td>'
+              + '<td class="r">'+valCell(gr.value,gr.unpriced)+'</td></tr>';
+        }
+      }
+      if(orgNames.length>1)
+        hg += '<tr class="grp"><td><b>All contractors</b></td>'
+            + '<td class="r"><b>'+valCell(estate,estateUnpriced)+'</b></td></tr>';
+      $('tblGrp').innerHTML = hg+'</tbody>';
+      wireTree($('tblGrp'));
+    }
   }
 
   /* by job */
@@ -1956,10 +2100,15 @@ function renderVar(){
 
 function renderCat(){
   const cat=$('fCat').value, base=(S.baseline&&S.baseline[cat])||{};
-  let h='<thead><tr><th>Code</th><th>Short description</th><th>Long description</th><th>Unit</th><th class="r">Pack size</th><th class="r">Expected</th><th>Spoken as</th></tr></thead><tbody>';
+  let h='<thead><tr><th>Code</th><th>Short description</th><th>Product Group</th><th>Unit</th><th class="r">Unit value</th><th class="r">Pack size</th><th class="r">Expected</th><th>Spoken as</th></tr></thead><tbody>';
   for(const it of items(cat)){
-    h += '<tr><td class="mono" style="font-size:12px">'+esc(it.code)+'</td><td>'+esc(it.short)+'</td>'
-       + '<td style="color:var(--ink-2)">'+esc(it.long)+'</td><td>'+esc(it.unit)+'</td>'
+    const uv = unitValue(it);
+    const grp = groupOf(it);
+    h += '<tr><td class="mono" style="font-size:12px">'+esc(it.code)+'</td>'
+       + '<td>'+esc(it.short)+'<br><small style="color:var(--ink-3)">'+esc(it.long)+'</small></td>'
+       + '<td'+(grp===UNASSIGNED? ' style="color:var(--bad)"':'')+'>'+esc(grp)+'</td>'
+       + '<td>'+esc(it.unit)+'</td>'
+       + '<td class="r">'+(uv==null? '<span style="color:var(--bad)">—</span>' : eur(uv))+'</td>'
        + '<td class="r">'+(it.pack>1? it.pack+' per '+esc(it.packName||'case'):'—')+'</td>'
        + '<td class="r">'+(base[it.code]!=null? fmt(base[it.code]):'—')+'</td>'
        + '<td style="color:var(--ink-3)">'+esc(it.alias||'')+'</td></tr>';
@@ -2018,7 +2167,8 @@ const FIELDS = [
   {key:'pack',     label:'Pack size',         syn:['pack size','pack','packsize','pack qty','pack quantity','qty per pack','units per pack','case size','units per case','qty per case','box qty','box quantity','per box','per pack','per case','conversion','conversion factor','multiplier','inner qty','outer qty','drum length','coil length','standard length']},
   {key:'packName', label:'Pack name',         syn:['pack type','pack name','packaging','case type','pack uom','purchase unit','order unit','buying unit']},
   {key:'expected', label:'Expected quantity', syn:['qty','quantity','stock on hand','on hand','soh','closing stock','opening stock','balance','count','last count','stock','current stock','book stock','qty on hand','physical','system qty','expected','total']},
-  {key:'price',    label:'Unit price',        syn:['price','unit price','cost','unit cost','value','rate','standard price','list price','net price']},
+  {key:'price',    label:'Unit value (\u20AC)',     syn:['unit value','unitvalue','value','unit price','price','unit cost','cost','value each','rate','standard price','list price','net price','eur','euro']},
+  {key:'group',    label:'Product Group',     syn:['product group','productgroup','product grp','prod group','material group','item group','stock group','product category','group name','group','grp']},
   {key:'alias',    label:'Spoken as',         syn:['spoken as','alias','aliases','nickname','common name','also known as','short name','local name']},
   {key:'owner',    label:'Customer',          syn:['contractor','subcontractor','supplier','vendor','owner','held by','customer','company','account','client','region']},
   {key:'placeLabel',label:'Location / reg',    syn:['registration','reg','reg no','reg number','registration number','vehicle reg','vehicle','van reg','van','fleet no','fleet number','fleet','plate','number plate','asset','asset number','unit number','location','location name','place','room','area','bar','store name','yard name','site name','depot','warehouse']},
@@ -2107,7 +2257,7 @@ function renderMap(){
   $('impReplace').textContent = hasPlace ? 'Replace register' : 'Replace item master';
   $('mapWrap').classList.remove('hidden');
 }
-function buildItems(){
+function buildItems(cat){
   const ci={}; FIELDS.forEach(f=> ci[f.key]=IMP.map.indexOf(f.key));
   const out=[], baseline={}, owners=new Set();
   for(const r of IMP.rows.slice(IMP.headerIdx+1)){
@@ -2126,6 +2276,7 @@ function buildItems(){
     out.push({code, short, long:get('long')||short, unit:normUom(get('unit')), pack,
       packName: get('packName')? normUom(get('packName')) : (pack>1?'case':''),
       alias:[...aliasBits].join(', '),
+      group: matchGroup(get('group'), cat),
       price: parseFloat(get('price').replace(/[^0-9.]/g,''))||null});
     const exp=parseFloat(get('expected').replace(/[^0-9.\-]/g,''));
     if(!isNaN(exp)) baseline[code]=(baseline[code]||0)+exp;
@@ -2190,11 +2341,31 @@ function importPlaces(replace){
   $('mapWrap').classList.add('hidden'); IMP=null;
   fillOrgs(); renderPlaces(); renderMgr();
 }
+/* The six columns the item master is read from. Anything else in the file is
+   left alone; a missing one is reported rather than failing the import. */
+const EXPECTED_COLS = [
+  {key:'code',  label:'Item code'},
+  {key:'short', label:'Description'},
+  {key:'group', label:'Product Group'},
+  {key:'price', label:'Unit value'},
+  {key:'pack',  label:'Pack size'},
+  {key:'unit',  label:'Unit of measure'}
+];
+function columnReport(){
+  const found=[], missing=[];
+  for(const c of EXPECTED_COLS){
+    const ci = IMP.map.indexOf(c.key);
+    if(ci>=0) found.push(esc(c.label)+' \u2190 \u201C'+esc(IMP.headers[ci]||'(no heading)')+'\u201D');
+    else missing.push(esc(c.label));
+  }
+  return {found, missing};
+}
 function doImport(replace){
   if(!IMP) return;
   if(!IMP.map.includes('code') && IMP.map.includes('placeLabel')) return importPlaces(replace);
   const cat=$('fCat').value;
-  const {out,baseline,owners}=buildItems();
+  const {found, missing} = columnReport();
+  const {out,baseline,owners}=buildItems(cat);
   if(!out.length) return;
   S.custom=S.custom||{}; S.baseline=S.baseline||{}; S.orgs=S.orgs||{}; S.hideBuiltin=S.hideBuiltin||{}; S.mapping=S.mapping||{};
   if(replace){ S.custom[cat]=out; S.hideBuiltin[cat]=true; S.baseline[cat]=baseline; }
@@ -2205,9 +2376,18 @@ function doImport(replace){
   if(owners.length) S.orgs[cat]=[...new Set((replace?[]:(S.orgs[cat]||orgsFor(cat))).concat(owners))];
   S.mapping[cat]={headers:IMP.headers, map:IMP.map};
   save();
-  $('impNote').textContent = out.length+' items imported'
-    + (Object.keys(baseline).length? ', '+Object.keys(baseline).length+' with an expected quantity to count against':'')
-    + (owners.length? ', '+owners.length+' customers picked up':'')+'.';
+  const unassigned = out.filter(i=>groupOf(i)===UNASSIGNED).length;
+  const priced = out.filter(i=>unitValue(i)!=null).length;
+  const groupsSeen = new Set(out.map(groupOf)); groupsSeen.delete(UNASSIGNED);
+  $('impNote').innerHTML = '<b>'+out.length+' items imported</b> into '+esc(CATALOGUES[cat].label)+'.'
+    + (Object.keys(baseline).length? ' '+Object.keys(baseline).length+' with an expected quantity to count against.':'')
+    + (owners.length? ' '+owners.length+' customer'+(owners.length===1?'':'s')+' picked up.':'')
+    + '<br><b>Columns found:</b> ' + (found.length ? found.join(' &middot; ') : 'none')
+    + '<br><b>Columns missing:</b> ' + (missing.length ? missing.join(' &middot; ') : 'none \u2014 every expected column was in the file')
+    + '<br><b>Product groups:</b> ' + groupsSeen.size + ' matched'
+      + (unassigned ? ', <b>'+unassigned+' item'+(unassigned===1?'':'s')+' in '+UNASSIGNED+'</b>' : ', nothing unassigned')
+    + '<br><b>Unit values:</b> ' + priced + ' of ' + out.length + ' priced'
+      + ((out.length-priced) ? ', '+(out.length-priced)+' with no value \u2014 those count as \u20AC0.00' : '');
   $('mapWrap').classList.add('hidden'); IMP=null;
   fillOrgs(); renderCat(); renderOrgBox(); renderBrands(); renderMgr();
 }
@@ -2412,12 +2592,33 @@ async function syncUp(){
   save(); setSync('online');
 }
 function csv(){
-  const rows=[['Stocktake','Date','Customer','Location type','Location','Spot','Code','Short description','Qty as called','Unit','Base qty','Base unit','Drum ID','Recorded']];
+  const rows=[['Stocktake','Date','Customer','Location type','Location','Spot','Code','Short description','Product Group',
+               'Qty as called','Unit','Base qty','Base unit','Unit value','Stock value','Drum ID','Recorded']];
+  /* customer -> product group -> base unit -> {qty, value, unpriced} */
+  const roll={};
   for(const s of scopedSessions()) for(const l of s.lines){
     const it=item(s.cat||l.cat,l.code);
-    rows.push([s.id,new Date(l.ts).toISOString(),s.org,PL(s.ctype||'van').label,s.container,l.loc,it.code,it.short,
-      l.qty,l.unit,baseQty(it,l.qty,l.unit),it.unit,l.drumId||'',l.audio?'yes':'no']);
+    const b=baseQty(it,l.qty,l.unit), uv=unitValue(it), val = uv==null? null : b*uv;
+    rows.push([s.id,new Date(l.ts).toISOString(),s.org,PL(s.ctype||'van').label,s.container,l.loc,it.code,it.short,groupOf(it),
+      l.qty,l.unit,b,it.unit, uv==null?'':uv.toFixed(2), val==null?'':val.toFixed(2), l.drumId||'',l.audio?'yes':'no']);
+    const g = groupOf(it);
+    const o = roll[s.org] = roll[s.org] || {};
+    const gr = o[g] = o[g] || {};
+    const u = gr[it.unit] = gr[it.unit] || {qty:0, value:0, unpriced:false};
+    u.qty += b;
+    if(uv==null) u.unpriced = true; else u.value += b*uv;
   }
+  /* the same breakdown the Rollup tab shows, one row per base unit so the
+     quantity and value columns both stay addable in Excel */
+  rows.push([]);
+  rows.push(['Stock value by product group']);
+  rows.push(['Customer','Product Group','Quantity','Base unit','Stock value','Unit value missing']);
+  for(const org of Object.keys(roll).sort())
+    for(const g of Object.keys(roll[org]).sort(groupCmp))
+      for(const u of Object.keys(roll[org][g]).sort()){
+        const c = roll[org][g][u];
+        rows.push([org, g, c.qty, u, c.value.toFixed(2), c.unpriced?'yes':'']);
+      }
   return rows.map(r=>r.map(c=>{ const v=String(c==null?'':c); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(',')).join('\n');
 }
 async function doExport(){
