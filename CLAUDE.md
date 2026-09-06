@@ -69,11 +69,24 @@ treat it as a specification of behaviour that must survive a rewrite.
   rather than summed across metres and each. See `unitValue()`, `valCell()`, `qtyByUnit()`, `eur()`.
 - **Location register.** Counts must land on a registered vehicle reg or named location. Unregistered
   ones are challenged with the nearest matches. Searchable picker, filtered by place type.
+- **Registration by voice.** A mic beside the registration field takes a spoken reg. What is heard is
+  normalised — spaces, dashes and the spoken word "dash" stripped, uppercased, spoken digits turned
+  into numbers, so "one eight two D one two four five six" becomes `182D12456`. That is matched
+  against the register for the selected customer: an exact match is selected and read back; one
+  character out asks "Did you mean 261-D-12844?" with inline Yes / No; anything else says not found
+  and falls back to the dropdown. **A spoken registration never creates a vehicle** — it can only
+  select something already on the register. Say plates digit by digit; compound number words
+  ("twelve thousand three hundred") are not converted and will simply fail to match.
+  See `regFromSpeech()`, `lev()`, `regVoiceMatch()`, `resolveRegVoice()`, `regListen()`.
 - **Editable place types per customer.** Delete "Outside store", add "Cold room" — persists for that
   business and voice picks it up immediately.
 - **Roles.** Counter sees only their own counts; owner sees every counter, location and job. This is
   a client-side switch with a PIN, purely to demonstrate the model — it is **not** security.
 - **Jobs.** Counts belong to a named job (month-end, daily, etc.) with progress against a target.
+  The job dropdown on the count screen ends in **+ New job…**, which opens an inline form — name,
+  type (Month end / Mid-year / Year end / Ad hoc) and date — and the job it creates becomes the
+  selected one. Note the older job admin on the Data tab still offers its own type list
+  (Month end / Daily / Weekly / Spot check / Ad hoc); the two lists have not been reconciled.
 - **Audio evidence.** Each spoken line is recorded (on by default, switchable) and played back
   against the line. Stored in IndexedDB.
 - **Reconciliation.** Import a file with an expected-quantity column and every count is compared

@@ -182,10 +182,22 @@
   .bar2 i{display:block; height:100%; background:var(--accent)}
 
   .picker{position:relative}
-  .picker input{padding-right:38px}
+  .picker input{padding-right:70px}
   .caretbtn{position:absolute; right:4px; top:4px; bottom:4px; width:30px; border:0; background:transparent;
     color:var(--ink-3); font-size:13px; border-radius:6px}
   .caretbtn:hover{background:var(--surface-2); color:var(--ink)}
+  .micbtn{right:34px; display:grid; place-items:center; border-radius:8px}
+  .micbtn.on{background:var(--accent); color:#fff}
+  .micbtn.on:hover{background:var(--accent); color:#fff}
+  .regvoice{margin:0 0 8px; padding:10px 12px; background:var(--sunk); border:1px solid var(--line);
+    border-left:3px solid var(--accent); border-radius:0 8px 8px 0; font-size:13.5px; color:var(--ink-2)}
+  .regvoice.err{border-left-color:var(--bad)}
+  .regvoice b{color:var(--ink)}
+  .regvoice .mono{font-family:"IBM Plex Mono",monospace}
+  .regvoice small{display:block; margin-top:3px; color:var(--ink-3); font-size:12px}
+  .regvoice .yn{display:flex; gap:8px; margin-top:10px}
+  .newjob{gap:0}
+  .newjob .bar{margin-top:10px}
   .pickmenu{position:absolute; z-index:20; left:0; right:0; top:calc(100% + 4px); max-height:262px; overflow-y:auto;
     background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--lift); padding:4px}
   .pickmenu .grp3{padding:8px 10px 4px; font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
@@ -341,6 +353,14 @@
         <label for="fJob">Counting job</label>
         <select id="fJob"></select>
       </div>
+      <div class="field full newjob hidden" id="newJob">
+        <div class="catgrid">
+          <div class="field"><label for="njName">Job name</label><input id="njName" placeholder="Year end stock take 2026" autocomplete="off"></div>
+          <div class="field"><label for="njKind">Type</label><select id="njKind"><option>Month end</option><option>Mid-year</option><option>Year end</option><option>Ad hoc</option></select></div>
+          <div class="field"><label for="njDate">Date</label><input id="njDate" type="date"></div>
+        </div>
+        <div class="bar"><span class="sp" id="njNote"></span><button class="btn" id="njCancel">Cancel</button><button class="btn dark" id="njAdd">Create job</button></div>
+      </div>
       <div class="field">
         <label for="fCat">Catalogue</label>
         <select id="fCat">
@@ -362,8 +382,12 @@
       </div>
       <div class="field full" id="placeWrap">
         <label for="fVan" id="lVan">Registration</label>
+        <div id="regVoice" class="regvoice hidden"></div>
         <div class="picker">
           <input id="fVan" placeholder="Search or type…" autocomplete="off" role="combobox" aria-expanded="false">
+          <button class="caretbtn micbtn" id="regMic" aria-label="Say the registration" title="Say the registration">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5a2.6 2.6 0 0 0-2.6 2.6v6a2.6 2.6 0 0 0 5.2 0v-6A2.6 2.6 0 0 0 12 2.5z"/><path d="M5.5 10.5v.8a6.5 6.5 0 0 0 13 0v-.8"/><path d="M12 17.8v3.7"/></svg>
+          </button>
           <button class="caretbtn" id="pickToggle" aria-label="Show list">▾</button>
           <div class="pickmenu hidden" id="pickMenu"></div>
         </div>
@@ -697,7 +721,7 @@ const CATALOGUES = {
   },
   pub: {
     label:'Pub & bar',
-    orgs:['Powers','Doogue’s Bar','Egan’s Bar'],
+    orgs:['Powers'],
     defaultPlace:'store-in',
     spots:['Back bar','Shelf 1','Shelf 2','Shelf 3','Under-bar fridge','Cellar'],
     items:[
@@ -2450,13 +2474,38 @@ function switchRole(){
   openPin();
 }
 
+const NEW_JOB = '__new';
 function fillJobs(){
   const cat=$('fCat').value;
   const list = jobs().filter(j=>!j.cat || j.cat===cat);
-  $('fJob').innerHTML = list.map(j=>'<option value="'+esc(j.id)+'">'+esc(j.name)+' · '+esc(j.kind)+'</option>').join('')
+  const opts = list.map(j=>'<option value="'+esc(j.id)+'">'+esc(j.name)+' · '+esc(j.kind)+'</option>').join('')
     || '<option value="">No job for this catalogue</option>';
+  $('fJob').innerHTML = opts + '<option value="'+NEW_JOB+'">+ New job…</option>';
   if(list.some(j=>j.id===S.job)) $('fJob').value=S.job;
   else if(list.length){ S.job=list[0].id; $('fJob').value=S.job; }
+}
+function openNewJob(){
+  $('newJob').classList.remove('hidden');
+  $('njNote').textContent='';
+  setTimeout(()=>$('njName').focus(), 30);
+}
+function closeNewJob(){
+  $('newJob').classList.add('hidden');
+  $('njNote').textContent='';
+  if($('fJob').value===NEW_JOB) $('fJob').value = S.job || '';
+}
+function addNewJob(){
+  const name = $('njName').value.trim();
+  if(!name){ $('njNote').textContent='Give the job a name first.'; $('njName').focus(); return; }
+  const id = 'j'+Date.now().toString(36);
+  S.jobs = jobs().concat([{id, name, kind:$('njKind').value, cat:$('fCat').value, due:$('njDate').value||'', target:0}]);
+  S.job = id; save();
+  if(S.current && !S.current.lines.length) S.current=null;
+  $('njName').value=''; $('njDate').value='';
+  $('newJob').classList.add('hidden'); $('njNote').textContent='';
+  fillJobs(); $('fJob').value = id;
+  renderJobsAdmin(); renderMgr(); renderTally();
+  say('New job \u2014 '+name, job(id).kind + (job(id).due? ' · '+new Date(job(id).due).toLocaleDateString('en-IE',{day:'numeric',month:'long',year:'numeric'}) : '') + '. Counts from here on go to this job.');
 }
 /* natural order: 12-G-12345 before 191-D-…, and 2 before 10 */
 function natCmp(a,b){ return String(a).localeCompare(String(b), 'en', {numeric:true, sensitivity:'base'}); }
@@ -2507,6 +2556,130 @@ function renderPickMenu(){
 }
 function openPick(){ PICK_OPEN=true; renderPickMenu(); }
 function closePick(){ PICK_OPEN=false; renderPickMenu(); }
+
+/* ============================================================
+   registration by voice
+   Only ever selects something already on the register — a spoken
+   registration never creates a vehicle.
+   ============================================================ */
+
+/* "one eight two D one two four five six" -> 182D12456 */
+function regFromSpeech(text){
+  let t = norm(text);
+  t = t.replace(/\b(dash|hyphen|slash|space|point)\b/g,' ');
+  t = t.replace(/^(?:the\s+)?(?:reg(?:istration)?|vehicle|van|truck|lorry|jeep|car)\b\s*/,'');
+  t = t.replace(/^(?:number|no)\b\s*/,'');
+  return codeFrom(t.split(' ').filter(Boolean)).replace(/[^A-Z0-9]/g,'');
+}
+/* edit distance, given up once it is past the limit we care about */
+function lev(a,b,limit){
+  if(a===b) return 0;
+  const la=a.length, lb=b.length;
+  if(Math.abs(la-lb) > limit) return limit+1;
+  let prev = Array.from({length:lb+1}, (_,j)=>j);
+  for(let i=1;i<=la;i++){
+    const row=[i]; let best=i;
+    for(let j=1;j<=lb;j++){
+      const cost = a[i-1]===b[j-1] ? 0 : 1;
+      row[j] = Math.min(prev[j]+1, row[j-1]+1, prev[j-1]+cost);
+      if(row[j]<best) best=row[j];
+    }
+    if(best > limit) return limit+1;
+    prev=row;
+  }
+  return prev[lb];
+}
+/* exact | near (one character out) | none */
+function regVoiceMatch(spoken){
+  const heard = regFromSpeech(spoken);
+  if(!heard) return {kind:'none', heard:''};
+  const all = placesFor($('fCat').value, $('fOrg').value);
+  const exact = all.find(pl=>regKey(pl.label)===heard);
+  if(exact) return {kind:'exact', place:exact, heard};
+  const near = all.map(pl=>({pl, d:lev(regKey(pl.label), heard, 1)}))
+                  .filter(x=>x.d===1)
+                  /* prefer one of the place type already selected */
+                  .sort((a,b)=>((b.pl.type||'van')===PTYPE)-((a.pl.type||'van')===PTYPE));
+  if(near.length) return {kind:'near', place:near[0].pl, heard};
+  return {kind:'none', heard};
+}
+/* read a registration back a character at a time so it is intelligible */
+function sayReg(label){
+  return String(label).split('').map(c=>/[-\s]/.test(c) ? ',' : c).join(' ');
+}
+function regNote(html, err, place){
+  const el=$('regVoice');
+  el.className = 'regvoice'+(err?' err':'');
+  el.innerHTML = html + (place
+    ? '<div class="yn"><button class="btn dark" id="regYes">Yes</button><button class="btn" id="regNo">No</button></div>'
+    : '');
+  if(place){
+    $('regYes').onclick = ()=>{ selectRegPlace(place); regNote('Selected <b class="mono">'+esc(place.label)+'</b>.'); speak(place.label.replace(/-/g,' ')+' selected.'); };
+    $('regNo').onclick = ()=>{ regNote('Pick it from the list instead.', true); openPick(); $('fVan').focus(); };
+  }
+}
+function clearRegNote(){ const el=$('regVoice'); el.className='regvoice hidden'; el.innerHTML=''; }
+function selectRegPlace(pl){
+  $('fVan').value = pl.label;
+  if((pl.type||'van')!==PTYPE){ PTYPE = pl.type||'van'; renderSegs(); syncPlaceUI(); }
+  closePick(); SPOT=''; fillPlaces(); renderSpots(); refreshWhere(); renderRecent();
+}
+function resolveRegVoice(text){
+  const r = regVoiceMatch(text);
+  const heard = r.heard ? '<small>Heard <span class="mono">'+esc(r.heard)+'</span></small>' : '';
+  if(r.kind==='exact'){
+    selectRegPlace(r.place);
+    regNote('Selected <b class="mono">'+esc(r.place.label)+'</b>.'+heard);
+    speak(sayReg(r.place.label)+'. Selected.');
+    return;
+  }
+  if(r.kind==='near'){
+    regNote('Did you mean <b class="mono">'+esc(r.place.label)+'</b>?'+heard, false, r.place);
+    speak('Did you mean '+sayReg(r.place.label)+'?');
+    return;
+  }
+  const n = placesFor($('fCat').value,$('fOrg').value).length;
+  regNote('<b>Not found.</b> Nothing on the register for '+esc($('fOrg').value)+' matches that. Pick it from the list.'
+    + heard + (n? '' : '<small>No register imported for this customer yet.</small>'), true);
+  speak('Not found. Pick it from the list.');
+  openPick();
+}
+let regRec=null;
+function regListen(){
+  if(regRec){ try{ regRec.stop(); }catch(e){} return; }
+  if(!SR){
+    regNote('Voice is not available in this browser. Type the registration, or pick it from the list \u2014 Chrome on Android and Safari on iOS both do voice.', true);
+    return;
+  }
+  if(wantListen) stopListen();          /* one recogniser at a time */
+  let got='';
+  const r = new SR();
+  regRec = r;
+  r.lang='en-IE'; r.continuous=false; r.interimResults=true;
+  r.onstart = ()=>{ $('regMic').classList.add('on'); regNote('Listening \u2014 say the registration.'); };
+  r.onerror = e=>{
+    regRec=null; $('regMic').classList.remove('on');
+    regNote(e.error==='not-allowed'||e.error==='service-not-allowed'
+      ? 'Microphone blocked. Allow microphone access for this page, then tap the mic again.'
+      : 'Did not catch that. Tap the mic and try again, or pick from the list.', true);
+  };
+  r.onresult = ev=>{
+    let interim='', final='';
+    for(let i=ev.resultIndex;i<ev.results.length;i++){
+      const x=ev.results[i];
+      if(x.isFinal) final += x[0].transcript+' '; else interim += x[0].transcript;
+    }
+    if(interim && !final.trim()) regNote('Hearing \u201C'+esc(interim)+'\u201D\u2026');
+    if(final.trim()) got = final.trim();
+  };
+  r.onend = ()=>{
+    if(regRec!==r) return;
+    regRec=null; $('regMic').classList.remove('on');
+    if(got) resolveRegVoice(got);
+    else regNote('Did not catch that. Tap the mic and try again, or pick from the list.', true);
+  };
+  try{ r.start(); }catch(e){ regRec=null; $('regMic').classList.remove('on'); }
+}
 
 function fillPlaces(){
   const cat=$('fCat').value, org=$('fOrg').value;
@@ -2659,7 +2832,15 @@ function showTab(which){
 }
 $('roleBtn').onclick = switchRole;
 $('editTypes').onclick = ()=>{ EDIT_TYPES=!EDIT_TYPES; renderSegs(); };
-$('fJob').onchange = ()=>{ S.job=$('fJob').value; save(); if(S.current&&!S.current.lines.length) S.current=null; };
+$('fJob').onchange = ()=>{
+  if($('fJob').value===NEW_JOB) return openNewJob();
+  closeNewJob();
+  S.job=$('fJob').value; save(); if(S.current&&!S.current.lines.length) S.current=null;
+};
+$('njAdd').onclick = addNewJob;
+$('njCancel').onclick = closeNewJob;
+$('njName').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addNewJob(); } });
+$('regMic').onclick = e=>{ e.preventDefault(); regListen(); };
 $('pickToggle').onclick = e=>{ e.preventDefault(); PICK_OPEN? closePick() : openPick(); };
 $('fVan').addEventListener('focus', openPick);
 $('fVan').addEventListener('keydown', e=>{
@@ -2706,8 +2887,8 @@ $('btnStart').onclick = ()=>{
   ensureSession(); $('setup').classList.add('hidden');
   refreshWhere(); renderSpots(); renderTally(); renderRecent();
 };
-$('fCat').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; SPOT=''; fillOrgs(); renderTally(); renderOrgBox(); renderBrands(); renderVar(); renderPlaceAdmin(); };
-$('fOrg').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; applyBrand(); syncPlaceUI(); fillPlaces(); refreshWhere(); renderRecent(); renderTypeAdmin(); };
+$('fCat').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; SPOT=''; clearRegNote(); closeNewJob(); fillOrgs(); renderTally(); renderOrgBox(); renderBrands(); renderVar(); renderPlaceAdmin(); };
+$('fOrg').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; clearRegNote(); applyBrand(); syncPlaceUI(); fillPlaces(); refreshWhere(); renderRecent(); renderTypeAdmin(); };
 $('fVan').oninput = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; openPick(); refreshWhere(); };
 $('fRec').onchange = ()=>{ if(!audioOn()){ if(recorder&&recorder.state==='recording'){ clipTarget=null; try{recorder.stop();}catch(e){} } recorder=null; } else if(wantListen) armRecorder(); };
 
