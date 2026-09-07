@@ -3409,15 +3409,16 @@ function importCountSheet(sheets, fileName){
   const jid = $('fJob').value || S.job;
   /* one session for this location on the selected job */
   let sess = allSessions().find(x=>(x.cat||'fibre')===cat && x.job===jid && x.org===org && regKey(x.container)===regKey(label));
-  if(sess && sess===cur()){ /* already open */ }
-  else if(sess){
-    if(!resume(sess.id, false) || !cur()){
+  if(sess && sess!==cur()){
+    if(!resume(sess.id, false)){
       csSay('That location already has a count on this device that this role cannot open.', true);
       return false;
     }
+    /* an existing session with no lines is discarded as an empty draft, so
+       this can legitimately come back empty — fall through and start one */
     sess = cur();
   }
-  else {
+  if(!sess){
     S.current = {id:'s'+Date.now().toString(36), cat, org, ctype:pl.type||'van', container:label,
       da:hdr.da||pl.da||'', by:me().name, job:jid, started:Date.now(), finished:null, lines:[]};
     sess = S.current;
@@ -3616,6 +3617,12 @@ function readCountSheetFile(f){
 }
 
 /* ---------- export, in the same layout ---------- */
+/* the sheet stored against a session's own location, whichever is on screen */
+function sheetForSession(sess){
+  if(!sess) return null;
+  const k = (sess.job||S.job)+'|'+(sess.cat||'fibre')+'|'+sess.org+'|'+regKey(sess.container);
+  return (S.sheets||{})[k] || null;
+}
 function countSheetAoA(sess, cat){
   const rows = [];
   rows.push(['NATIONAL BROADBAND IRELAND — STOCK TAKE WITNESS COUNT']);
@@ -3626,6 +3633,25 @@ function countSheetAoA(sess, cat){
   rows.push(['Witness name & organisation', sess.witnessName || (sess.submittedBy&&sess.submittedBy.nbi) || '']);
   rows.push(['Count Sheet #', sess.sheetNo||'']);
   rows.push([]);
+
+  /* where a sheet was uploaded for this location, it goes back out in its own
+     shape — the same columns, in the same order, with the counts filled in */
+  const sh = sheetForSession(sess);
+  if(sh){
+    rows.push(sh.columns.slice());
+    const cCol = countColFor(sh,'contractor'), nCol = countColFor(sh,'nbi');
+    const emit = cells => {
+      const out = cells.slice();
+      const code = shCode(sh, cells);
+      if(cCol!=null){ const v = countOf(sess, code, 'contractor'); out[cCol] = v ? v : ''; }
+      if(nCol!=null){ const v = countOf(sess, code, 'nbi');        out[nCol] = v ? v : ''; }
+      return out;
+    };
+    sh.rows.forEach(c => rows.push(emit(c)));
+    (sh.added||[]).forEach(a => rows.push(emit(addedCells(sh, a))));
+    return rows;
+  }
+
   rows.push(CS_COLS.slice());
   const list = items(cat).slice().sort((a,b)=> groupCmp(groupOf(a),groupOf(b)) || a.code.localeCompare(b.code));
   for(const it of list){

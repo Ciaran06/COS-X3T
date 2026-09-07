@@ -123,9 +123,13 @@ treat it as a specification of behaviour that must survive a rewrite.
   Re-importing the same file changes nothing. A contractor device refuses another contractor's sheet.
   The report names every header field found or missing, the counts placed, items and groups added,
   rows skipped, drums that could not be placed, and anything worth checking.
-  **Export** writes the same layout back — header block, the seven columns in order, and a Cable
-  Drums sheet — for one location, or for a whole job as one workbook with a sheet per location.
-  It writes real .xlsx through SheetJS, falling back to CSV if that has not loaded.
+  **Export** writes the same layout back — header block, columns in order, and a Cable Drums sheet —
+  for one location, or for a whole job as one workbook with a sheet per location. Where a sheet was
+  uploaded for that location it goes back out **in its own shape**: the same columns, in the same
+  order, including ones the app knows nothing about, with the counts filled in. Only where no sheet
+  was uploaded does it fall back to the KN02 seven-column default. Import → export → import returns
+  identical numbers. It writes real .xlsx through SheetJS, falling back to CSV if that has not
+  loaded.
   See `readHeaderBlock()`, `findCountHeader()`, `importCountSheet()`, `countSheetAoA()`,
   `drumsAoA()`, `saveWorkbook()`.
 - **Units are kept exactly as given.** Each, KM, MTR — the item master importer no longer normalises
