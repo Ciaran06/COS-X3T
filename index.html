@@ -276,6 +276,15 @@
   .btn{padding:7px 13px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); font-size:12.5px; font-weight:600}
   .btn.dark{background:var(--ink); color:var(--ground); border-color:var(--ink)}
   .btn[disabled]{opacity:.45; cursor:default}
+  .btn.pressed{transform:translateY(1px); filter:brightness(.93)}
+  .btn.done{background:var(--ok); border-color:var(--ok); color:#fff; opacity:1}
+  .btn.fail{background:var(--bad); border-color:var(--bad); color:#fff; opacity:1}
+  .btn.done[disabled],.btn.fail[disabled]{opacity:1}
+  .btn .spin{display:inline-block; width:12px; height:12px; border-radius:50%; vertical-align:-1px;
+    border:2px solid currentColor; border-top-color:transparent; animation:sp .6s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .vh{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+  @media (prefers-reduced-motion:reduce){ .btn .spin{animation:none} .btn.pressed{transform:none} }
   .empty{padding:26px 16px; text-align:center; color:var(--ink-3); font-size:13.5px}
   .pos{color:var(--ok); font-weight:600} .neg{color:var(--bad); font-weight:600}
   .note{font-size:12.5px; color:var(--ink-3); padding:11px 15px; border-top:1px solid var(--line-soft)}
@@ -2540,7 +2549,7 @@ function importPlaces(replace){
     if(org) owners.add(org);
   }
   out.forEach(o=>{ o.spots.sort(natCmp); });
-  if(!out.length) return;
+  if(!out.length) return false;
   S.places = S.places || {};
   S.places[cat] = replace ? out
     : (S.places[cat]||[]).filter(p=>!out.some(o=>regKey(o.label)===regKey(p.label))).concat(out);
@@ -2558,6 +2567,7 @@ function importPlaces(replace){
     + '. Counts now have to land on one of these.';
   $('mapWrap').classList.add('hidden'); IMP=null;
   fillOrgs(); renderPlaces(); renderMgr(); renderJobLocs();
+  return true;
 }
 /* The six columns the item master is read from. Anything else in the file is
    left alone; a missing one is reported rather than failing the import. */
@@ -2579,12 +2589,12 @@ function columnReport(){
   return {found, missing};
 }
 function doImport(replace){
-  if(!IMP) return;
+  if(!IMP) return false;
   if(!IMP.map.includes('code') && IMP.map.includes('placeLabel')) return importPlaces(replace);
   const cat=$('fCat').value;
   const {found, missing} = columnReport();
   const {out,baseline,owners}=buildItems(cat);
-  if(!out.length) return;
+  if(!out.length) return false;
   S.custom=S.custom||{}; S.baseline=S.baseline||{}; S.orgs=S.orgs||{}; S.hideBuiltin=S.hideBuiltin||{}; S.mapping=S.mapping||{};
   if(replace){ S.custom[cat]=out; S.hideBuiltin[cat]=true; S.baseline[cat]=baseline; }
   else {
@@ -2608,6 +2618,7 @@ function doImport(replace){
       + ((out.length-priced) ? ', '+(out.length-priced)+' with no value \u2014 those count as \u20AC0.00' : '');
   $('mapWrap').classList.add('hidden'); IMP=null;
   fillOrgs(); renderCat(); renderOrgBox(); renderBrands(); renderMgr();
+  return true;
 }
 function readFile(f){
   if(!f) return;
@@ -2623,7 +2634,7 @@ function readFile(f){
     }catch(e){ $('impNote').textContent='Could not read that file. CSV or .xlsx both work.'; return; }
     rows=(rows||[]).filter(r=>Array.isArray(r));
     if(!rows.length){ $('impNote').textContent='That file came through empty.'; return; }
-    IMP=analyse(rows); $('impNote').textContent=f.name; renderMap();
+    IMP=analyse(rows); $('impNote').textContent=f.name+' — checking the columns…'; renderMap();
   };
   if(isX) rd.readAsArrayBuffer(f); else rd.readAsText(f);
 }
@@ -2885,7 +2896,7 @@ function closeNewJob(){
 }
 function addNewJob(){
   const name = $('njName').value.trim();
-  if(!name){ $('njNote').textContent='Give the job a name first.'; $('njName').focus(); return; }
+  if(!name){ $('njNote').textContent='Give the job a name first.'; $('njName').focus(); return false; }
   const id = 'j'+Date.now().toString(36);
   S.jobs = jobs().concat([{id, name, kind:$('njKind').value, cat:$('fCat').value, due:$('njDate').value||'', target:0}]);
   S.job = id; save();
@@ -2894,7 +2905,9 @@ function addNewJob(){
   $('newJob').classList.add('hidden'); $('njNote').textContent='';
   fillJobs(); $('fJob').value = id;
   renderJobsAdmin(); renderMgr(); renderTally();
+  const ok = true;
   say('New job \u2014 '+name, job(id).kind + (job(id).due? ' · '+new Date(job(id).due).toLocaleDateString('en-IE',{day:'numeric',month:'long',year:'numeric'}) : '') + '. Counts from here on go to this job.');
+  return ok;
 }
 /* natural order: 12-G-12345 before 191-D-…, and 2 before 10 */
 function natCmp(a,b){ return String(a).localeCompare(String(b), 'en', {numeric:true, sensitivity:'base'}); }
@@ -3234,6 +3247,7 @@ function renderPlaceAdmin(){
   const cat=$('fCat').value, list=(S.places&&S.places[cat])||[];
   if(!list.length){ el.innerHTML='<p class="note">No register yet. Import a file of vehicle regs or location names above and counts will have to land on one of them.</p>'; return; }
   const byT={}; list.forEach(p=>{ (byT[p.type]=byT[p.type]||[]).push(p); });
+  el.className = 'joblist';
   el.innerHTML = Object.keys(byT).map(t=>
     '<div class="jrow"><span class="ji"><b>'+esc(PL(t).label)+'</b>'
     + '<small>'+byT[t].slice(0,8).map(p=>esc(p.label)).join(' · ')+(byT[t].length>8?' … +'+(byT[t].length-8):'')+'</small></span>'
@@ -3463,6 +3477,41 @@ function importCountSheet(sheets, fileName){
     + (flags.length? '<br><b>Check these:</b> '+esc(flags.slice(0,6).join('; '))+(flags.length>6? ' and '+(flags.length-6)+' more':'')+'. Imported exactly as written — nothing was converted.':''));
   fillOrgs(true); fillPlaces(); renderPlaces(); renderCat(); renderJobLocs(); renderMgr(); renderSheet();
 }
+/* Every committing button says it heard you: pressed at once, a spinner if it
+   takes more than a moment, then a tick that lingers. fn returning false means
+   nothing happened (a validation message will have said why). */
+function withFeedback(btn, fn, doneLabel){
+  if(!btn || btn.dataset.busy) return;
+  const orig = btn.innerHTML;
+  const w = Math.round(btn.getBoundingClientRect().width);
+  btn.dataset.busy = '1';
+  btn.disabled = true;
+  if(w) btn.style.minWidth = w+'px';
+  btn.classList.add('pressed');
+  const restore = ()=>{
+    btn.innerHTML = orig;
+    btn.classList.remove('done','fail','pressed');
+    btn.disabled = false;
+    btn.style.minWidth = '';
+    delete btn.dataset.busy;
+  };
+  const spin = setTimeout(()=>{ btn.innerHTML = '<span class="spin"></span><span class="vh">Working</span>'; }, 300);
+  const finish = (state, label)=>{
+    clearTimeout(spin);
+    btn.classList.remove('pressed');
+    if(state==='noop') return restore();
+    btn.classList.add(state);
+    btn.innerHTML = (state==='done' ? '\u2713 ' : '') + esc(label);
+    setTimeout(restore, 2000);
+  };
+  let out;
+  try{ out = fn(); }
+  catch(e){ finish('fail','Try again'); return; }
+  Promise.resolve(out).then(
+    r => finish(r===false ? 'noop' : 'done', doneLabel || 'Saved'),
+    () => finish('fail','Try again')
+  );
+}
 function csSay(html, err){
   const el=$('csNote'); if(!el) return;
   el.innerHTML = html;
@@ -3471,6 +3520,7 @@ function csSay(html, err){
 function readCountSheetFile(f){
   if(!f) return;
   const isX = /\.(xlsx|xls)$/i.test(f.name), rd = new FileReader();
+  csSay('Reading <b>'+esc(f.name)+'</b>\u2026');
   rd.onload = ()=>{
     let sheets = {};
     try{
@@ -4122,14 +4172,16 @@ function exportJobFile(){
     + esc(j.name)+(o? ' ('+esc(o)+')':'')+'. Send that file to whoever holds the NBI device.');
 }
 function importJobFile(file){
-  if(!file) return;
+  if(!file) return Promise.resolve(false);
+  return new Promise(resolve=>{
   const rd = new FileReader();
+  rd.onerror = ()=>{ shareSay('That file could not be read.', true); resolve(false); };
   rd.onload = ()=>{
     let d;
     try{ d = JSON.parse(String(rd.result)); }
-    catch(e){ shareSay('That file would not parse. It should be a job file exported from TruCount.', true); return; }
+    catch(e){ shareSay('That file would not parse. It should be a job file exported from TruCount.', true); resolve(false); return; }
     if(!d || d.kind!=='trucount-job' || !Array.isArray(d.sessions)){
-      shareSay('That is not a TruCount job export.', true); return;
+      shareSay('That is not a TruCount job export.', true); resolve(false); return;
     }
     const cat = (d.job && d.job.cat) || 'fibre';
     let addedJob=false;
@@ -4167,8 +4219,10 @@ function importJobFile(file){
       + (addedItems? ', '+addedItems+' item'+(addedItems===1?'':'s')+' new to this catalogue':'')
       + (orgs.size? ', from '+esc([...orgs].join(', ')):'')
       + '.' + (added? ' Switch \u201CCounting for\u201D to All contractors to see them in the estate total.':''));
+    resolve(true);
   };
   rd.readAsText(file);
+  });
 }
 function renderShare(){
   const why=$('shareWhy'); if(!why) return;
@@ -4238,7 +4292,7 @@ $('fJob').onchange = ()=>{
   S.job=$('fJob').value; save(); if(S.current&&!S.current.lines.length) S.current=null;
   renderJobLocs(); renderMgr();
 };
-$('njAdd').onclick = addNewJob;
+$('njAdd').onclick = e => withFeedback(e.currentTarget, addNewJob, 'Job added');
 $('njCancel').onclick = closeNewJob;
 $('njName').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addNewJob(); } });
 $('regMic').onclick = e=>{ e.preventDefault(); regListen(); };
@@ -4259,27 +4313,34 @@ document.addEventListener('click', e=>{
   if(PICK_OPEN && !e.target.closest('.picker')) closePick();
   if(ORG_OPEN && !e.target.closest('#orgField')){ ORG_OPEN=false; renderOrgMenu(); }
 });
-$('aSave').onclick = ()=>{
+$('aSave').onclick = e => withFeedback(e.currentTarget, ()=>{
   const nm = $('aName').value.trim();
   if(nm) me().name = nm;
   saveRole($('aRole').value, $('aOrg').value);
-};
+}, 'Saved');
 $('aRole').onchange = ()=>{ $('aOrg').closest('.field').classList.toggle('hidden', $('aRole').value!=='contractor'); };
-$('expJob').onclick = exportJobFile;
+$('expJob').onclick = e => withFeedback(e.currentTarget, exportJobFile, 'Exported');
 $('impJobBtn').onclick = ()=>$('jobFile').click();
-$('jobFile').onchange = e=>{ const f=e.target.files[0]; importJobFile(f); e.target.value=''; };
+$('jobFile').onchange = e=>{
+  const f = e.target.files[0]; e.target.value='';
+  if(f) withFeedback($('impJobBtn'), ()=>importJobFile(f), 'Imported');
+};
 $('roleSel').onchange = fillRoleOrgs;
 $('roleGo').onclick = ()=>{ saveRole($('roleSel').value, $('roleOrg').value); closeRoleBar(); };
 $('roleX').onclick = closeRoleBar;
-$('newTypeGo').onclick = ()=>{ const v=$('newType').value.trim(); if(v){ addType(v); $('newType').value=''; } };
+$('newTypeGo').onclick = e => withFeedback(e.currentTarget, ()=>{
+  const v=$('newType').value.trim();
+  if(!v) return false;
+  addType(v); $('newType').value='';
+}, 'Added');
 $('newType').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('newTypeGo').click(); } });
-$('jAdd').onclick = ()=>{
-  const name=$('jName').value.trim(); if(!name) return;
+$('jAdd').onclick = e => withFeedback(e.currentTarget, ()=>{
+  const name=$('jName').value.trim(); if(!name) return false;
   S.jobs = jobs().concat([{id:'j'+Date.now().toString(36), name, kind:$('jKind').value,
     cat:$('jCat').value, due:$('jDue').value, target:parseInt($('jTarget').value,10)||0}]);
   save(); ['jName','jDue','jTarget'].forEach(id=>$(id).value='');
   fillJobs(); renderJobsAdmin(); renderMgr();
-};
+}, 'Job added');
 $('t-count').onclick=()=>showTab('count');
 $('t-mgr').onclick=()=>showTab('mgr');
 $('t-sheet').onclick=()=>showTab('sheet');
@@ -4289,14 +4350,14 @@ $('sheetOnly').onchange = e=>{ SHEET_ONLY=e.target.checked; renderSheet(); };
 $('sheetMic').onclick = ()=>{ if(listening||wantListen) stopListen(); else startListen(); syncSheetMic(); };
 $('sheetAdd').onclick = ()=>{ $('sheetAddBox').classList.toggle('hidden'); $('niNote').textContent=''; if(!$('sheetAddBox').classList.contains('hidden')) setTimeout(()=>$('niCode').focus(),30); };
 $('niCancel').onclick = ()=>{ $('sheetAddBox').classList.add('hidden'); $('niNote').textContent=''; };
-$('niAdd').onclick = ()=>{
+$('niAdd').onclick = e => withFeedback(e.currentTarget, ()=>{
   const err = addSheetItem($('niCode').value, $('niDesc').value, $('niUom').value, $('niPack').value);
-  if(err){ $('niNote').textContent = err; return; }
+  if(err){ $('niNote').textContent = err; return false; }
   ['niCode','niDesc','niUom','niPack'].forEach(id=>$(id).value='');
   $('sheetAddBox').classList.add('hidden'); $('niNote').textContent='';
   SHEET_Q=''; $('sheetSearch').value='';
   renderSheet(); renderCat();
-};
+}, 'Added');
 $('closeJobBtn').onclick = e=>{ e.preventDefault(); openCloseJob(); };
 $('cjCancel').onclick = closeCloseJob;
 $('cjGo').onclick = doCloseJob;
@@ -4327,7 +4388,7 @@ $('aUndo').onclick=doUndo;
 $('aTotal').onclick=doTotal;
 $('aNextLoc').onclick=()=>handle('next spot');
 $('aFinish').onclick=()=>doFinish();
-$('expCsv').onclick=doExport;
+$('expCsv').onclick = e => withFeedback(e.currentTarget, doExport, 'Exported');
 
 const drop=$('drop');
 drop.onclick=()=>$('file').click();
@@ -4341,28 +4402,28 @@ $('csFile').onchange=e=>{ readCountSheetFile(e.target.files[0]); e.target.value=
 ['dragenter','dragover'].forEach(ev=>csDrop.addEventListener(ev,e=>{ e.preventDefault(); csDrop.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev=>csDrop.addEventListener(ev,e=>{ e.preventDefault(); csDrop.classList.remove('over'); }));
 csDrop.addEventListener('drop', e=>{ if(e.dataTransfer.files&&e.dataTransfer.files[0]) readCountSheetFile(e.dataTransfer.files[0]); });
-$('csExpJob').onclick=exportJobSheets;
-$('csExpLoc').onclick=exportLocationSheet;
+$('csExpJob').onclick = e => withFeedback(e.currentTarget, exportJobSheets, 'Exported');
+$('csExpLoc').onclick = e => withFeedback(e.currentTarget, exportLocationSheet, 'Exported');
 $('impCancel').onclick=()=>{ IMP=null; $('mapWrap').classList.add('hidden'); $('impNote').textContent='Import cancelled.'; };
-$('impAdd').onclick=()=>doImport(false);
-$('impReplace').onclick=()=>doImport(true);
-$('orgSave').onclick=()=>{
+$('impAdd').onclick = e => withFeedback(e.currentTarget, ()=>doImport(false), 'Imported');
+$('impReplace').onclick = e => withFeedback(e.currentTarget, ()=>doImport(true), 'Imported');
+$('orgSave').onclick = e => withFeedback(e.currentTarget, ()=>{
   const cat=$('fCat').value;
   S.orgs=S.orgs||{};
   S.orgs[cat]=$('orgBox').value.split('\n').map(s=>s.trim()).filter(Boolean);
   save(); fillOrgs(); renderOrgBox(); renderBrands();
-};
-$('nAdd').onclick=()=>{
+}, 'Saved');
+$('nAdd').onclick = e => withFeedback(e.currentTarget, ()=>{
   const cat=$('fCat').value, code=$('nCode').value.trim().toUpperCase();
-  if(!code) return;
+  if(!code) return false;
   S.custom=S.custom||{}; S.custom[cat]=S.custom[cat]||[];
   S.custom[cat].push({code, short:$('nShort').value.trim()||code,
     long:$('nLong').value.trim()||$('nShort').value.trim()||code,
-    unit:normUom($('nUnit').value.trim()||'each'), pack:parseInt($('nPack').value,10)||1,
+    unit:($('nUnit').value.trim()||'each'), pack:parseInt($('nPack').value,10)||1,
     packName:'case', alias:$('nAlias').value.trim().toLowerCase()});
   save(); renderCat();
   ['nCode','nShort','nLong','nUnit','nPack','nAlias'].forEach(id=>$(id).value='');
-};
+}, 'Added');
 
 $('aRole').value = me().role;
 $('aName').value = me().name || '';
