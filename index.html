@@ -361,6 +361,17 @@
   .sheetstate .msg{font-size:12.5px; color:var(--ink-2); flex:1 1 190px; min-width:0}
   .sheetstate .msg b{color:var(--ink)}
   .blind{background:var(--accent-soft); border-left:3px solid var(--accent)}
+  .reviewbar{padding:13px 15px; border-bottom:1px solid var(--line); background:var(--surface);
+    border-left:3px solid var(--accent); display:flex; flex-direction:column; gap:10px}
+  .reviewbar .rl1{font-family:"Archivo",sans-serif; font-weight:700; font-size:15px}
+  .reviewbar .rl2{font-size:13.5px; color:var(--ink-2)}
+  .reviewbar .prg{font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+  .reviewbar .heard{font-size:12.5px; color:var(--accent-ink); min-height:1.2em}
+  .reviewbar .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .reviewbar label{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink-2)}
+  #tblSheet tr.cur td{background:var(--accent-soft)}
+  #tblSheet tr.cur td:first-child{background:var(--accent-soft); box-shadow:1px 0 0 var(--accent-line)}
+  #tblSheet .rv{font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-ink)}
   .sheetsrc{padding:9px 15px; font-size:12px; color:var(--ink-3); border-bottom:1px solid var(--line); background:var(--sunk)}
   .sheetsrc b{color:var(--ink-2)}
   .colask{padding:12px 15px; border-bottom:1px solid var(--line); background:var(--accent-soft);
@@ -621,6 +632,7 @@
         <h2>Count sheet</h2>
         <span class="hint" id="sheetHint">The selected location, item by item</span>
         <button class="btn dark" id="sheetUp">Upload count sheet</button>
+        <button class="btn" id="sheetReview">Review</button>
         <button class="btn" id="csExpLoc">Export sheet</button>
         <button class="btn" id="sheetAdd">Add item</button>
         <input type="file" id="sheetFile" accept=".xlsx,.xls,.csv" class="hidden">
@@ -630,6 +642,7 @@
       <div class="sheetsrc" id="sheetSrc"></div>
       <p class="note" id="sheetMsg" style="margin:0"></p>
       <div class="colask hidden" id="colAsk"></div>
+      <div class="reviewbar hidden" id="reviewBar"></div>
       <div class="sheetbar">
         <input type="text" id="sheetSearch" placeholder="Search any column — code, description, group…" autocomplete="off">
         <label><input type="checkbox" id="sheetOnly"> Only rows with a count</label>
@@ -1736,7 +1749,10 @@ function startListen(){
       if(r.isFinal) final += r[0].transcript+' '; else interim += r[0].transcript;
     }
     if(interim) $('heard').innerHTML = '<b>'+esc(interim)+'</b>';
-    if(final.trim()) handle(final.trim());
+    if(final.trim()){
+      if(REVIEW.active) reviewHeard(final.trim());
+      else handle(final.trim());
+    }
   };
   try{ rec.start(); }catch(e){}
 }
@@ -3725,11 +3741,13 @@ function setCount(code, role, val){
   const it = item(s.cat, code);
   s.lines = s.lines.filter(l => !(l.code===code && lineRole(l)===role && !l.drumId));
   const v = Number(val);
+  let line = null;
   if(isFinite(v) && v>0){
-    s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code, qty:v, unit:it.unit,
-      loc:SPOT||'Sheet', drumId:null, ts:Date.now(), raw:null, role, typed:true});
+    line = {id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code, qty:v, unit:it.unit,
+      loc:SPOT||'Sheet', drumId:null, ts:Date.now(), raw:null, role, typed:true};
+    s.lines.push(line);
   }
-  save(); return true;
+  save(); return line || true;
 }
 function addDrum(code, role, id, len){
   const s = sheetSessionRW(); if(!s) return false;
@@ -3978,7 +3996,9 @@ function renderUploadedSheet(sh){
       const d = n - c, both = !blind && c>0 && n>0;
       const drum = isDrumRow(sh, r.cells);
       const note = diffNote(sess, code);
-      h += '<tr'+(both && d ? ' class="diff"':'')+'>';
+      const isCur = REVIEW.active && (reviewRow()||{}).code===code;
+      const rv = sess && sess.reviewed && sess.reviewed[code];
+      h += '<tr class="'+(both && d ? 'diff ':'')+(isCur?'cur':'')+'">';
       for(let i=0;i<sh.columns.length;i++){
         if(i===myCol){
           const editable = canEdit(sess, role) && !drum;
@@ -3995,6 +4015,7 @@ function renderUploadedSheet(sh){
           const first = i===(sh.ix.desc!=null? sh.ix.desc : 0);
           h += '<td class="file'+(numeric(i)?' num':'')+'">'+esc(r.cells[i]||'')
              + (first && r.added? ' <span class="flag">new</span>':'')
+             + (first && rv? ' <span class="rv">changed in review</span>':'')
              + (first && drum? '<br><button class="dfb" data-drums="'+esc(code)+'">Drums ('+drumsOf(sess,code,role).length+')</button>':'')
              + (first && note && (note.note||note.recounted) ? '<br><small style="color:var(--ink-3)">'
                  + (note.recounted? '<b>Recounted.</b> ':'')+esc(note.note)+'</small>':'')
@@ -4028,9 +4049,331 @@ function renderUploadedSheet(sh){
   wireSheet();
 }
 
+/* ============================================================
+   walking the sheet by voice
+   The sheet stays on screen; the current row is highlighted and the
+   numbers change as they are spoken. Row order is the sheet's own.
+   ============================================================ */
+const UOM_SPOKEN = {km:'kilometres', kilometre:'kilometres', kilometres:'kilometres',
+  mtr:'metres', m:'metres', metre:'metres', metres:'metres', meter:'metres',
+  each:'each', ea:'each', box:'boxes', pallet:'pallets', coil:'coils', drum:'drums', roll:'rolls'};
+const LEN_FACTOR = {m:1, mtr:1, metre:1, metres:1, meter:1, meters:1,
+  km:1000, kilometre:1000, kilometres:1000, kilometer:1000, kilometers:1000};
+function speakUom(u, n){
+  const k = String(u||'').toLowerCase().trim();
+  const w = UOM_SPOKEN[k];
+  if(!w) return u||'';
+  return n===1 ? w.replace(/s$/,'') : w;
+}
+/* "86,000 metres" on a KM row is 86 */
+function toRowUom(qty, saidUnit, rowUom){
+  const a = LEN_FACTOR[String(saidUnit||'').toLowerCase().trim()];
+  const b = LEN_FACTOR[String(rowUom||'').toLowerCase().trim()];
+  if(a && b && a!==b) return qty * a / b;
+  return qty;
+}
+let REVIEW = {active:false, speaking:false, pending:null, heard:''};
+function reviewSaved(){ return S.review || null; }
+function reviewRowList(){
+  const sh = uploadedSheet(), cat = $('fCat').value;
+  if(sh){
+    return sh.rows.map(cells=>({code:shCode(sh,cells), desc:shCell(sh,cells,'desc')||shCode(sh,cells),
+        uom:shCell(sh,cells,'uom'), pack:shCell(sh,cells,'pack'), group:shGroup(sh,cells)}))
+      .concat((sh.added||[]).map(a=>({code:a.code, desc:a.desc, uom:a.uom,
+        pack:a.pack>1?String(a.pack):'', group:UNASSIGNED})));
+  }
+  return items(cat).map(it=>({code:it.code, desc:it.short, uom:it.unit,
+    pack:it.pack>1?String(it.pack):'', group:groupOf(it)}));
+}
+function reviewWalk(){
+  const r = reviewSaved(); if(!r) return [];
+  const sess = sheetSession(), all = reviewRowList();
+  return r.mode==='counted' ? all.filter(x=>countOf(sess,x.code,r.role)>0) : all;
+}
+function reviewRow(){ const w=reviewWalk(), r=reviewSaved(); return (r && w[r.idx]) || null; }
+function rowSpeech(row){
+  const sess = sheetSession(), r = reviewSaved();
+  const n = countOf(sess, row.code, r.role);
+  let t = row.desc;
+  if(row.pack && parseFloat(row.pack)>1) t += ', box of '+row.pack;
+  t += ' — currently ' + (n ? fmt(n)+' '+speakUom(row.uom, n) : 'nothing');
+  return t;
+}
+/* speak, then hand back so we are not listening to ourselves */
+function sayThen(text, cb){
+  const r = reviewSaved();
+  REVIEW.heard = '';
+  if(!r || !r.speak || !window.speechSynthesis){ REVIEW.speaking=false; renderReview(); if(cb) cb(); return; }
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    const vs = speechSynthesis.getVoices();
+    const pick = vs.find(v=>/en-IE/.test(v.lang)) || vs.find(v=>/en-GB/.test(v.lang)) || vs.find(v=>/^en/.test(v.lang));
+    if(pick) u.voice = pick;
+    REVIEW.speaking = true; renderReview();
+    let fired = false;
+    const done = ()=>{ if(fired) return; fired=true; clearTimeout(wd); REVIEW.speaking=false; renderReview(); if(cb) cb(); };
+    /* if the device has no usable voice, onend never comes — never leave the
+       walk stuck waiting on speech it cannot make */
+    const wd = setTimeout(done, Math.min(12000, 1800 + text.length*70));
+    u.onend = done; u.onerror = done;
+    speechSynthesis.speak(u);
+  }catch(e){ REVIEW.speaking=false; if(cb) cb(); }
+}
+function reviewSay(text){ REVIEW.line = text; sayThen(text); renderReview(); }
+
+function reviewStart(mode, resume){
+  const sh = uploadedSheet();
+  const key = sheetKeyFor();
+  if(!key){ say('Pick a location first','The review walks one location\u2019s sheet.',true); return false; }
+  const prev = reviewSaved();
+  S.review = {
+    key, role: curRole(),
+    mode: mode || (prev && prev.key===key ? prev.mode : 'all'),
+    idx: (resume && prev && prev.key===key) ? prev.idx : 0,
+    speak: prev ? prev.speak !== false : true,
+    started: Date.now()
+  };
+  save();
+  REVIEW.active = true; REVIEW.pending = null;
+  const w = reviewWalk();
+  if(!w.length){
+    REVIEW.active = false;
+    reviewSay(S.review.mode==='counted'
+      ? 'Nothing on this sheet has a count yet. Choose all lines instead.'
+      : 'This sheet has no rows.');
+    return false;
+  }
+  if(!listening && !wantListen) startListen();
+  reviewSpeakCurrent(resume ? 'Back on row '+(S.review.idx+1)+'. ' : '');
+  return true;
+}
+function reviewSpeakCurrent(prefix){
+  const row = reviewRow();
+  if(!row){ reviewFinish(); return; }
+  const r = reviewSaved();
+  REVIEW.line = rowSpeech(row);
+  renderReview(); renderSheet(); scrollToReviewRow();
+  sayThen((prefix||'') + REVIEW.line);
+}
+function reviewFinish(){
+  REVIEW.active = false;
+  REVIEW.line = 'Sheet finished.';
+  renderReview(); renderSheet();
+  sayThen('That is the end of the sheet.');
+}
+function reviewMove(step){
+  const r = reviewSaved(); if(!r) return;
+  const w = reviewWalk();
+  const next = r.idx + step;
+  if(next < 0){ reviewSay('Already at the first row.'); return; }
+  if(next >= w.length){ reviewFinish(); return; }
+  r.idx = next; save();
+  reviewSpeakCurrent();
+}
+function reviewPause(){
+  REVIEW.active = false; REVIEW.pending = null;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  stopListen();
+  REVIEW.line = 'Paused. Resume picks up at row '+((reviewSaved()||{idx:0}).idx+1)+'.';
+  renderReview(); renderSheet();
+}
+function reviewStop(){
+  REVIEW.active = false;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  stopListen();
+  S.review = null; save();
+  REVIEW.line = '';
+  renderReview(); renderSheet();
+}
+/* a count spoken in review, logged and marked */
+function reviewSetCount(qty, saidUnit){
+  const row = reviewRow(), r = reviewSaved();
+  if(!row) return;
+  const val = toRowUom(qty, saidUnit, row.uom);
+  const sess = sheetSessionRW();
+  if(!sess) return;
+  if(isSubmitted(sess, r.role)){
+    reviewSay('That column is locked — this location has already been submitted.');
+    return;
+  }
+  const line = setCount(row.code, r.role, val);
+  const s = cur() || sheetSession();
+  if(s){
+    s.reviewed = s.reviewed || {};
+    s.reviewed[row.code] = {ts:Date.now(), by:me().name, was:REVIEW.line||''};
+    save();
+  }
+  if(line && line.id && captureClip(line.id)){ line.audio = true; save(); }
+  const spoken = val ? fmt(val)+' '+speakUom(row.uom, val) : 'zero';
+  renderSheet(); renderTally(); renderJobLocs();
+  REVIEW.line = row.desc+' — '+spoken;
+  renderReview();
+  sayThen(spoken+'.', ()=>reviewMove(1));
+}
+/* jump: match what was said against every row on the sheet */
+function reviewFind(text){
+  const all = reviewRowList();
+  const toks = norm(text).split(' ').filter(t=>t.length>1 && !FILLER.includes(t));
+  if(!toks.length) return [];
+  const scored = all.map((row,i)=>{
+    const hay = norm(row.desc+' '+row.code+' '+row.group);
+    let sc = 0;
+    for(const t of toks) if(hay.includes(t)) sc++;
+    return {row, i, sc};
+  }).filter(x=>x.sc>0);
+  if(!scored.length) return [];
+  const best = Math.max(...scored.map(x=>x.sc));
+  return scored.filter(x=>x.sc===best);
+}
+/* what makes two candidate rows different, so the question can be short */
+function reviewAsk(cands){
+  const sets = cands.map(c=>new Set(norm(c.row.desc).split(' ').filter(Boolean)));
+  const uniq = cands.map((c,i)=>{
+    const others = sets.filter((_,j)=>j!==i);
+    return [...sets[i]].filter(t=>others.every(o=>!o.has(t)));
+  });
+  const labels = uniq.map((u,i)=> u.length ? u.join(' ') : cands[i].row.code);
+  REVIEW.pending = {cands, labels};
+  const q = labels.slice(0,4).join(' or ')+'?';
+  REVIEW.line = 'Which one — '+q;
+  renderReview();
+  sayThen('Which one — '+q);
+}
+function reviewGoTo(i){
+  const r = reviewSaved(); if(!r) return;
+  const w = reviewWalk();
+  const row = reviewRowList()[i];
+  let at = w.findIndex(x=>x.code===row.code);
+  if(at<0){ r.mode='all'; save(); at = reviewRowList().findIndex(x=>x.code===row.code); }
+  r.idx = Math.max(0, at); save();
+  REVIEW.pending = null;
+  reviewSpeakCurrent();
+}
+/* the answer to "75 or 100?" may be spoken as words, as an ordinal, or as a code */
+function pickFromAnswer(text, cands, labels){
+  const t = norm(text);
+  const toks = t.split(' ').filter(Boolean);
+  const asNum = wordsToNum(toks);
+  const digits = codeFrom(toks).replace(/[^0-9]/g,'');
+  for(let i=0;i<labels.length;i++){
+    for(const w of norm(labels[i]).split(' ').filter(Boolean)){
+      if(toks.includes(w)) return i;
+      if(/^\d+$/.test(w)){
+        if(asNum!=null && String(asNum)===w) return i;
+        if(digits && digits.includes(w)) return i;
+      }
+    }
+  }
+  const o = ORD[toks[0]];
+  if(o && cands[o-1]) return o-1;
+  for(let i=0;i<cands.length;i++) if(t && norm(cands[i].row.code).includes(t)) return i;
+  return -1;
+}
+function reviewParse(text){
+  const t = norm(text);
+  if(!t) return {cmd:'none'};
+  if(/^(pause|hold on|hold up|wait)\b/.test(t)) return {cmd:'pause'};
+  if(/^(stop|finish|end|that is it|that.?s it|all done)\b/.test(t)) return {cmd:'stop'};
+  if(/^(back|go back|previous|last one)\b/.test(t)) return {cmd:'back'};
+  if(/^(skip|pass|leave it|leave that)\b/.test(t)) return {cmd:'skip'};
+  if(/^(next|yes|yeah|yep|correct|right|keep it|that.?s right|confirm|ok|okay)\b/.test(t)) return {cmd:'keep'};
+  if(/^(zero|nil|none|nothing|empty)\b/.test(t)) return {cmd:'num', qty:0, unit:''};
+  const toks = t.split(' ').filter(Boolean);
+  /* a bare quantity, optionally with a unit — but only if it is all number words */
+  const unitTok = toks.find(x=>LEN_FACTOR[x] || UOM_SPOKEN[x] || x==='kilometres' || x==='kilometre');
+  const numToks = toks.filter(x=>x!=='and' && x!==unitTok);
+  const allNum = numToks.length && numToks.every(x=>/^\d+([.,]\d+)?$/.test(x) || x in N1 || x in N10 || x in SCALE);
+  if(allNum){
+    const q = wordsToNum(numToks);
+    if(q!=null) return {cmd:'num', qty:q, unit:unitTok||''};
+  }
+  return {cmd:'jump', text:t};
+}
+function reviewHeard(text){
+  if(!REVIEW.active || REVIEW.speaking) return;
+  REVIEW.heard = text; renderReview();
+  const p = reviewParse(text);
+
+  if(REVIEW.pending){
+    const {cands, labels} = REVIEW.pending;
+    const pick = pickFromAnswer(text, cands, labels);
+    if(pick>=0){ reviewGoTo(cands[pick].i); return; }
+    /* not an answer to the question — take it as a fresh instruction rather
+       than asking the same thing forever */
+    REVIEW.pending = null;
+  }
+
+  if(p.cmd==='pause') return reviewPause();
+  if(p.cmd==='stop')  return reviewStop();
+  if(p.cmd==='back')  return reviewMove(-1);
+  if(p.cmd==='keep')  return reviewMove(1);
+  if(p.cmd==='skip'){ REVIEW.line='Skipped.'; renderReview(); return sayThen('Skipped.', ()=>reviewMove(1)); }
+  if(p.cmd==='num')   return reviewSetCount(p.qty, p.unit);
+  if(p.cmd==='jump'){
+    const cands = reviewFind(p.text);
+    if(!cands.length){ REVIEW.line='Not found on this sheet.'; renderReview(); return sayThen('Not found on this sheet.'); }
+    if(cands.length===1) return reviewGoTo(cands[0].i);
+    return reviewAsk(cands);
+  }
+}
+function scrollToReviewRow(){
+  const row = reviewRow(); if(!row) return;
+  const tr = document.querySelector('#tblSheet tr.cur');
+  if(tr) tr.scrollIntoView({block:'center', behavior:'smooth'});
+}
+function renderReview(){
+  const el = $('reviewBar'); if(!el) return;
+  const r = reviewSaved(), key = sheetKeyFor();
+  const mine = r && r.key===key;
+  if(!REVIEW.active && !REVIEW.showOpts && !(mine && r.idx>0)){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  el.classList.remove('hidden');
+  const w = mine ? reviewWalk() : [];
+  if(REVIEW.active){
+    el.innerHTML = '<span class="prg">Row '+(r.idx+1)+' of '+w.length+(REVIEW.speaking? ' · speaking':' · listening')+'</span>'
+      + '<span class="rl1">'+esc(REVIEW.line||'')+'</span>'
+      + '<span class="heard">'+(REVIEW.heard? 'Heard “'+esc(REVIEW.heard)+'”':'Say a number, or “next”, “skip”, “back”, “pause”, “stop”.')+'</span>'
+      + '<span class="row"><button class="btn" id="rvBack">Back</button>'
+      + '<button class="btn" id="rvSkip">Skip</button>'
+      + '<button class="btn" id="rvPause">Pause</button>'
+      + '<button class="btn" id="rvStop">Stop</button></span>';
+    $('rvBack').onclick = ()=>reviewMove(-1);
+    $('rvSkip').onclick = ()=>reviewMove(1);
+    $('rvPause').onclick = reviewPause;
+    $('rvStop').onclick = reviewStop;
+    return;
+  }
+  const savedHere = mine && r.idx>0;
+  el.innerHTML = '<span class="rl1">Walk the sheet by voice</span>'
+    + '<span class="rl2">It reads each line and waits. Say a number, or “next” to keep it. Say an item name at any time to jump there.</span>'
+    + (savedHere? '<span class="prg">Paused at row '+(r.idx+1)+' of '+w.length+'</span>':'')
+    + '<span class="row">'
+      + '<label><input type="radio" name="rvmode" value="all"'+(!r||r.mode!=='counted'?' checked':'')+'> All lines</label>'
+      + '<label><input type="radio" name="rvmode" value="counted"'+(r&&r.mode==='counted'?' checked':'')+'> Only lines with a count</label>'
+      + '<label><input type="checkbox" id="rvSpeak"'+(!r||r.speak!==false?' checked':'')+'> Read aloud</label>'
+    + '</span>'
+    + '<span class="row">'
+      + (savedHere? '<button class="btn dark" id="rvResume">Resume at row '+(r.idx+1)+'</button>':'')
+      + '<button class="btn'+(savedHere?'':' dark')+'" id="rvGo">Walk me through</button>'
+      + '<button class="btn" id="rvHide">Close</button></span>';
+  const mode = ()=> (el.querySelector('input[name=rvmode]:checked')||{value:'all'}).value;
+  const spk  = ()=> el.querySelector('#rvSpeak').checked;
+  $('rvGo').onclick = ()=>{
+    S.review = Object.assign({}, S.review, {key, speak:spk()});
+    reviewStart(mode(), false);
+  };
+  if($('rvResume')) $('rvResume').onclick = ()=>{
+    S.review = Object.assign({}, S.review, {speak:spk()});
+    reviewStart(mode(), true);
+  };
+  $('rvHide').onclick = ()=>{ REVIEW.showOpts=false; renderReview(); };
+}
+
 function renderSheet(){
   const sh = uploadedSheet();
   renderSheetSrc(sh);
+  renderReview();
   if(sh) return renderUploadedSheet(sh);
   const el=$('colAsk'); if(el){ el.classList.add('hidden'); el.innerHTML=''; }
   return renderCatalogueSheet();
@@ -4093,8 +4436,11 @@ function renderCatalogueSheet(){
           + (editable ? '' : ' readonly tabindex="-1"')
           + ' aria-label="'+esc(roleLabel(r)+' for '+it.short)+'">';
       };
-      h += '<tr'+(both && d ? ' class="diff"':'')+'>'
+      const isCur = REVIEW.active && (reviewRow()||{}).code===it.code;
+      const rv = sess && sess.reviewed && sess.reviewed[it.code];
+      h += '<tr class="'+(both && d ? 'diff ':'')+(isCur?'cur':'')+'">'
          + '<td class="nm">'+esc(it.short)+(it.needsGroup? ' <span class="flag">new</span>':'')
+         + (rv? ' <span class="rv">changed in review</span>':'')
          + '<small>'+esc(it.code)+' · '+esc(it.unit)+(it.pack>1? ' · '+it.pack+' per '+esc(it.packName||'pack'):'')+'</small>'
          + (drum? '<br><button class="dfb" data-drums="'+esc(it.code)+'">Drums ('+drumsOf(sess,it.code,role).length+')</button>':'')
          + (note && (note.note||note.recounted) ? '<br><small>'+(note.recounted? '<b>Recounted.</b> ':'')+esc(note.note)+'</small>':'')
@@ -4598,6 +4944,7 @@ $('t-hist').onclick=()=>showTab('hist');
 $('sheetSearch').oninput = e=>{ SHEET_Q=e.target.value; renderSheet(); };
 $('sheetOnly').onchange = e=>{ SHEET_ONLY=e.target.checked; renderSheet(); };
 $('sheetMic').onclick = ()=>{ if(listening||wantListen) stopListen(); else startListen(); syncSheetMic(); };
+$('sheetReview').onclick = ()=>{ REVIEW.showOpts = !REVIEW.showOpts; renderReview(); };
 $('sheetUp').onclick = ()=>$('sheetFile').click();
 $('sheetFile').onchange = e=>{
   const f = e.target.files[0]; e.target.value='';

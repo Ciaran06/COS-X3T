@@ -79,6 +79,26 @@ treat it as a specification of behaviour that must survive a rewrite.
   length, one line each, in the row's own unit; the row's count is their total, the count cell is
   read-only, and the drum lines are kept so they can be exported. See `renderSheet()`, `setCount()`, `addDrum()`, `setDiffNote()`,
   `addSheetItem()`, `isDrumItem()`, `curRole()`.
+- **Walking the sheet by voice.** *Review* on the Sheet tab, not a separate screen: the grid stays on
+  show, the current row is highlighted and scrolled to, and the numbers change as they are spoken. It
+  walks the **uploaded sheet's own row order**. Two ways in — *Walk me through*, which reads each line
+  ("Coach screw 75 millimetre, box of 200 — currently 400") and waits, or a **jump**, by saying an
+  item name at any time. After a line you can say a number, `next` / `yes` / `correct` to keep it,
+  `skip`, `zero`, `back`, `pause` or `stop`.
+  A number with a unit is converted to the row's own unit and read back in it — "86,000 metres" on a
+  KM row is stored as 86 and spoken as "86 kilometres". A phrase that is not all number words is a
+  jump, so "twelve fibre overhead" goes to the 012F aerial row rather than counting twelve.
+  An ambiguous name asks the short question that separates the candidates ("Which one — 75 or 100?")
+  and accepts the answer as words, digits, an ordinal or a code; anything that is not an answer is
+  taken as a fresh instruction rather than asking again forever. No match says so and stays put.
+  Options before starting: **all lines** or **only lines with a count**, and readback off for text
+  only. Progress reads "row 2 of 5"; pause stores the position in `S.review` so it survives closing
+  the app. Every count set in review is marked **changed in review** on the sheet and captures the
+  audio clip like any other line.
+  **It only ever reads back your own role's column**, so a blind witness count stays blind out loud
+  as well as on screen. Speech is guarded by a watchdog, so a device with no usable voice cannot
+  leave the walk stuck waiting on it. See `reviewStart()`, `reviewHeard()`, `reviewParse()`,
+  `reviewFind()`, `pickFromAnswer()`, `toRowUom()`, `sayThen()`.
 - **Contractor count, then NBI witness count.** A location is counted by the contractor, who
   **submits** it — their column locks. NBI then witnesses it **blind**: until they submit their own
   figures, every contractor cell reads `•••`, including the ones with no count, so they cannot even
