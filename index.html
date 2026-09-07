@@ -276,6 +276,10 @@
   .btn{padding:7px 13px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); font-size:12.5px; font-weight:600}
   .btn.dark{background:var(--ink); color:var(--ground); border-color:var(--ink)}
   .btn[disabled]{opacity:.45; cursor:default}
+  .drop.busy{border-style:solid; border-color:var(--accent); background:var(--accent-soft)}
+  .drop.bad{border-style:solid; border-color:var(--bad)}
+  .dropstat{display:block; margin-top:9px; font-size:12.5px; font-weight:600; color:var(--accent-ink)}
+  .drop.bad .dropstat{color:var(--bad)}
   .btn.pressed{transform:translateY(1px); filter:brightness(.93)}
   .btn.done{background:var(--ok); border-color:var(--ok); color:#fff; opacity:1}
   .btn.fail{background:var(--bad); border-color:var(--bad); color:#fff; opacity:1}
@@ -680,6 +684,7 @@
         <b>Drop a file here, or tap to choose one</b>
         <small>SAP or material codes, invoice codes, part numbers — whatever your system calls them. It finds the header row wherever it sits and guesses every column, then shows you the guesses to correct.</small>
         <input type="file" id="file" accept=".csv,.tsv,.txt,.xlsx,.xls" class="hidden">
+        <span class="dropstat" id="dropStat"></span>
       </div>
       <div id="mapWrap" class="hidden">
         <div class="bar"><span class="sp" id="mapInfo"></span></div>
@@ -720,6 +725,7 @@
         <b>Drop a filled count sheet here, or tap to choose one</b>
         <small>NBI's own workbook — the header block, the item rows with Physical Count and Witness Count, and the Cable Drums sheet. It is read as it stands; units are kept exactly as written.</small>
         <input type="file" id="csFile" accept=".xlsx,.xls,.csv" class="hidden">
+        <span class="dropstat" id="csDropStat"></span>
       </div>
       <p class="note" id="csNote">Nothing imported yet.</p>
     </div>
@@ -2658,22 +2664,26 @@ function doImport(replace){
   return true;
 }
 function readFile(f){
-  if(!f) return;
+  if(!f) return Promise.resolve(false);
   const isX=/\.(xlsx|xls)$/i.test(f.name), rd=new FileReader();
+  return new Promise(resolve=>{
+  rd.onerror = ()=>{ $('impNote').textContent='That file could not be read.'; resolve(false); };
   rd.onload = ()=>{
     let rows;
     try{
       if(isX){
-        if(!window.XLSX){ $('impNote').textContent='Excel reader did not load — save the sheet as CSV and try again.'; return; }
+        if(!window.XLSX){ $('impNote').textContent='Excel reader did not load — save the sheet as CSV and try again.'; resolve(false); return; }
         const wb=XLSX.read(rd.result,{type:'array'});
         rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
       } else rows=parseCSV(String(rd.result));
-    }catch(e){ $('impNote').textContent='Could not read that file. CSV or .xlsx both work.'; return; }
+    }catch(e){ $('impNote').textContent='Could not read that file. CSV or .xlsx both work.'; resolve(false); return; }
     rows=(rows||[]).filter(r=>Array.isArray(r));
-    if(!rows.length){ $('impNote').textContent='That file came through empty.'; return; }
-    IMP=analyse(rows); $('impNote').textContent=f.name+' — checking the columns…'; renderMap();
+    if(!rows.length){ $('impNote').textContent='That file came through empty.'; resolve(false); return; }
+    IMP=analyse(rows); $('impNote').textContent=f.name+' — check the column guesses below, then import.'; renderMap();
+    resolve(true);
   };
   if(isX) rd.readAsArrayBuffer(f); else rd.readAsText(f);
+  });
 }
 function renderOrgBox(){
   const cat=$('fCat').value;
@@ -3578,6 +3588,24 @@ function withFeedback(btn, fn, doneLabel){
     r => finish(r===false ? 'noop' : 'done', doneLabel || 'Saved'),
     () => finish('fail','Try again')
   );
+}
+/* a drop zone is an Import button by another name — it says so too */
+function dropFeedback(zoneId, statId, fn, doneLabel){
+  const z = $(zoneId), st = $(statId);
+  if(!z || !st) return Promise.resolve(fn && fn());
+  z.classList.remove('bad');
+  z.classList.add('busy');
+  st.innerHTML = '<span class="spin"></span> Reading\u2026';
+  const restore = ok => {
+    z.classList.remove('busy');
+    if(!ok) z.classList.add('bad');
+    st.textContent = ok ? '\u2713 '+(doneLabel||'Read') : 'Could not read that file';
+    setTimeout(()=>{ z.classList.remove('bad'); st.textContent=''; }, 2000);
+  };
+  let out;
+  try{ out = fn(); }
+  catch(e){ restore(false); return Promise.resolve(false); }
+  return Promise.resolve(out).then(r=>{ restore(r!==false); return r; }, ()=>{ restore(false); return false; });
 }
 function csSay(html, err){
   for(const id of ['csNote','sheetMsg']){
@@ -5020,16 +5048,16 @@ $('expCsv').onclick = e => withFeedback(e.currentTarget, doExport, 'Exported');
 
 const drop=$('drop');
 drop.onclick=()=>$('file').click();
-$('file').onchange=e=>readFile(e.target.files[0]);
+$('file').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) dropFeedback('drop','dropStat',()=>readFile(f),'Read'); };
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e=>{ if(e.dataTransfer.files&&e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) dropFeedback('drop','dropStat',()=>readFile(f),'Read'); });
 const csDrop=$('csDrop');
 csDrop.onclick=()=>$('csFile').click();
-$('csFile').onchange=e=>{ readCountSheetFile(e.target.files[0]); e.target.value=''; };
+$('csFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) dropFeedback('csDrop','csDropStat',()=>readCountSheetFile(f),'Imported'); };
 ['dragenter','dragover'].forEach(ev=>csDrop.addEventListener(ev,e=>{ e.preventDefault(); csDrop.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev=>csDrop.addEventListener(ev,e=>{ e.preventDefault(); csDrop.classList.remove('over'); }));
-csDrop.addEventListener('drop', e=>{ if(e.dataTransfer.files&&e.dataTransfer.files[0]) readCountSheetFile(e.dataTransfer.files[0]); });
+csDrop.addEventListener('drop', e=>{ const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) dropFeedback('csDrop','csDropStat',()=>readCountSheetFile(f),'Imported'); });
 $('csExpJob').onclick = e => withFeedback(e.currentTarget, exportJobSheets, 'Exported');
 $('csExpLoc').onclick = e => withFeedback(e.currentTarget, exportLocationSheet, 'Exported');
 $('impCancel').onclick=()=>{ IMP=null; $('mapWrap').classList.add('hidden'); $('impNote').textContent='Import cancelled.'; };

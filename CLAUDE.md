@@ -223,8 +223,9 @@ treat it as a specification of behaviour that must survive a rewrite.
   green tick and a past-tense label for two seconds before the button returns to normal. A handler
   returning `false` means nothing happened — the button restores silently, because a validation
   message has already said why — and a thrown error shows *Try again* in red. Nothing should ever
-  feel like it did not register. File-triggered imports show the spinner while the file is read, and
-  the drop zones name the file as soon as they start on it.
+  feel like it did not register. The same goes for the **drop zones**, which are Import buttons by
+  another name: `dropFeedback()` gives them a busy border, a spinner and a tick, and a file that
+  cannot be read leaves a red edge and says so rather than falling silent.
 
 - Irish spelling and en-IE formatting throughout (`metre`, `colour`, `toLocaleString('en-IE')`).
 - Copy is written in the customer's language, not the system's: "vehicle", "yard", "spot", "counter".
