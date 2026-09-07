@@ -69,6 +69,19 @@ treat it as a specification of behaviour that must survive a rewrite.
   one line each; the item's count is their total, the count cell is read-only, and the drum lines are
   kept so they can be exported. See `renderSheet()`, `setCount()`, `addDrum()`, `setDiffNote()`,
   `addSheetItem()`, `isDrumItem()`, `curRole()`.
+- **Contractor count, then NBI witness count.** A location is counted by the contractor, who
+  **submits** it — their column locks. NBI then witnesses it **blind**: until they submit their own
+  figures, every contractor cell reads `•••`, including the ones with no count, so they cannot even
+  tell which items were counted. On NBI's submit both columns and the difference appear, to both
+  roles. Neither role can ever edit the other's column. NBI may **Reveal** the contractor count
+  early, which is recorded against the location, and may **Reopen for recount**, which clears both
+  submissions and is also recorded. Location status follows this: Not started → Counting →
+  Contractor counted → Witnessed → Closed.
+  **Closing a job requires every registered location to have a submitted contractor count** — the
+  confirm names the ones outstanding and the button stays disabled — and warns, listing them, about
+  locations that were never witnessed. The snapshot carries the submission, reveal and reopen record
+  per location. See `isSubmitted()`, `isBlind()`, `submitLocation()`, `revealCount()`,
+  `reopenLocation()`, `renderSheetState()`, `jobReadiness()`.
 - **Product groups.** Every item carries a Product Group. For the fibre / NBI catalogue the list is
   fixed — see `PRODUCT_GROUPS`, 17 entries, some of which deliberately share a number prefix
   (`06. Duct` and `06. Sub Duct`). Matching is on the text, case- and punctuation-insensitive, and
