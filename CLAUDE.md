@@ -53,21 +53,31 @@ treat it as a specification of behaviour that must survive a rewrite.
   the app reports which of the six were found (and under which heading in the file) and which were
   missing, along with how many rows landed in Unassigned and how many items have no unit value.
   See `EXPECTED_COLS`, `columnReport()`.
-- **Count sheet.** A *Sheet* tab holds a grid for the location selected on the Count tab: rows grouped
-  by Product Group with a subtotal per group, and columns Part code, Description, UoM, Pack size,
-  **Contractor count**, **NBI count**, **Difference**. Product Group is the group header rather than a
-  repeated column, and on a phone the code, UoM and pack fold into a sub-line under the description;
-  above 760px they get their own columns. Counts are typed straight into the cells — Enter or Tab
-  moves down the column, Shift reverses — and a device may only edit its own role's column.
-  Difference is NBI − Contractor, live, shown only once both sides have counted; a non-zero row is
-  highlighted and its figure opens a note with a *Recounted* flag.
+- **Count sheet — driven by an uploaded file, not the catalogue.** The *Sheet* tab shows the sheet
+  that was uploaded for the selected location: **every column exactly as uploaded, in the file's
+  order**, read-only, with **exactly one editable column** — the count column for the role that is
+  counting. The sheet can be a different shape every time; nothing about it comes from the catalogue.
+  The header block sets which location the sheet belongs to, and creates it under the right
+  contractor if it is new. Where no sheet has been uploaded for a location, the tab falls back to a
+  catalogue-driven grid so voice-only counting still has somewhere to show.
+  It behaves like a spreadsheet: header row fixed, **first column frozen** so the item stays in view
+  while you scroll out to the count, rows grouped by the file's own Product Group column with a
+  subtotal per group, numbers right-aligned, Enter or Tab down the count column and Shift to reverse.
+  The search bar filters live on **any** column — a bin number as readily as a part code — and
+  clearing it restores the sheet.
+  The count column is detected from its heading (Physical Count, Witness Count, NBI Count). A lone
+  `Count` is ambiguous about role, so the app asks once and **remembers that answer for any sheet with
+  the same columns** (`S.sheetLayouts`, keyed on the normalised header row).
+  Difference is NBI − Contractor, live, appearing as an extra column once a row has both; a non-zero
+  row is highlighted and its figure opens a note with a *Recounted* flag.
+  See `uploadedSheet()`, `countColFor()`, `renderUploadedSheet()`, `renderColAsk()`.
   **Voice and typing are the same grid**: every line records the role that entered it, so a spoken
   count fills that role's column, and *Dictate* on the sheet drives the same recogniser. A typed
   number replaces that role's typed lines for the item; drum lines are left alone.
-  **Add item** takes material that is not in the catalogue, files it under Unassigned and flags it
-  for NBI to classify. **Cable drums**: fibre items get a Drums sub-row of drum identifier and length,
-  one line each; the item's count is their total, the count cell is read-only, and the drum lines are
-  kept so they can be exported. See `renderSheet()`, `setCount()`, `addDrum()`, `setDiffNote()`,
+  **Add item** takes material that is not on the sheet, appends it at the bottom under Unassigned and
+  flags it for NBI to classify. **Cable drums**: fibre rows get a Drums sub-row of drum identifier and
+  length, one line each, in the row's own unit; the row's count is their total, the count cell is
+  read-only, and the drum lines are kept so they can be exported. See `renderSheet()`, `setCount()`, `addDrum()`, `setDiffNote()`,
   `addSheetItem()`, `isDrumItem()`, `curRole()`.
 - **Contractor count, then NBI witness count.** A location is counted by the contractor, who
   **submits** it — their column locks. NBI then witnesses it **blind**: until they submit their own

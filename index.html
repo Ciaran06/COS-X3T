@@ -361,9 +361,25 @@
   .sheetstate .msg{font-size:12.5px; color:var(--ink-2); flex:1 1 190px; min-width:0}
   .sheetstate .msg b{color:var(--ink)}
   .blind{background:var(--accent-soft); border-left:3px solid var(--accent)}
+  .sheetsrc{padding:9px 15px; font-size:12px; color:var(--ink-3); border-bottom:1px solid var(--line); background:var(--sunk)}
+  .sheetsrc b{color:var(--ink-2)}
+  .colask{padding:12px 15px; border-bottom:1px solid var(--line); background:var(--accent-soft);
+    display:flex; gap:9px; align-items:center; flex-wrap:wrap; font-size:13.5px; color:var(--accent-ink)}
+  .colask select{font:inherit; font-size:13.5px; padding:6px 9px; border-radius:8px; border:1px solid var(--accent-line); background:var(--surface); color:var(--ink)}
   .sheetwho{padding:10px 15px; font-size:12.5px; color:var(--ink-2); border-bottom:1px solid var(--line); background:var(--sunk)}
   .sheetwho b{color:var(--ink)}
 
+  #v-sheet .scroll{max-height:70vh; overflow:auto}
+  #tblSheet thead th{position:sticky; top:0; z-index:2; background:var(--sunk); box-shadow:0 1px 0 var(--line)}
+  /* frozen first column, so the item stays put while you scroll out to the count */
+  #tblSheet td:first-child{position:sticky; left:0; z-index:1; background:var(--surface); box-shadow:1px 0 0 var(--line)}
+  #tblSheet thead th:first-child{z-index:3; box-shadow:1px 1px 0 var(--line)}
+  #tblSheet tr.gh td:first-child{background:var(--surface-2)}
+  #tblSheet tr.diff td:first-child{background:var(--bad-soft)}
+  #tblSheet tr.drums td:first-child{background:var(--sunk)}
+  #tblSheet tr.gh td{position:sticky; z-index:1}
+  #tblSheet td.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  #tblSheet td.file{color:var(--ink-2); font-size:13px}
   #tblSheet{table-layout:auto}
   #tblSheet td,#tblSheet th{vertical-align:middle; padding:9px 8px}
   #tblSheet td.nm,#tblSheet th:first-child{min-width:150px}
@@ -604,13 +620,18 @@
       <header>
         <h2>Count sheet</h2>
         <span class="hint" id="sheetHint">The selected location, item by item</span>
+        <button class="btn dark" id="sheetUp">Upload count sheet</button>
         <button class="btn" id="csExpLoc">Export sheet</button>
         <button class="btn" id="sheetAdd">Add item</button>
+        <input type="file" id="sheetFile" accept=".xlsx,.xls,.csv" class="hidden">
       </header>
       <div class="sheetwho" id="sheetWho"></div>
       <div class="sheetstate" id="sheetState"></div>
+      <div class="sheetsrc" id="sheetSrc"></div>
+      <p class="note" id="sheetMsg" style="margin:0"></p>
+      <div class="colask hidden" id="colAsk"></div>
       <div class="sheetbar">
-        <input type="text" id="sheetSearch" placeholder="Find an item, code or group…" autocomplete="off">
+        <input type="text" id="sheetSearch" placeholder="Search any column — code, description, group…" autocomplete="off">
         <label><input type="checkbox" id="sheetOnly"> Only rows with a count</label>
         <button class="btn" id="sheetMic">Dictate</button>
       </div>
@@ -3283,7 +3304,11 @@ function readHeaderBlock(rows){
         if(!w.re.test(label)) continue;
         let v='';
         for(let j=c+1;j<r.length;j++){ const x=cellText(r[j]); if(x){ v=x; break; } }
-        if(!v && rows[i+1]) v = cellText((rows[i+1]||[])[c]);
+        /* an empty field must not swallow the next label as its value */
+        if(!v && rows[i+1]){
+          const below = cellText((rows[i+1]||[])[c]).replace(/[:*]+$/,'').trim();
+          if(below && !want.some(x=>x.re.test(below))) v = below;
+        }
         if(v && v.toLowerCase()!==label.toLowerCase()) out[w.k]=v;
       }
     }
@@ -3310,6 +3335,8 @@ function mapCountCols(header){
     else if(ix.pack==null && /(box|pallet|pack|qty per)/.test(x) && !/physical|witness/.test(x)) ix.pack=i;
     else if(ix.physical==null && /physical/.test(x)) ix.physical=i;
     else if(ix.witness==null  && /witness/.test(x)) ix.witness=i;
+    else if(ix.witness==null  && /nbi count/.test(x)) ix.witness=i;
+    else if(ix.count==null    && /^count$/.test(x)) ix.count=i;   /* role unknown — ask */
   });
   return ix;
 }
@@ -3338,19 +3365,19 @@ function importCountSheet(sheets, fileName){
   const cs = sheets.count || [];
   const hdr = readHeaderBlock(cs);
   const hi = findCountHeader(cs);
-  if(hi<0){ csSay('Could not find the item rows in that file — no header row with a Physical Count column.', true); return; }
+  if(hi<0){ csSay('Could not find the item rows in that file — no header row with a Physical Count column.', true); return false; }
   const ix = mapCountCols(cs[hi]||[]);
-  if(ix.code==null){ csSay('Found the header row but not a part-code column, so nothing could be placed.', true); return; }
+  if(ix.code==null){ csSay('Found the header row but not a part-code column, so nothing could be placed.', true); return false; }
 
   const cat = $('fCat').value;
   const org = hdr.contractor || activeOrg();
   const label = hdr.location || $('fVan').value.trim();
-  if(!org || !label){ csSay('The header block did not give both a contractor and a location, so the counts had nowhere to land.', true); return; }
+  if(!org || !label){ csSay('The header block did not give both a contractor and a location, so the counts had nowhere to land.', true); return false; }
   /* a contractor device holds only its own stock */
   if(!isNBI() && me().org && org !== me().org){
     csSay('That sheet is <b>'+esc(org)+'</b>\u2019s and this device is <b>'+esc(me().org)+'</b>, which only holds its own stock. '
         + 'Switch the role to NBI, or to '+esc(org)+', and import it again.', true);
-    return;
+    return false;
   }
 
   /* the location goes on the register if it is not already there */
@@ -3363,14 +3390,14 @@ function importCountSheet(sheets, fileName){
   } else if(hdr.da && !pl.da){ pl.da = hdr.da; }
   if(org && !orgsFor(cat).includes(org)){ S.orgs = S.orgs||{}; S.orgs[cat] = orgsFor(cat).concat([org]); }
 
-  /* one session for this location on the selected job */
   const jid = $('fJob').value || S.job;
+  /* one session for this location on the selected job */
   let sess = allSessions().find(x=>(x.cat||'fibre')===cat && x.job===jid && x.org===org && regKey(x.container)===regKey(label));
   if(sess && sess===cur()){ /* already open */ }
   else if(sess){
     if(!resume(sess.id, false) || !cur()){
       csSay('That location already has a count on this device that this role cannot open.', true);
-      return;
+      return false;
     }
     sess = cur();
   }
@@ -3382,6 +3409,22 @@ function importCountSheet(sheets, fileName){
   sess.da = sess.da || hdr.da || '';
   sess.sheetNo = hdr.sheetNo || sess.sheetNo || '';
   sess.witnessName = hdr.witness || sess.witnessName || '';
+
+  /* the sheet is kept as uploaded: its columns, in its order, with its rows */
+  const columns = (cs[hi]||[]).map(cellText);
+  const layoutKey = columns.map(hnorm).join('|');
+  const sheetKey = jid+'|'+cat+'|'+org+'|'+regKey(label);
+  const body = cs.slice(hi+1)
+    .filter(r => cellText(r[ix.code]))
+    .map(r => columns.map((_,i)=>cellText(r[i])));
+  S.sheets = S.sheets || {};
+  S.sheets[sheetKey] = {
+    key:sheetKey, job:jid, cat, org, label,
+    da:hdr.da||'', witness:hdr.witness||'', sheetNo:hdr.sheetNo||'',
+    fileName:fileName||'', uploadedAt:Date.now(),
+    columns, rows:body, ix, layoutKey,
+    added:(S.sheets[sheetKey] && S.sheets[sheetKey].added) || []
+  };
 
   const rows = cs.slice(hi+1);
   let placed=0, itemsAdded=0, skipped=0, physCount=0, witCount=0;
@@ -3463,6 +3506,12 @@ function importCountSheet(sheets, fileName){
   save();
   if(cur()===sess) doFinish(true);
 
+  /* item 9: the file says which location this sheet belongs to, so go there */
+  setActiveOrgOption(org);
+  if((pl.type||'van')!==PTYPE){ PTYPE = pl.type||'van'; renderSegs(); }
+  $('fVan').value = label;
+  SPOT=''; syncPlaceUI(); fillPlaces(); renderSpots(); refreshWhere(); applyBrand();
+
   const seen = k => hdr[k] ? esc(hdr[k]) : '<span style="color:var(--bad)">not found</span>';
   csSay('<b>'+esc(fileName)+' imported.</b>'
     + '<br><b>Header block:</b> Contractor '+seen('contractor')+' · Location '+seen('location')
@@ -3476,6 +3525,7 @@ function importCountSheet(sheets, fileName){
     + (drumsUnmatched? '<br><b>Drums not placed:</b> '+drumsUnmatched+' row'+(drumsUnmatched===1?'':'s')+' missing a code, an identifier or a length, or belonging to another location.':'')
     + (flags.length? '<br><b>Check these:</b> '+esc(flags.slice(0,6).join('; '))+(flags.length>6? ' and '+(flags.length-6)+' more':'')+'. Imported exactly as written — nothing was converted.':''));
   fillOrgs(true); fillPlaces(); renderPlaces(); renderCat(); renderJobLocs(); renderMgr(); renderSheet();
+  return true;
 }
 /* Every committing button says it heard you: pressed at once, a spinner if it
    takes more than a moment, then a tick that lingers. fn returning false means
@@ -3513,19 +3563,23 @@ function withFeedback(btn, fn, doneLabel){
   );
 }
 function csSay(html, err){
-  const el=$('csNote'); if(!el) return;
-  el.innerHTML = html;
-  el.style.color = err ? 'var(--bad)' : '';
+  for(const id of ['csNote','sheetMsg']){
+    const el=$(id); if(!el) continue;
+    el.innerHTML = html;
+    el.style.color = err ? 'var(--bad)' : '';
+  }
 }
 function readCountSheetFile(f){
-  if(!f) return;
+  if(!f) return Promise.resolve(false);
   const isX = /\.(xlsx|xls)$/i.test(f.name), rd = new FileReader();
   csSay('Reading <b>'+esc(f.name)+'</b>\u2026');
+  return new Promise(resolve=>{
+  rd.onerror = ()=>{ csSay('That file could not be read.', true); resolve(false); };
   rd.onload = ()=>{
     let sheets = {};
     try{
       if(isX){
-        if(!window.XLSX){ csSay('The Excel reader did not load. Save the Count Sheet tab as CSV and import that.', true); return; }
+        if(!window.XLSX){ csSay('The Excel reader did not load. Save the Count Sheet tab as CSV and import that.', true); resolve(false); return; }
         const wb = XLSX.read(rd.result, {type:'array'});
         for(const nm of wb.SheetNames){
           const aoa = XLSX.utils.sheet_to_json(wb.Sheets[nm], {header:1, raw:true, defval:''});
@@ -3537,11 +3591,12 @@ function readCountSheetFile(f){
       } else {
         sheets.count = parseCSV(String(rd.result));
       }
-    }catch(e){ csSay('Could not read that file.', true); return; }
-    if(!sheets.count || !sheets.count.length){ csSay('That file came through empty.', true); return; }
-    importCountSheet(sheets, f.name);
+    }catch(e){ csSay('Could not read that file.', true); resolve(false); return; }
+    if(!sheets.count || !sheets.count.length){ csSay('That file came through empty.', true); resolve(false); return; }
+    resolve(importCountSheet(sheets, f.name) !== false);
   };
   if(isX) rd.readAsArrayBuffer(f); else rd.readAsText(f);
+  });
 }
 
 /* ---------- export, in the same layout ---------- */
@@ -3704,9 +3759,12 @@ function addSheetItem(code, desc, uom, pack){
   if(!code) return 'Give it a part code.';
   if(items(cat).some(i=>i.code===code)) return 'That code is already in the catalogue.';
   S.custom = S.custom || {};
+  const packN = Math.max(1, parseInt(pack,10)||1);
   S.custom[cat] = (S.custom[cat]||[]).concat([{code, short:desc||code, long:desc||code,
-    unit:normUom(uom||'each'), pack:Math.max(1, parseInt(pack,10)||1), packName:'',
+    unit:(String(uom||'').trim()||'each'), pack:packN, packName:'',
     alias:norm(desc||code), group:UNASSIGNED, price:null, needsGroup:true}]);
+  const sh = uploadedSheet();
+  if(sh){ sh.added = (sh.added||[]).concat([{code, desc:desc||code, uom:String(uom||'').trim()||'each', pack:packN}]); }
   save();
   return '';
 }
@@ -3785,7 +3843,199 @@ function renderSheetState(sess){
 }
 
 let SHEET_Q='', SHEET_ONLY=false, DRUM_OPEN='', NOTE_OPEN='';
+
+/* ============================================================
+   the uploaded count sheet
+   The grid is the file, not the catalogue. Every column is shown
+   as uploaded, in the file's order; exactly one is editable.
+   ============================================================ */
+function sheetKeyFor(){
+  const cat=$('fCat').value, org=activeOrg(), label=$('fVan').value.trim();
+  if(!org || !label) return '';
+  return ($('fJob').value||S.job)+'|'+cat+'|'+org+'|'+regKey(label);
+}
+function uploadedSheet(){ const k=sheetKeyFor(); return k ? ((S.sheets||{})[k]||null) : null; }
+function countColFor(sh, role){
+  const rem = (S.sheetLayouts||{})[sh.layoutKey] || {};
+  if(rem[role]!=null) return rem[role];
+  if(role==='contractor' && sh.ix.physical!=null) return sh.ix.physical;
+  if(role==='nbi' && sh.ix.witness!=null) return sh.ix.witness;
+  return null;
+}
+function rememberCountCol(sh, role, idx){
+  S.sheetLayouts = S.sheetLayouts || {};
+  const cur = S.sheetLayouts[sh.layoutKey] || {};
+  cur[role] = idx;
+  S.sheetLayouts[sh.layoutKey] = cur;
+  save();
+}
+function shCell(sh, cells, key){ return sh.ix[key]!=null ? String(cells[sh.ix[key]]||'') : ''; }
+function shCode(sh, cells){ return shCell(sh, cells, 'code'); }
+function shGroup(sh, cells){ return shCell(sh, cells, 'group') || UNASSIGNED; }
+function isDrumRow(sh, cells){
+  const it = item(sh.cat, shCode(sh, cells));
+  if(it && it.drum) return true;
+  const u = (shCell(sh, cells, 'uom') || (it && it.unit) || '').toLowerCase();
+  return /fibre/i.test(shGroup(sh, cells)+' '+shCell(sh, cells, 'desc')) && !!LEN_UOM[u];
+}
+/* an item added on the device gets a row shaped like the file's */
+function addedCells(sh, a){
+  const cells = sh.columns.map(()=> '');
+  if(sh.ix.code!=null)  cells[sh.ix.code]  = a.code;
+  if(sh.ix.desc!=null)  cells[sh.ix.desc]  = a.desc;
+  if(sh.ix.uom!=null)   cells[sh.ix.uom]   = a.uom;
+  if(sh.ix.pack!=null)  cells[sh.ix.pack]  = a.pack>1 ? String(a.pack) : '';
+  if(sh.ix.group!=null) cells[sh.ix.group] = UNASSIGNED;
+  return cells;
+}
+function renderSheetSrc(sh){
+  const el=$('sheetSrc'); if(!el) return;
+  if(!$('fVan').value.trim()){ el.innerHTML = 'Pick a location on the Count tab first.'; return; }
+  el.innerHTML = sh
+    ? 'Working from <b>'+esc(sh.fileName||'an uploaded sheet')+'</b> · '+sh.columns.length+' columns · '
+      + (sh.rows.length + (sh.added||[]).length) + ' rows'
+      + (sh.sheetNo? ' · sheet '+esc(sh.sheetNo):'')
+      + ' · uploaded '+new Date(sh.uploadedAt).toLocaleDateString('en-IE',{day:'numeric',month:'short'})
+    : 'No sheet uploaded for this location, so this is the catalogue. <b>Upload count sheet</b> to work from NBI\u2019s own file instead.';
+}
+/* asked once per column layout, then remembered */
+function renderColAsk(sh, role){
+  const el=$('colAsk'); if(!el) return true;
+  if(countColFor(sh, role)!=null){ el.classList.add('hidden'); el.innerHTML=''; return true; }
+  const guess = sh.ix.count!=null ? sh.ix.count : 0;
+  el.classList.remove('hidden');
+  el.innerHTML = '<span>Which column on this sheet holds the <b>'+esc(roleLabel(role))+'</b>?</span>'
+    + '<select id="colPick">'+sh.columns.map((c,i)=>'<option value="'+i+'"'+(i===guess?' selected':'')+'>'
+        + esc(c || ('Column '+(i+1)))+'</option>').join('')+'</select>'
+    + '<button class="btn dark" id="colGo">Use this column</button>'
+    + '<span style="flex-basis:100%; font-size:12px">Asked once — remembered for any sheet with these columns.</span>';
+  $('colGo').onclick = ()=>{ rememberCountCol(sh, role, +$('colPick').value); renderSheet(); };
+  return false;
+}
+function renderUploadedSheet(sh){
+  const tbl=$('tblSheet');
+  const sess = sheetSession(), role = curRole();
+  const other = role==='nbi' ? 'contractor' : 'nbi';
+  const pl = selectedPlace();
+  $('sheetWho').innerHTML = '<b>'+esc(sh.label)+'</b> · '+esc(PL(PTYPE).label)
+    + ' · '+esc(sh.org) + (sh.da? ' · '+esc(sh.da):'')
+    + (sh.witness? ' · witness '+esc(sh.witness):'')
+    + ' · you are entering the <b>'+esc(roleLabel(role))+'</b>';
+  renderSheetState(sess);
+  if(!renderColAsk(sh, role)){
+    tbl.innerHTML = '<tbody><tr><td class="empty">Tell it which column to fill and the sheet opens.</td></tr></tbody>';
+    return;
+  }
+  const myCol = countColFor(sh, role), otherCol = countColFor(sh, other);
+  const blind = isBlind(sess);
+  const q = SHEET_Q.trim().toLowerCase();
+
+  const all = sh.rows.map(cells=>({cells, added:false}))
+    .concat((sh.added||[]).map(a=>({cells:addedCells(sh,a), added:true})));
+  const rows = all.filter(r=>{
+    if(SHEET_ONLY && !hasAnyCount(sess, shCode(sh, r.cells))) return false;
+    return !q || r.cells.some(c=>String(c).toLowerCase().includes(q));
+  });
+  if(!rows.length){
+    tbl.innerHTML = '<tbody><tr><td class="empty">'+(q? 'Nothing on the sheet matches “'+esc(SHEET_Q)+'”.' : 'No rows to show.')+'</td></tr></tbody>';
+    return;
+  }
+  /* the difference column only earns its place once a row has both counts */
+  const anyBoth = !blind && all.some(r=>{
+    const c = shCode(sh, r.cells);
+    return countOf(sess,c,'contractor')>0 && countOf(sess,c,'nbi')>0;
+  });
+  const span = sh.columns.length + (anyBoth?1:0);
+
+  /* groups keep the file's own order */
+  const order=[], byGroup={};
+  for(const r of rows){
+    const g = shGroup(sh, r.cells);
+    if(!byGroup[g]){ byGroup[g]=[]; order.push(g); }
+    byGroup[g].push(r);
+  }
+  const numeric = i => i===myCol || i===otherCol || i===sh.ix.pack;
+
+  let h = '<thead><tr>'
+    + sh.columns.map((c,i)=>'<th'+(numeric(i)?' class="r"':'')+'>'+esc(c||('Column '+(i+1)))+'</th>').join('')
+    + (anyBoth? '<th class="r">Difference</th>':'') + '</tr></thead><tbody>';
+
+  for(const g of order){
+    const list = byGroup[g];
+    let cSum=0, nSum=0;
+    for(const r of list){ const c=shCode(sh,r.cells); cSum+=countOf(sess,c,'contractor'); nSum+=countOf(sess,c,'nbi'); }
+    if(blind) cSum = 0;
+    h += '<tr class="gh"><td colspan="'+span+'">'+esc(g)
+       + (g===UNASSIGNED? ' <span class="flag">needs classifying</span>':'')
+       + '<span class="gt">'+list.length+' row'+(list.length===1?'':'s')
+       + ' · '+esc(roleLabel('contractor'))+' '+(blind? '•••' : (cSum? fmt(cSum):'—'))
+       + ' · '+esc(roleLabel('nbi'))+' '+(nSum? fmt(nSum):'—')
+       + '</span></td></tr>';
+
+    for(const r of list){
+      const code = shCode(sh, r.cells);
+      const c = countOf(sess,code,'contractor'), n = countOf(sess,code,'nbi');
+      const d = n - c, both = !blind && c>0 && n>0;
+      const drum = isDrumRow(sh, r.cells);
+      const note = diffNote(sess, code);
+      h += '<tr'+(both && d ? ' class="diff"':'')+'>';
+      for(let i=0;i<sh.columns.length;i++){
+        if(i===myCol){
+          const editable = canEdit(sess, role) && !drum;
+          h += '<td class="r"><input class="cc mine" data-code="'+esc(code)+'" data-role="'+role+'" inputmode="decimal"'
+             + ' value="'+numVal(role==='contractor'? c : n)+'"'
+             + (editable? '' : ' readonly tabindex="-1"')
+             + ' aria-label="'+esc(roleLabel(role)+' for '+(shCell(sh,r.cells,'desc')||code))+'"></td>';
+        } else if(i===otherCol){
+          const hide = blind && other==='contractor';
+          h += '<td class="r"><input class="cc" data-code="'+esc(code)+'" data-role="'+other+'" readonly tabindex="-1"'
+             + ' value="'+(hide? '' : numVal(other==='contractor'? c : n))+'"'+(hide? ' placeholder="•••"':'')
+             + ' aria-label="'+esc(roleLabel(other))+'"></td>';
+        } else {
+          const first = i===(sh.ix.desc!=null? sh.ix.desc : 0);
+          h += '<td class="file'+(numeric(i)?' num':'')+'">'+esc(r.cells[i]||'')
+             + (first && r.added? ' <span class="flag">new</span>':'')
+             + (first && drum? '<br><button class="dfb" data-drums="'+esc(code)+'">Drums ('+drumsOf(sess,code,role).length+')</button>':'')
+             + (first && note && (note.note||note.recounted) ? '<br><small style="color:var(--ink-3)">'
+                 + (note.recounted? '<b>Recounted.</b> ':'')+esc(note.note)+'</small>':'')
+             + '</td>';
+        }
+      }
+      if(anyBoth) h += '<td class="r df">'+(both&&d ? '<button class="dfb" data-note="'+esc(code)+'">'+(d>0?'+':'')+fmt(d)+'</button>' : (both? '0' : '—'))+'</td>';
+      h += '</tr>';
+
+      if(DRUM_OPEN===code){
+        const mine = drumsOf(sess,code,role);
+        const unit = shCell(sh,r.cells,'uom') || item(sh.cat,code).unit || '';
+        h += '<tr class="drums"><td colspan="'+span+'"><b>Drums on this line — '+esc(roleLabel(role))+'</b>'
+           + mine.map(l=>'<div class="drumline"><input class="did" value="'+esc(l.drumId)+'" readonly>'
+               + '<input class="dln" value="'+numVal(l.qty)+'" readonly><span>'+esc(unit)+'</span>'
+               + '<button class="x" data-dropdrum="'+esc(l.id)+'" title="Remove">✕</button></div>').join('')
+           + '<div class="drumline"><input class="did" id="ndId" placeholder="Drum ID" autocomplete="off">'
+           + '<input class="dln" id="ndLen" inputmode="decimal" placeholder="Length"><span>'+esc(unit)+'</span>'
+           + '<button class="btn" data-adddrum="'+esc(code)+'">Add drum</button></div>'
+           + '<small style="color:var(--ink-3)">The count for this row is the total of its drums.</small></td></tr>';
+      }
+      if(NOTE_OPEN===code){
+        h += '<tr class="drums"><td colspan="'+span+'"><b>Difference of '+(d>0?'+':'')+fmt(d)+'</b>'
+           + '<div class="drumline"><input style="flex:1 1 180px" id="dnText" placeholder="Why? e.g. two drums on another van" value="'+esc(note?note.note:'')+'">'
+           + '<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="dnRe"'+(note&&note.recounted?' checked':'')+'> Recounted</label>'
+           + '<button class="btn dark" data-savenote="'+esc(code)+'">Save</button></div></td></tr>';
+      }
+    }
+  }
+  tbl.innerHTML = h+'</tbody>';
+  wireSheet();
+}
+
 function renderSheet(){
+  const sh = uploadedSheet();
+  renderSheetSrc(sh);
+  if(sh) return renderUploadedSheet(sh);
+  const el=$('colAsk'); if(el){ el.classList.add('hidden'); el.innerHTML=''; }
+  return renderCatalogueSheet();
+}
+function renderCatalogueSheet(){
   const tbl=$('tblSheet'); if(!tbl) return;
   const cat=$('fCat').value, label=$('fVan').value.trim(), org=activeOrg();
   const role=curRole(), other = role==='nbi' ? 'contractor' : 'nbi';
@@ -4348,6 +4598,11 @@ $('t-hist').onclick=()=>showTab('hist');
 $('sheetSearch').oninput = e=>{ SHEET_Q=e.target.value; renderSheet(); };
 $('sheetOnly').onchange = e=>{ SHEET_ONLY=e.target.checked; renderSheet(); };
 $('sheetMic').onclick = ()=>{ if(listening||wantListen) stopListen(); else startListen(); syncSheetMic(); };
+$('sheetUp').onclick = ()=>$('sheetFile').click();
+$('sheetFile').onchange = e=>{
+  const f = e.target.files[0]; e.target.value='';
+  if(f) withFeedback($('sheetUp'), ()=>readCountSheetFile(f), 'Uploaded');
+};
 $('sheetAdd').onclick = ()=>{ $('sheetAddBox').classList.toggle('hidden'); $('niNote').textContent=''; if(!$('sheetAddBox').classList.contains('hidden')) setTimeout(()=>$('niCode').focus(),30); };
 $('niCancel').onclick = ()=>{ $('sheetAddBox').classList.add('hidden'); $('niNote').textContent=''; };
 $('niAdd').onclick = e => withFeedback(e.currentTarget, ()=>{
