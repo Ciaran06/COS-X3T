@@ -82,6 +82,26 @@ treat it as a specification of behaviour that must survive a rewrite.
   locations that were never witnessed. The snapshot carries the submission, reveal and reopen record
   per location. See `isSubmitted()`, `isBlind()`, `submitLocation()`, `revealCount()`,
   `reopenLocation()`, `renderSheetState()`, `jobReadiness()`.
+- **NBI count sheets, in and out.** Data → *NBI count sheets* reads a filled KN02 workbook as it
+  stands. It finds the header block wherever it sits (a label cell with its value to the right or
+  below) to set contractor, location, DA, witness name and sheet number; finds the item header row by
+  its Physical Count column; reads Physical Count into the contractor column and Witness Count into
+  NBI's; and reads the Cable Drums sheet into drum lines. **Drums win over the sheet's own figure**
+  for their item, so a drummed item is counted once, and a disagreement between the two is reported.
+  Unknown items are added with their group, and the location is added to the register if new. A filled
+  sheet is a completed count, so it arrives already submitted for whichever columns had figures.
+  Re-importing the same file changes nothing. A contractor device refuses another contractor's sheet.
+  The report names every header field found or missing, the counts placed, items and groups added,
+  rows skipped, drums that could not be placed, and anything worth checking.
+  **Export** writes the same layout back — header block, the seven columns in order, and a Cable
+  Drums sheet — for one location, or for a whole job as one workbook with a sheet per location.
+  It writes real .xlsx through SheetJS, falling back to CSV if that has not loaded.
+  See `readHeaderBlock()`, `findCountHeader()`, `importCountSheet()`, `countSheetAoA()`,
+  `drumsAoA()`, `saveWorkbook()`.
+- **Units are kept exactly as given.** Each, KM, MTR — the item master importer no longer normalises
+  the unit of measure, and nothing is silently converted. A unit that reads as a code rather than a
+  word is never pluralised on screen. Where the sheet has KM against a metre-sized number, it is
+  imported as written and flagged in the report. See item 18 of the 7 Sep note.
 - **Product groups.** Every item carries a Product Group. For the fibre / NBI catalogue the list is
   fixed — see `PRODUCT_GROUPS`, 17 entries, some of which deliberately share a number prefix
   (`06. Duct` and `06. Sub Duct`). Matching is on the text, case- and punctuation-insensitive, and

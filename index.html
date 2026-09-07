@@ -595,6 +595,7 @@
       <header>
         <h2>Count sheet</h2>
         <span class="hint" id="sheetHint">The selected location, item by item</span>
+        <button class="btn" id="csExpLoc">Export sheet</button>
         <button class="btn" id="sheetAdd">Add item</button>
       </header>
       <div class="sheetwho" id="sheetWho"></div>
@@ -664,6 +665,20 @@
         <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="jAdd">Add job</button></div>
       </div>
       <div id="jobList"></div>
+    </div>
+
+    <div class="panel">
+      <header>
+        <h2>NBI count sheets</h2>
+        <span class="hint">The KN02 layout, in and out</span>
+        <button class="btn" id="csExpJob">Export whole job</button>
+      </header>
+      <div class="drop" id="csDrop">
+        <b>Drop a filled count sheet here, or tap to choose one</b>
+        <small>NBI's own workbook — the header block, the item rows with Physical Count and Witness Count, and the Cable Drums sheet. It is read as it stands; units are kept exactly as written.</small>
+        <input type="file" id="csFile" accept=".xlsx,.xls,.csv" class="hidden">
+      </div>
+      <p class="note" id="csNote">Nothing imported yet.</p>
     </div>
 
     <div class="panel">
@@ -1059,6 +1074,9 @@ function baseQty(it,qty,unit){ return isPackUnit(it,unit) ? qty*(it.pack||1) : q
 function fmt(n){ return (Math.round(n*100)/100).toLocaleString('en-IE'); }
 function plural(u,n){
   if(!u) return '';
+  /* a unit of measure taken verbatim from a customer's sheet — KM, MTR, Each —
+     is a code, not an English noun, so it is never pluralised */
+  if(/^[A-Z0-9]{1,4}$/.test(u) || /^each$/i.test(u)) return u;
   if(n===1||u==='each') return u;
   if(/(x|ch|sh|ss|z)$/.test(u)) return u+'es';
   if(/s$/.test(u)) return u;
@@ -2356,15 +2374,15 @@ function shrinkLogo(file, cb){
    import
    ============================================================ */
 const FIELDS = [
-  {key:'code',     label:'Item code',         syn:['sap','sap code','sap number','sap material','material','material number','material no','material code','item code','item no','item number','part number','part no','partno','part code','stock code','stock number','product code','sku','invoice code','invoice ref','code','ref','reference','catalogue number','cat no','article number','article']},
+  {key:'code',     label:'Item code',         syn:['sap part codes','sap part code','sap','sap code','sap number','sap material','material','material number','material no','material code','item code','item no','item number','part number','part no','partno','part code','stock code','stock number','product code','sku','invoice code','invoice ref','code','ref','reference','catalogue number','cat no','article number','article']},
   {key:'short',    label:'Short description', syn:['short description','short desc','short text','description','desc','item description','item name','material description','name','product name','product description','title']},
   {key:'long',     label:'Long description',  syn:['long description','long desc','long text','extended description','full description','details','detail','specification','spec','notes','comment']},
   {key:'unit',     label:'Unit of measure',   syn:['uom','unit','unit of measure','units','base unit','base uom','measure','issue unit','stock unit','sales unit']},
-  {key:'pack',     label:'Pack size',         syn:['pack size','pack','packsize','pack qty','pack quantity','qty per pack','units per pack','case size','units per case','qty per case','box qty','box quantity','per box','per pack','per case','conversion','conversion factor','multiplier','inner qty','outer qty','drum length','coil length','standard length']},
+  {key:'pack',     label:'Pack size',         syn:['box pallet qty','box or pallet qty','pallet qty','box pallet quantity','pack size','pack','packsize','pack qty','pack quantity','qty per pack','units per pack','case size','units per case','qty per case','box qty','box quantity','per box','per pack','per case','conversion','conversion factor','multiplier','inner qty','outer qty','drum length','coil length','standard length']},
   {key:'packName', label:'Pack name',         syn:['pack type','pack name','packaging','case type','pack uom','purchase unit','order unit','buying unit']},
   {key:'expected', label:'Expected quantity', syn:['qty','quantity','stock on hand','on hand','soh','closing stock','opening stock','balance','count','last count','stock','current stock','book stock','qty on hand','physical','system qty','expected','total']},
   {key:'price',    label:'Unit value (\u20AC)',     syn:['unit value','unitvalue','value','unit price','price','unit cost','cost','value each','rate','standard price','list price','net price','eur','euro']},
-  {key:'group',    label:'Product Group',     syn:['product group','productgroup','product grp','prod group','material group','item group','stock group','product category','group name','group','grp']},
+  {key:'group',    label:'Product Group',     syn:['bi product group','product group','productgroup','product grp','prod group','material group','item group','stock group','product category','group name','group','grp']},
   {key:'alias',    label:'Spoken as',         syn:['spoken as','alias','aliases','nickname','common name','also known as','short name','local name']},
   {key:'owner',    label:'Customer',          syn:['contractor','subcontractor','supplier','vendor','owner','held by','customer','company','account','client','region']},
   {key:'placeLabel',label:'Location / reg',    syn:['registration','reg','reg no','reg number','registration number','vehicle reg','vehicle','van reg','van','fleet no','fleet number','fleet','plate','number plate','asset','asset number','unit number','location','location name','place','room','area','bar','store name','yard name','site name','depot','warehouse']},
@@ -2470,7 +2488,9 @@ function buildItems(cat){
     if(noNums.length) aliasBits.add(noNums.join(' '));
     if(nt.length>2){ aliasBits.add(nt.slice(0,2).join(' ')); aliasBits.add(nt.slice(-2).join(' ')); }
     aliasBits.delete('');
-    out.push({code, short, long:get('long')||short, unit:normUom(get('unit')), pack,
+    /* item 18: the unit of measure is kept exactly as given — Each, KM, MTR —
+       and never silently converted */
+    out.push({code, short, long:get('long')||short, unit:(get('unit').trim() || 'each'), pack,
       packName: get('packName')? normUom(get('packName')) : (pack>1?'case':''),
       alias:[...aliasBits].join(', '),
       group: matchGroup(get('group'), cat),
@@ -3221,6 +3241,333 @@ function renderPlaceAdmin(){
     + '<div class="bar"><span class="sp">'+list.length+' locations registered</span><button class="btn" id="placeClear">Clear register</button></div>';
   const c=$('placeClear');
   if(c) c.onclick=()=>{ S.places[cat]=[]; save(); renderPlaces(); };
+}
+
+/* ============================================================
+   NBI count sheets — import and export in their layout
+   ============================================================ */
+const CS_COLS = ['BI Product Group','SAP Part Codes','Short Description','UoM','Box/Pallet QTY','Physical Count','Witness Count'];
+const DRUM_COLS = ['SAP Part Code','UoM','Drum Identifier','Yard or Van Location','Fibre Length'];
+function cellText(v){ return String(v==null?'':v).trim(); }
+/* the header block: a label in one cell, its value to the right or below */
+function readHeaderBlock(rows){
+  const want = [
+    {k:'contractor', re:/^contractor\b/i},
+    {k:'location',   re:/^location\b/i},
+    {k:'da',         re:/^da\b|da served/i},
+    {k:'witness',    re:/witness\s*name|witness.*organisation|^witness\b/i},
+    {k:'sheetNo',    re:/count\s*sheet\s*#|sheet\s*(no|number|#)/i}
+  ];
+  const out={};
+  for(let i=0;i<Math.min(rows.length,25);i++){
+    const r = rows[i]||[];
+    for(let c=0;c<r.length;c++){
+      const label = cellText(r[c]).replace(/[:*]+$/,'').trim();
+      if(!label || label.length>60) continue;
+      for(const w of want){
+        if(out[w.k]) continue;
+        if(!w.re.test(label)) continue;
+        let v='';
+        for(let j=c+1;j<r.length;j++){ const x=cellText(r[j]); if(x){ v=x; break; } }
+        if(!v && rows[i+1]) v = cellText((rows[i+1]||[])[c]);
+        if(v && v.toLowerCase()!==label.toLowerCase()) out[w.k]=v;
+      }
+    }
+  }
+  return out;
+}
+function findCountHeader(rows){
+  for(let i=0;i<rows.length;i++){
+    const r = (rows[i]||[]).map(hnorm);
+    if(r.some(x=>/physical count/.test(x))) return i;
+    if(r.some(x=>/sap/.test(x)) && r.some(x=>/short description/.test(x))) return i;
+  }
+  return -1;
+}
+function mapCountCols(header){
+  const ix = {};
+  header.forEach((h,i)=>{
+    const x = hnorm(h);
+    if(!x) return;
+    if(ix.group==null   && /product group/.test(x)) ix.group=i;
+    else if(ix.code==null && /(sap|part code|item code|material)/.test(x)) ix.code=i;
+    else if(ix.desc==null && /description/.test(x)) ix.desc=i;
+    else if(ix.uom==null  && /^uom$|unit of measure|^unit$/.test(x)) ix.uom=i;
+    else if(ix.pack==null && /(box|pallet|pack|qty per)/.test(x) && !/physical|witness/.test(x)) ix.pack=i;
+    else if(ix.physical==null && /physical/.test(x)) ix.physical=i;
+    else if(ix.witness==null  && /witness/.test(x)) ix.witness=i;
+  });
+  return ix;
+}
+function mapDrumCols(header){
+  const ix={};
+  header.forEach((h,i)=>{
+    const x=hnorm(h);
+    if(ix.code==null && /(sap|part code)/.test(x)) ix.code=i;
+    else if(ix.uom==null && /^uom$|unit/.test(x)) ix.uom=i;
+    else if(ix.id==null && /drum/.test(x) && /(identifier|id|number|no)/.test(x)) ix.id=i;
+    else if(ix.loc==null && /(yard|van|location)/.test(x)) ix.loc=i;
+    else if(ix.len==null && /(length|fibre|metre|meter)/.test(x)) ix.len=i;
+  });
+  return ix;
+}
+function numOrNull(v){
+  const t = cellText(v).replace(/[, ]/g,'');
+  if(!t) return null;
+  const n = parseFloat(t.replace(/[^0-9.\-]/g,''));
+  return isFinite(n) ? n : null;
+}
+/* KM against a metre-sized number is the sample's own quirk — import as-is, flag it */
+function kmLooksLikeMetres(uom, n){ return /^km$/i.test(String(uom||'').trim()) && n!=null && Math.abs(n) > 100; }
+
+function importCountSheet(sheets, fileName){
+  const cs = sheets.count || [];
+  const hdr = readHeaderBlock(cs);
+  const hi = findCountHeader(cs);
+  if(hi<0){ csSay('Could not find the item rows in that file — no header row with a Physical Count column.', true); return; }
+  const ix = mapCountCols(cs[hi]||[]);
+  if(ix.code==null){ csSay('Found the header row but not a part-code column, so nothing could be placed.', true); return; }
+
+  const cat = $('fCat').value;
+  const org = hdr.contractor || activeOrg();
+  const label = hdr.location || $('fVan').value.trim();
+  if(!org || !label){ csSay('The header block did not give both a contractor and a location, so the counts had nowhere to land.', true); return; }
+  /* a contractor device holds only its own stock */
+  if(!isNBI() && me().org && org !== me().org){
+    csSay('That sheet is <b>'+esc(org)+'</b>\u2019s and this device is <b>'+esc(me().org)+'</b>, which only holds its own stock. '
+        + 'Switch the role to NBI, or to '+esc(org)+', and import it again.', true);
+    return;
+  }
+
+  /* the location goes on the register if it is not already there */
+  S.places = S.places || {}; S.places[cat] = S.places[cat] || [];
+  let pl = S.places[cat].find(x=>regKey(x.label)===regKey(label));
+  let placeAdded = false;
+  if(!pl){
+    pl = {label, type:guessPtype(label), org, da:hdr.da||'', spots:[]};
+    S.places[cat].push(pl); placeAdded = true;
+  } else if(hdr.da && !pl.da){ pl.da = hdr.da; }
+  if(org && !orgsFor(cat).includes(org)){ S.orgs = S.orgs||{}; S.orgs[cat] = orgsFor(cat).concat([org]); }
+
+  /* one session for this location on the selected job */
+  const jid = $('fJob').value || S.job;
+  let sess = allSessions().find(x=>(x.cat||'fibre')===cat && x.job===jid && x.org===org && regKey(x.container)===regKey(label));
+  if(sess && sess===cur()){ /* already open */ }
+  else if(sess){
+    if(!resume(sess.id, false) || !cur()){
+      csSay('That location already has a count on this device that this role cannot open.', true);
+      return;
+    }
+    sess = cur();
+  }
+  else {
+    S.current = {id:'s'+Date.now().toString(36), cat, org, ctype:pl.type||'van', container:label,
+      da:hdr.da||pl.da||'', by:me().name, job:jid, started:Date.now(), finished:null, lines:[]};
+    sess = S.current;
+  }
+  sess.da = sess.da || hdr.da || '';
+  sess.sheetNo = hdr.sheetNo || sess.sheetNo || '';
+  sess.witnessName = hdr.witness || sess.witnessName || '';
+
+  const rows = cs.slice(hi+1);
+  let placed=0, itemsAdded=0, skipped=0, physCount=0, witCount=0;
+  const flags=[], unknownGroups=new Set(), physSaid={};
+  for(const r of rows){
+    const code = cellText(r[ix.code]);
+    if(!code) { if((r||[]).some(c=>cellText(c))) skipped++; continue; }
+    const desc = ix.desc!=null ? cellText(r[ix.desc]) : '';
+    const uom  = ix.uom!=null  ? cellText(r[ix.uom])  : '';
+    const pack = ix.pack!=null ? (numOrNull(r[ix.pack])||1) : 1;
+    const grpRaw = ix.group!=null ? cellText(r[ix.group]) : '';
+    if(!items(cat).some(i=>i.code===code)){
+      const g = matchGroup(grpRaw, cat);
+      if(grpRaw && g===UNASSIGNED) unknownGroups.add(grpRaw);
+      S.custom = S.custom||{};
+      S.custom[cat] = (S.custom[cat]||[]).concat([{code, short:desc||code, long:desc||code,
+        unit:(uom||'each'), pack:Math.max(1,Math.round(pack)), packName:'', alias:norm(desc||code),
+        group:g, price:null, needsGroup:(g===UNASSIGNED)}]);
+      itemsAdded++;
+    }
+    const it = item(cat, code);
+    const ph = ix.physical!=null ? numOrNull(r[ix.physical]) : null;
+    const wi = ix.witness!=null  ? numOrNull(r[ix.witness])  : null;
+    if(kmLooksLikeMetres(uom, ph) || kmLooksLikeMetres(uom, wi))
+      flags.push(code+' is in '+uom+' but the count reads like metres ('+fmt(ph!=null?ph:wi)+')');
+    if(ph!=null) physSaid[code] = ph;
+    for(const [role, v] of [['contractor', ph], ['nbi', wi]]){
+      if(v==null) continue;
+      sess.lines = sess.lines.filter(l => !(l.code===code && lineRole(l)===role && !l.drumId));
+      if(v>0) sess.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat, code, qty:v, unit:it.unit,
+        loc:'Count sheet', drumId:null, ts:Date.now(), raw:null, role, typed:true, imported:true});
+      placed++;
+      if(role==='contractor') physCount++; else witCount++;
+    }
+  }
+
+  /* cable drums */
+  let drumsIn=0, drumsUnmatched=0;
+  const drumTotals={};
+  const dr = sheets.drums || [];
+  if(dr.length){
+    let dh=-1;
+    for(let i=0;i<dr.length;i++){ const r=(dr[i]||[]).map(hnorm); if(r.some(x=>/drum/.test(x))){ dh=i; break; } }
+    if(dh>=0){
+      const dix = mapDrumCols(dr[dh]||[]);
+      for(const r of dr.slice(dh+1)){
+        const code = dix.code!=null ? cellText(r[dix.code]) : '';
+        const did  = dix.id!=null   ? cellText(r[dix.id])   : '';
+        const len  = dix.len!=null  ? numOrNull(r[dix.len]) : null;
+        if(!code && !did) continue;
+        if(!code || !did || len==null){ drumsUnmatched++; continue; }
+        const dloc = dix.loc!=null ? cellText(r[dix.loc]) : '';
+        if(dloc && regKey(dloc) && regKey(dloc)!==regKey(label)){ drumsUnmatched++; continue; }
+        const it = item(cat, code);
+        /* the first drum for an item takes over from the sheet's own figure,
+           so a drummed item is counted once, from its drums */
+        if(!drumTotals[code]){
+          drumTotals[code] = 0;
+          sess.lines = sess.lines.filter(l => !(l.code===code && lineRole(l)==='contractor' && !l.drumId));
+        }
+        sess.lines = sess.lines.filter(l => !(l.code===code && l.drumId===did.toUpperCase() && lineRole(l)==='contractor'));
+        sess.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat, code, qty:len, unit:it.unit,
+          loc:'Count sheet', drumId:did.toUpperCase(), ts:Date.now(), raw:null, role:'contractor', typed:true, imported:true});
+        drumTotals[code] += len;
+        drumsIn++;
+      }
+      for(const code in drumTotals){
+        if(physSaid[code]!=null && Math.abs(physSaid[code]-drumTotals[code]) > 0.5)
+          flags.push(code+' has a Physical Count of '+fmt(physSaid[code])+' but its drums total '+fmt(drumTotals[code])+' — the drums were used');
+      }
+    }
+  }
+
+  /* a filled sheet is a completed count, so it arrives submitted */
+  sess.submitted = sess.submitted || {};
+  sess.submittedBy = sess.submittedBy || {};
+  if(physCount){ sess.submitted.contractor = sess.submitted.contractor || Date.now(); sess.submittedBy.contractor = sess.submittedBy.contractor || (org+' (imported)'); }
+  if(witCount){ sess.submitted.nbi = sess.submitted.nbi || Date.now(); sess.submittedBy.nbi = sess.submittedBy.nbi || (hdr.witness || 'NBI (imported)'); sess.witnessed = true; }
+  save();
+  if(cur()===sess) doFinish(true);
+
+  const seen = k => hdr[k] ? esc(hdr[k]) : '<span style="color:var(--bad)">not found</span>';
+  csSay('<b>'+esc(fileName)+' imported.</b>'
+    + '<br><b>Header block:</b> Contractor '+seen('contractor')+' · Location '+seen('location')
+      + ' · DA '+seen('da')+' · Witness '+seen('witness')+' · Sheet # '+seen('sheetNo')
+    + '<br><b>Counts:</b> '+physCount+' physical, '+witCount+' witness'
+      + (drumsIn? ', '+drumsIn+' drum line'+(drumsIn===1?'':'s'):'')+'.'
+    + '<br><b>Catalogue:</b> '+itemsAdded+' item'+(itemsAdded===1?'':'s')+' new to this device'
+      + (unknownGroups.size? ', '+unknownGroups.size+' product group'+(unknownGroups.size===1?'':'s')+' not on the fixed list ('+esc([...unknownGroups].slice(0,4).join(', '))+') — those items are Unassigned':'')+'.'
+    + (placeAdded? '<br><b>Register:</b> '+esc(label)+' added for '+esc(org)+'.':'')
+    + (skipped? '<br><b>Skipped:</b> '+skipped+' row'+(skipped===1?'':'s')+' with no part code.':'')
+    + (drumsUnmatched? '<br><b>Drums not placed:</b> '+drumsUnmatched+' row'+(drumsUnmatched===1?'':'s')+' missing a code, an identifier or a length, or belonging to another location.':'')
+    + (flags.length? '<br><b>Check these:</b> '+esc(flags.slice(0,6).join('; '))+(flags.length>6? ' and '+(flags.length-6)+' more':'')+'. Imported exactly as written — nothing was converted.':''));
+  fillOrgs(true); fillPlaces(); renderPlaces(); renderCat(); renderJobLocs(); renderMgr(); renderSheet();
+}
+function csSay(html, err){
+  const el=$('csNote'); if(!el) return;
+  el.innerHTML = html;
+  el.style.color = err ? 'var(--bad)' : '';
+}
+function readCountSheetFile(f){
+  if(!f) return;
+  const isX = /\.(xlsx|xls)$/i.test(f.name), rd = new FileReader();
+  rd.onload = ()=>{
+    let sheets = {};
+    try{
+      if(isX){
+        if(!window.XLSX){ csSay('The Excel reader did not load. Save the Count Sheet tab as CSV and import that.', true); return; }
+        const wb = XLSX.read(rd.result, {type:'array'});
+        for(const nm of wb.SheetNames){
+          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[nm], {header:1, raw:true, defval:''});
+          if(/drum/i.test(nm)) sheets.drums = aoa;
+          else if(!sheets.count) sheets.count = aoa;
+        }
+        if(!sheets.count && wb.SheetNames.length)
+          sheets.count = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, raw:true, defval:''});
+      } else {
+        sheets.count = parseCSV(String(rd.result));
+      }
+    }catch(e){ csSay('Could not read that file.', true); return; }
+    if(!sheets.count || !sheets.count.length){ csSay('That file came through empty.', true); return; }
+    importCountSheet(sheets, f.name);
+  };
+  if(isX) rd.readAsArrayBuffer(f); else rd.readAsText(f);
+}
+
+/* ---------- export, in the same layout ---------- */
+function countSheetAoA(sess, cat){
+  const rows = [];
+  rows.push(['NATIONAL BROADBAND IRELAND — STOCK TAKE WITNESS COUNT']);
+  rows.push([]);
+  rows.push(['Contractor', sess.org||'']);
+  rows.push(['Location', sess.container||'']);
+  rows.push(['DA served from location', sess.da||'']);
+  rows.push(['Witness name & organisation', sess.witnessName || (sess.submittedBy&&sess.submittedBy.nbi) || '']);
+  rows.push(['Count Sheet #', sess.sheetNo||'']);
+  rows.push([]);
+  rows.push(CS_COLS.slice());
+  const list = items(cat).slice().sort((a,b)=> groupCmp(groupOf(a),groupOf(b)) || a.code.localeCompare(b.code));
+  for(const it of list){
+    const c = countOf(sess, it.code, 'contractor'), n = countOf(sess, it.code, 'nbi');
+    rows.push([groupOf(it), it.code, it.short, it.unit, (it.pack>1? it.pack : ''), (c? c : ''), (n? n : '')]);
+  }
+  return rows;
+}
+function drumsAoA(sessions, cat){
+  const rows = [DRUM_COLS.slice()];
+  for(const sess of sessions)
+    for(const l of sess.lines){
+      if(!l.drumId) continue;
+      const it = item(cat, l.code);
+      rows.push([l.code, it.unit, l.drumId, sess.container, l.qty]);
+    }
+  return rows;
+}
+function safeSheetName(v, used){
+  let n = String(v||'Sheet').replace(/[\\\/\?\*\[\]:]/g,'-').slice(0,28) || 'Sheet';
+  let t=n, i=2;
+  while(used.has(t)){ t = n.slice(0,26)+'-'+(i++); }
+  used.add(t); return t;
+}
+async function saveWorkbook(filename, sheets){
+  if(window.XLSX){
+    try{
+      const wb = XLSX.utils.book_new();
+      for(const s of sheets) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s.aoa), s.name);
+      const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      const url = URL.createObjectURL(new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+      const a = document.createElement('a');
+      a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      return 'xlsx';
+    }catch(e){}
+  }
+  /* no Excel writer — the same rows as CSV, one block per sheet */
+  const esc2 = c => { const v=String(c==null?'':c); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  const text = sheets.map(s => '# '+s.name+'\n' + s.aoa.map(r=>r.map(esc2).join(',')).join('\n')).join('\n\n');
+  await saveFile(filename.replace(/\.xlsx$/i,'.csv'), text);
+  return 'csv';
+}
+async function exportLocationSheet(){
+  const sess = sheetSession();
+  if(!sess){ csSay('Pick a location with a count on it first.', true); return; }
+  const cat = sess.cat || $('fCat').value;
+  const kind = await saveWorkbook('count-sheet-'+slug(sess.container)+'.xlsx',
+    [{name:'Count Sheet', aoa:countSheetAoA(sess, cat)}, {name:'Cable Drums', aoa:drumsAoA([sess], cat)}]);
+  csSay('<b>'+esc(sess.container)+'</b> exported in NBI\u2019s layout'+(kind==='csv'? ' as CSV, because the Excel writer did not load':'')+'.');
+}
+async function exportJobSheets(){
+  const j = job($('fJob').value || S.job);
+  if(!j){ csSay('Pick a counting job first.', true); return; }
+  const cat = j.cat || $('fCat').value;
+  const sess = allSessions().filter(x=>x.job===j.id && x.lines.length);
+  if(!sess.length){ csSay('Nothing has been counted on '+esc(j.name)+' yet.', true); return; }
+  const used = new Set();
+  const sheets = sess.map(x=>({name:safeSheetName(x.container, used), aoa:countSheetAoA(x, x.cat||cat)}));
+  sheets.push({name:safeSheetName('Cable Drums', used), aoa:drumsAoA(sess, cat)});
+  const kind = await saveWorkbook('count-sheets-'+slug(j.name)+'.xlsx', sheets);
+  csSay('<b>'+sess.length+' location'+(sess.length===1?'':'s')+'</b> from '+esc(j.name)
+    + ' exported in NBI\u2019s layout'+(kind==='csv'? ' as CSV, because the Excel writer did not load':'')+', one sheet each plus Cable Drums.');
 }
 
 /* ============================================================
@@ -3988,6 +4335,14 @@ $('file').onchange=e=>readFile(e.target.files[0]);
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove('over'); }));
 drop.addEventListener('drop', e=>{ if(e.dataTransfer.files&&e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+const csDrop=$('csDrop');
+csDrop.onclick=()=>$('csFile').click();
+$('csFile').onchange=e=>{ readCountSheetFile(e.target.files[0]); e.target.value=''; };
+['dragenter','dragover'].forEach(ev=>csDrop.addEventListener(ev,e=>{ e.preventDefault(); csDrop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev=>csDrop.addEventListener(ev,e=>{ e.preventDefault(); csDrop.classList.remove('over'); }));
+csDrop.addEventListener('drop', e=>{ if(e.dataTransfer.files&&e.dataTransfer.files[0]) readCountSheetFile(e.dataTransfer.files[0]); });
+$('csExpJob').onclick=exportJobSheets;
+$('csExpLoc').onclick=exportLocationSheet;
 $('impCancel').onclick=()=>{ IMP=null; $('mapWrap').classList.add('hidden'); $('impNote').textContent='Import cancelled.'; };
 $('impAdd').onclick=()=>doImport(false);
 $('impReplace').onclick=()=>doImport(true);
