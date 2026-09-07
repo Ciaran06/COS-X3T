@@ -83,6 +83,13 @@
   .sync{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--header-ink-2); white-space:nowrap}
   .sync .led{width:7px; height:7px; border-radius:50%; background:var(--header-ink-2)}
   .sync.on .led{background:var(--ok)} .sync.queued .led{background:var(--accent)}
+  .engwrap{display:flex; justify-content:center; margin:8px 0 0}
+  .engchip{display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:999px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink-2);
+    font:600 11.5px/1 inherit; cursor:pointer; white-space:nowrap; max-width:100%}
+  .engchip .eled{width:7px; height:7px; border-radius:50%; background:var(--ink-3); flex:0 0 auto}
+  .engchip.el .eled{background:var(--ok)}
+  .engchip .ewhy{font-weight:500; opacity:.75; overflow:hidden; text-overflow:ellipsis}
   @media (max-width:560px){ .sync{display:none} .tabs button{padding:6px 9px; font-size:12.5px} .rolechip{padding:5px 8px} .mark .nm small{display:none} }
   /* four tabs need the room on a narrow phone — the mic square still carries the brand */
   @media (max-width:480px){ .mark .nm{display:none} .tabs button{padding:6px 7px} }
@@ -554,6 +561,7 @@
           <span class="lbl" id="micLbl">Tap to talk</span>
         </button>
       </div>
+      <div class="engwrap"><button type="button" class="engchip" id="engChip" title="Which speech engine is running — tap to change it"><span class="eled"></span><span class="ewho">Voice: Browser</span></button></div>
       <div class="heard" id="heard"></div>
       <div class="confirm" id="confirm">
         <div class="l1" id="cf1">Ready when you are</div>
@@ -677,6 +685,21 @@
   </section>
 
   <section id="v-cat" class="hidden mgr">
+
+    <div class="panel" id="voicePanel">
+      <header><h2>Voice engine</h2><span class="hint">ElevenLabs when a proxy is set, the browser’s own engine when it is not</span></header>
+      <div class="engwrap" style="justify-content:flex-start; margin:0 0 10px"><button type="button" class="engchip" id="engChip2"><span class="eled"></span><span class="ewho">Voice: Browser</span></button></div>
+      <div class="catgrid">
+        <div class="field full"><label for="vProxy">Proxy URL</label><input id="vProxy" placeholder="https://trucount-voice.your-name.workers.dev" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="vToken">App token</label><input id="vToken" placeholder="the APP_TOKEN secret, if you set one" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="vPrefer">Engine</label><select id="vPrefer"><option value="auto">ElevenLabs when it is reachable</option><option value="browser">Browser only</option></select></div>
+      </div>
+      <div class="bar">
+        <span class="sp" id="vNote">The API key is never held in this page. It lives in the proxy — see proxy/README.md for the ten-minute setup.</span>
+        <button class="btn" id="vTest">Test connection</button>
+        <button class="btn dark" id="vSave">Save</button>
+      </div>
+    </div>
 
     <div class="panel">
       <header><h2>Import your item master</h2><span class="hint">CSV or Excel · columns in any order, under any heading</span></header>
@@ -1715,18 +1738,266 @@ async function playClip(id, btn){
   a.play().catch(()=>{ if(btn) btn.textContent='▶'; });
 }
 
-function speak(text){
-  try{
-    if(!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate=1.05;
-    const vs = window.speechSynthesis.getVoices();
-    const pick = vs.find(v=>/en-IE/.test(v.lang)) || vs.find(v=>/en-GB/.test(v.lang)) || vs.find(v=>/^en/.test(v.lang));
-    if(pick) u.voice=pick;
-    window.speechSynthesis.speak(u);
-  }catch(e){}
+/* ============================================================
+   the voice engine
+   ElevenLabs when a proxy is configured and reachable, the browser's
+   own engine when it is not. The API key lives in the proxy, never here.
+   ============================================================ */
+const EL_WS = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
+const EL_MODEL = 'scribe_v2_realtime';
+/* the realtime API takes at most 50 keyterms of 20 characters each */
+const KEYTERM_MAX = 50, KEYTERM_CHARS = 20;
+const CMD_TERMS = ['yes','next','skip','zero','back','pause','stop'];
+
+let VOICE = {stt:'browser', tts:'browser', probed:false, note:'no proxy set', busy:false};
+function voiceCfg(){ S.voice = S.voice || {proxy:'', token:'', prefer:'auto'}; return S.voice; }
+function proxyBase(){ return String(voiceCfg().proxy||'').replace(/\/+$/,''); }
+function proxyFetch(path, opts){
+  const base = proxyBase();
+  if(!base) return Promise.reject(new Error('no proxy'));
+  const o = Object.assign({}, opts||{});
+  o.headers = Object.assign({}, o.headers||{});
+  if(voiceCfg().token) o.headers['x-app-token'] = voiceCfg().token;
+  return fetch(base+path, o);
 }
+function setEngine(stt, tts, note){
+  VOICE.stt = stt; VOICE.tts = tts; VOICE.note = note||'';
+  renderEngineChip();
+}
+/* the counter should never have to guess which engine is running */
+function renderEngineChip(){
+  const el = VOICE.stt === 'eleven';
+  const who = 'Voice: ' + (el ? 'ElevenLabs' : 'Browser');
+  ['engChip','engChip2'].forEach(id=>{
+    const b = $(id); if(!b) return;
+    b.className = 'engchip' + (el ? ' el' : '');
+    b.innerHTML = '<span class="eled"></span><span class="ewho">'+esc(who)+'</span>'
+      + (VOICE.note ? '<span class="ewhy">— '+esc(VOICE.note)+'</span>' : '');
+  });
+}
+async function probeVoice(quiet){
+  if(voiceCfg().prefer === 'browser'){ setEngine('browser','browser','set to browser'); VOICE.probed=true; return VOICE; }
+  if(!proxyBase()){ setEngine('browser','browser','no proxy set'); VOICE.probed=true; return VOICE; }
+  try{
+    const r = await proxyFetch('/health');
+    if(r.status===401){ setEngine('browser','browser','proxy rejected the app token'); VOICE.probed=true; return VOICE; }
+    if(!r.ok) throw new Error('health '+r.status);
+    const d = await r.json();
+    if(!d.key){ setEngine('browser','browser','proxy has no API key'); VOICE.probed=true; return VOICE; }
+    if(d.authed === false){ setEngine('browser','browser','proxy rejected the app token'); VOICE.probed=true; return VOICE; }
+    setEngine('eleven','eleven', d.guarded ? '' : 'proxy is unguarded — set APP_TOKEN');
+  }catch(e){
+    setEngine('browser','browser','proxy unreachable');
+  }
+  VOICE.probed = true;
+  return VOICE;
+}
+
+/* ---------- keyterms ---------- */
+function trimTerm(t){
+  t = String(t==null?'':t).replace(/\s+/g,' ').trim();
+  if(t.length<=KEYTERM_CHARS) return t;
+  const cut = t.slice(0, KEYTERM_CHARS);
+  const sp = cut.lastIndexOf(' ');
+  return (sp>8 ? cut.slice(0,sp) : cut).trim();
+}
+function bareGroup(g){ return String(g||'').replace(/^\s*\d+[.\s-]*/,'').trim(); }
+/* Commands always. Then, in Review, the group being walked and its items —
+   that is the rotation. Then the remaining groups, then everything else,
+   until the 50 slots are gone. */
+function keytermsFor(){
+  const out=[], seen=new Set();
+  const add = t => {
+    const v = trimTerm(t);
+    if(!v || out.length>=KEYTERM_MAX) return;
+    const k = v.toLowerCase();
+    if(seen.has(k)) return;
+    seen.add(k); out.push(v);
+  };
+  CMD_TERMS.forEach(add);
+  let rows = [];
+  try{ rows = reviewRowList(); }catch(e){ rows = []; }
+  const here = REVIEW.active ? reviewRow() : null;
+  if(here){
+    add(bareGroup(here.group));
+    rows.filter(r=>r.group===here.group).forEach(r=>add(r.desc));
+  }
+  [...new Set(rows.map(r=>r.group))].forEach(g=>add(bareGroup(g)));
+  rows.forEach(r=>add(r.desc));
+  return out;
+}
+
+/* ---------- microphone to 16 kHz PCM ---------- */
+let pcmCtx=null, pcmNode=null, pcmSink=null, pcmBuf=[], pcmLen=0;
+function toPcm16(f32, rate){
+  let data = f32;
+  if(rate !== 16000){
+    const ratio = rate/16000, out = new Float32Array(Math.floor(f32.length/ratio));
+    for(let i=0;i<out.length;i++){
+      const idx = i*ratio, a = Math.floor(idx), b = Math.min(a+1, f32.length-1);
+      out[i] = f32[a] + (f32[b]-f32[a])*(idx-a);
+    }
+    data = out;
+  }
+  const buf = new Int16Array(data.length);
+  for(let i=0;i<data.length;i++){ const v = Math.max(-1, Math.min(1, data[i])); buf[i] = v<0 ? v*0x8000 : v*0x7FFF; }
+  return buf;
+}
+function pcmToB64(int16){
+  const bytes = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
+  let s=''; const step=0x8000;
+  for(let i=0;i<bytes.length;i+=step) s += String.fromCharCode.apply(null, bytes.subarray(i, i+step));
+  return btoa(s);
+}
+async function startPcm(onChunk){
+  if(!mediaStream) await startAudio();
+  if(!mediaStream) return false;
+  try{
+    pcmCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+  }catch(e){
+    try{ pcmCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e2){ return false; }
+  }
+  const rate = pcmCtx.sampleRate;
+  const src = pcmCtx.createMediaStreamSource(mediaStream);
+  /* a silent sink keeps the graph pulling without playing the mic back */
+  pcmSink = pcmCtx.createGain(); pcmSink.gain.value = 0; pcmSink.connect(pcmCtx.destination);
+  const push = f32 => {
+    const pcm = toPcm16(f32, rate);
+    pcmBuf.push(pcm); pcmLen += pcm.length;
+    if(pcmLen >= 4000){                       /* ~250ms per send */
+      const all = new Int16Array(pcmLen);
+      let at=0; for(const b of pcmBuf){ all.set(b, at); at += b.length; }
+      pcmBuf=[]; pcmLen=0;
+      onChunk(all);
+    }
+  };
+  try{
+    const code = 'class P extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0]; if(c) this.port.postMessage(c.slice(0)); return true;}} registerProcessor("tc-pcm",P);';
+    await pcmCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([code],{type:'application/javascript'})));
+    pcmNode = new AudioWorkletNode(pcmCtx,'tc-pcm');
+    pcmNode.port.onmessage = e => push(e.data);
+  }catch(e){
+    pcmNode = pcmCtx.createScriptProcessor(4096,1,1);
+    pcmNode.onaudioprocess = ev => push(ev.inputBuffer.getChannelData(0));
+  }
+  src.connect(pcmNode); pcmNode.connect(pcmSink);
+  return true;
+}
+function stopPcm(){
+  try{ if(pcmNode) pcmNode.disconnect(); }catch(e){}
+  try{ if(pcmSink) pcmSink.disconnect(); }catch(e){}
+  try{ if(pcmCtx) pcmCtx.close(); }catch(e){}
+  pcmNode=null; pcmSink=null; pcmCtx=null; pcmBuf=[]; pcmLen=0;
+}
+
+/* ---------- what we do with what we heard, whichever engine heard it ---------- */
+function onHeardPartial(text){
+  if(!text || VOICE.busy) return;
+  $('heard').innerHTML = '<b>'+esc(text)+'</b>';
+}
+function onHeardFinal(text){
+  /* the mic stays open while we speak — don't count our own readback */
+  if(!text || VOICE.busy) return;
+  if(REVIEW.active) reviewHeard(text);
+  else handle(text);
+}
+
+/* ---------- listening on ElevenLabs ---------- */
+let elWs=null;
+async function elevenListen(){
+  const r = await proxyFetch('/stt-token');
+  if(!r.ok) throw new Error('token '+r.status);
+  const {token} = await r.json();
+  const qs = new URLSearchParams();
+  qs.set('token', token);
+  qs.set('model_id', EL_MODEL);
+  qs.set('audio_format','pcm_16000');
+  qs.set('language_code','en');
+  qs.set('commit_strategy','vad');
+  const terms = keytermsFor();
+  terms.forEach(t=>qs.append('keyterms', t));
+  VOICE.terms = terms;
+  const ws = new WebSocket(EL_WS+'?'+qs.toString());
+  elWs = ws;
+  await new Promise((res,rej)=>{
+    const t = setTimeout(()=>rej(new Error('ws timeout')), 8000);
+    ws.onopen = ()=>{ clearTimeout(t); res(); };
+    ws.onerror = ()=>{ clearTimeout(t); rej(new Error('ws error')); };
+  });
+  ws.onmessage = ev => {
+    let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+    if(m.message_type==='partial_transcript' && m.text) onHeardPartial(m.text);
+    else if(m.message_type==='committed_transcript' && m.text && m.text.trim()) onHeardFinal(m.text.trim());
+    else if(m.error || /error/i.test(m.message_type||'')) voiceFellBack('ElevenLabs: '+(m.error||m.message_type));
+  };
+  ws.onclose = ()=>{ if(elWs===ws){ elWs=null; if(wantListen && VOICE.stt==='eleven') voiceFellBack('connection dropped'); } };
+  const ok = await startPcm(pcm=>{
+    if(ws.readyState===1) ws.send(JSON.stringify({message_type:'input_audio_chunk', audio_base_64:pcmToB64(pcm), sample_rate:16000}));
+  });
+  if(!ok) throw new Error('no microphone');
+  listening = true; setMic(true);
+}
+function stopEleven(){
+  stopPcm();
+  if(elWs){ try{ elWs.close(); }catch(e){} elWs=null; }
+}
+/* one place decides we are back on the browser engine, and says why */
+function voiceFellBack(why){
+  stopEleven();
+  setEngine('browser','browser', why);
+  if(wantListen){ listening=false; startBrowserListen(); }
+}
+
+/* ---------- speaking ---------- */
+let ttsAudio=null;
+function stopSpeaking(){
+  try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+  if(ttsAudio){ try{ ttsAudio.pause(); }catch(e){} ttsAudio=null; }
+}
+function browserSpeak(text, cb){
+  try{
+    if(!window.speechSynthesis){ if(cb) cb(); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    const vs = speechSynthesis.getVoices();
+    const pick = vs.find(v=>/en-IE/.test(v.lang)) || vs.find(v=>/en-GB/.test(v.lang)) || vs.find(v=>/^en/.test(v.lang));
+    if(pick) u.voice = pick;
+    let done=false;
+    const fin = ()=>{ if(done) return; done=true; clearTimeout(wd); if(cb) cb(); };
+    const wd = setTimeout(fin, Math.min(12000, 1800 + text.length*70));
+    u.onend = fin; u.onerror = fin;
+    speechSynthesis.speak(u);
+  }catch(e){ if(cb) cb(); }
+}
+async function elevenSpeak(text, cb){
+  const r = await proxyFetch('/tts', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({text})});
+  if(!r.ok) throw new Error('tts '+r.status);
+  const url = URL.createObjectURL(await r.blob());
+  stopSpeaking();
+  const a = new Audio(url);
+  ttsAudio = a;
+  let done=false;
+  const fin = ()=>{ if(done) return; done=true; clearTimeout(wd); URL.revokeObjectURL(url); if(cb) cb(); };
+  const wd = setTimeout(fin, Math.min(20000, 3000 + text.length*90));
+  a.onended = fin; a.onerror = fin;
+  await a.play();
+}
+/* every readback in the app goes through here */
+function speakThen(text, cb){
+  if(!text){ if(cb) cb(); return; }
+  VOICE.busy = true;
+  const done = ()=>{ setTimeout(()=>{ VOICE.busy = false; }, 300); if(cb) cb(); };
+  if(VOICE.tts === 'eleven'){
+    elevenSpeak(text, done).catch(()=>{
+      setEngine('browser','browser','readback failed, using the browser voice');
+      browserSpeak(text, done);
+    });
+    return;
+  }
+  browserSpeak(text, done);
+}
+function speak(text){ speakThen(text); }
 function syncSheetMic(){
   const b=$('sheetMic'); if(!b) return;
   const on = listening || wantListen;
@@ -1735,12 +2006,12 @@ function syncSheetMic(){
 }
 function setMic(on){ $('mic').dataset.live = on?'1':'0'; $('micLbl').textContent = on?'Listening':'Tap to talk'; syncSheetMic(); }
 
-function startListen(){
+/* the browser's own recogniser — the floor, and the fallback */
+function startBrowserListen(){
   if(!SR){
     say('Voice not available in this browser','Use the typing box below — it takes exactly the same phrases. Chrome on Android and Safari on iOS both do voice.',true);
     return;
   }
-  wantListen = true;
   startAudio();
   if(listening) return;
   rec = new SR();
@@ -1754,15 +2025,36 @@ function startListen(){
       const r=ev.results[i];
       if(r.isFinal) final += r[0].transcript+' '; else interim += r[0].transcript;
     }
-    if(interim) $('heard').innerHTML = '<b>'+esc(interim)+'</b>';
-    if(final.trim()){
-      if(REVIEW.active) reviewHeard(final.trim());
-      else handle(final.trim());
-    }
+    if(interim) onHeardPartial(interim);
+    if(final.trim()) onHeardFinal(final.trim());
   };
   try{ rec.start(); }catch(e){}
 }
-function stopListen(){ wantListen=false; if(rec){ try{ rec.stop(); }catch(e){} } stopAudio(); setMic(false); }
+/* one entry point. It picks the engine; if ElevenLabs will not start we say
+   why on the chip and carry on with the browser rather than stopping. */
+function startListen(){
+  wantListen = true;
+  if(listening) return;
+  if(VOICE.stt === 'eleven'){
+    startAudio();
+    elevenListen().catch(e=>{
+      const m = String(e && e.message || e);
+      voiceFellBack(/token 401/.test(m) ? 'proxy rejected the app token'
+        : /token/.test(m) ? 'proxy could not mint a token'
+        : /microphone/.test(m) ? 'no microphone'
+        : 'ElevenLabs unreachable');
+    });
+    return;
+  }
+  startBrowserListen();
+}
+function stopListen(){
+  wantListen=false;
+  if(rec){ try{ rec.stop(); }catch(e){} }
+  stopEleven();
+  listening=false;
+  stopAudio(); setMic(false);
+}
 
 /* ============================================================
    the conversation
@@ -4157,23 +4449,12 @@ function rowSpeech(row){
 function sayThen(text, cb){
   const r = reviewSaved();
   REVIEW.heard = '';
-  if(!r || !r.speak || !window.speechSynthesis){ REVIEW.speaking=false; renderReview(); if(cb) cb(); return; }
-  try{
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 1.05;
-    const vs = speechSynthesis.getVoices();
-    const pick = vs.find(v=>/en-IE/.test(v.lang)) || vs.find(v=>/en-GB/.test(v.lang)) || vs.find(v=>/^en/.test(v.lang));
-    if(pick) u.voice = pick;
-    REVIEW.speaking = true; renderReview();
-    let fired = false;
-    const done = ()=>{ if(fired) return; fired=true; clearTimeout(wd); REVIEW.speaking=false; renderReview(); if(cb) cb(); };
-    /* if the device has no usable voice, onend never comes — never leave the
-       walk stuck waiting on speech it cannot make */
-    const wd = setTimeout(done, Math.min(12000, 1800 + text.length*70));
-    u.onend = done; u.onerror = done;
-    speechSynthesis.speak(u);
-  }catch(e){ REVIEW.speaking=false; if(cb) cb(); }
+  const canSpeak = VOICE.tts==='eleven' || !!window.speechSynthesis;
+  if(!r || !r.speak || !canSpeak){ REVIEW.speaking=false; renderReview(); if(cb) cb(); return; }
+  REVIEW.speaking = true; renderReview();
+  let fired = false;
+  const done = ()=>{ if(fired) return; fired=true; REVIEW.speaking=false; renderReview(); if(cb) cb(); };
+  try{ speakThen(text, done); }catch(e){ done(); }
 }
 function reviewSay(text){ REVIEW.line = text; sayThen(text); renderReview(); }
 
@@ -5094,6 +5375,40 @@ renderBrands();
 renderRecent();
 refreshWhere();
 if(window.speechSynthesis) window.speechSynthesis.getVoices();
+
+/* ---------- voice engine settings ---------- */
+function fillVoiceBox(){
+  const c = voiceCfg();
+  if($('vProxy')) $('vProxy').value = c.proxy || '';
+  if($('vToken')) $('vToken').value = c.token || '';
+  if($('vPrefer')) $('vPrefer').value = c.prefer || 'auto';
+}
+function saveVoiceCfg(){
+  const c = voiceCfg();
+  c.proxy = $('vProxy').value.trim().replace(/\/+$/,'');
+  c.token = $('vToken').value.trim();
+  c.prefer = $('vPrefer').value;
+  save();
+  return probeVoice();
+}
+function voiceNote(){
+  const n = $('vNote'); if(!n) return;
+  n.textContent = VOICE.stt==='eleven'
+    ? 'ElevenLabs is answering' + (VOICE.note ? ' — ' + VOICE.note : '.')
+    : 'On the browser engine' + (VOICE.note ? ' — ' + VOICE.note + '.' : '.');
+}
+$('vSave').onclick = e => withFeedback(e.currentTarget, async ()=>{ await saveVoiceCfg(); voiceNote(); }, 'Saved');
+$('vTest').onclick = e => withFeedback(e.currentTarget, async ()=>{
+  await saveVoiceCfg();
+  voiceNote();
+  /* the button must tell the truth — a failed probe is not a success */
+  if(VOICE.stt !== 'eleven') throw new Error(VOICE.note || 'not connected');
+  speak('Voice engine connected.');
+}, 'Connected');
+['engChip','engChip2'].forEach(id=>{ const b=$(id); if(b) b.onclick = ()=>{ showTab('cat'); const p=$('voicePanel'); if(p) p.scrollIntoView({behavior:'smooth', block:'start'}); }; });
+fillVoiceBox();
+probeVoice().then(voiceNote);
+
 initSync();
 </script>
 

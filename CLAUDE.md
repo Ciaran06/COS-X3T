@@ -32,9 +32,24 @@ treat it as a specification of behaviour that must survive a rewrite.
 
 ### What works today
 
-- **Voice capture.** Web Speech API (`webkitSpeechRecognition`) for recognition, `speechSynthesis`
-  for readback. Both on-device, which is deliberate: it keeps working with no signal, which is
-  most of the estate these customers care about. Hands-free continuous mode — tap once, keep talking.
+- **Voice capture, two engines.** **ElevenLabs** is the good ear: Scribe v2 Realtime over a
+  WebSocket for listening, and ElevenLabs text-to-speech (voice `IQjnnInWsKbdAesop75D`) for every
+  readback. The **browser's own engine** (`webkitSpeechRecognition` + `speechSynthesis`) is the
+  floor and the fallback — it is what runs when no proxy is set, when the proxy is unreachable, or
+  when the socket drops mid-count. Falling back is silent to the workflow and loud on screen: the
+  chip under the mic always names the running engine and, when it is the browser, why. Either way
+  it is hands-free continuous — tap once, keep talking — and the browser path keeps working with no
+  signal at all, which is most of the estate these customers care about.
+  - **The API key is never in `index.html`.** It lives in a Cloudflare Worker (`proxy/worker.js`)
+    that exposes three routes: `/health`, `/stt-token` (mints a 15-minute single-use token so the
+    phone opens the Scribe socket itself — audio never round-trips the Worker) and `/tts`.
+    `proxy/README.md` is the ten-minute setup. Configure it in **Data → Voice engine**; the config
+    lives in `S.voice` as `{proxy, token, prefer}`.
+  - **Keyterms.** Every listening session sends a boosted vocabulary: the command words
+    (yes, next, skip, zero, back, pause, stop) first, then — when a review walk is running — the
+    product group being walked and its items, then the remaining groups, then everything else.
+    The realtime API takes **50 terms of 20 characters each**, so on a 385-row sheet the list
+    rotates as the walk moves from group to group. See `keytermsFor()`.
 - **Parsing** (`parse()`): number words including "and" ("one thousand two hundred and fifty"),
   pack-size conversion, drum IDs with part lengths, Irish and UK registration plates spoken as
   digits and letters, shelf codes, location commands, undo/total/finish.
@@ -236,6 +251,12 @@ treat it as a specification of behaviour that must survive a rewrite.
   for text, never raw `--accent`.
 - **No `prompt()`, `alert()` or `confirm()`.** They are blocked in the hosting frame and fail
   silently. Everything is inline UI.
+- **No secret ever reaches the page.** API keys, tokens and anything else that costs money live
+  behind the proxy. `index.html` is served to anyone who opens it; treat everything in it as public.
+- **One way in and one way out for speech.** All listening goes through `startListen()`, which picks
+  the engine; everything heard arrives at `onHeardFinal()` whichever engine heard it. All speaking
+  goes through `speakThen(text, cb)`. Never call `speechSynthesis` or the recogniser directly —
+  a new call site is a new place the fallback can be forgotten.
 
 ## Where to take it
 
@@ -261,9 +282,10 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
 5. **Variance alerts at the moment of counting** — "that's 18 down on last count, is that right?"
 6. **Transfers between locations** — one movement, two locations updated. This is where it stops being
    a stocktake app and becomes stock control.
-7. **Cloud speech tier.** On-device recognition stays the floor. Add an optional cloud engine
-   (Deepgram or similar) with the customer's part codes loaded as boosted vocabulary, used when
-   there is signal, to re-score for accuracy. Accent handling comes from the vocabulary, not the vendor.
+7. ~~**Cloud speech tier.**~~ **Done** — ElevenLabs Scribe v2 Realtime, with the count sheet's own
+   items sent as boosted keyterms and the browser engine kept as the floor. Accent handling comes
+   from the vocabulary, not the vendor. What is left: measure it against real Irish site accents on
+   a real sheet, and decide whether the 50-term cap needs a smarter rotation than "current group first".
 8. **Photo against a line.**
 9. **Two people counting the same location at once.**
 10. **A desk dashboard** separate from the phone app, for an owner looking at 150 vans.
