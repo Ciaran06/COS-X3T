@@ -305,6 +305,44 @@
   details.hb[open] summary::before{content:"\2212"}
   details.hb .body{padding:0 15px 14px 34px; color:var(--ink-2); font-size:13.5px; line-height:1.65}
   code.k{font-family:"IBM Plex Mono",monospace; background:var(--surface-2); border:1px solid var(--line); padding:1px 6px; border-radius:5px; font-size:12.5px; white-space:nowrap}
+  .orgpick{width:100%; text-align:left; display:flex; align-items:center; gap:8px; padding:9px 11px;
+    border:1px solid var(--line); border-radius:9px; background:var(--sunk); color:var(--ink); font:inherit; font-size:14px}
+  .orgpick .cx{margin-left:auto; color:var(--ink-3)}
+  .pickmenu label{display:flex; align-items:center; gap:9px; padding:9px 11px; cursor:pointer;
+    border-bottom:1px solid var(--line-soft);
+    font-size:13.5px; font-weight:500; text-transform:none; letter-spacing:0; color:var(--ink)}
+  .pickmenu label:hover{background:var(--surface-2)}
+  .pickmenu label input{width:16px; height:16px; flex:none; margin:0; padding:0}
+  .pickmenu .mbar{display:flex; justify-content:flex-end; gap:8px; padding:9px 11px;
+    border-top:1px solid var(--line); position:sticky; bottom:0; background:var(--surface)}
+  .pickmenu .mbar button{width:auto; display:inline-block; text-align:center;
+    padding:7px 13px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); font-size:12.5px; font-weight:600}
+  .pickmenu .mbar button.dark{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+
+  .loclist{padding:0}
+  .lochdr{display:flex; align-items:baseline; gap:10px; padding:13px 15px 9px; flex-wrap:wrap}
+  .lochdr h3{margin:0; font-family:"Archivo",sans-serif; font-size:14px; font-weight:700}
+  .lochdr .locprog{font-size:12px; color:var(--ink-3); margin-left:auto; white-space:nowrap}
+  .locsearch{padding:0 15px 11px}
+  .locsearch input{width:100%; font:inherit; font-size:14px; padding:9px 10px; border-radius:8px;
+    border:1px solid var(--line); background:var(--sunk); color:var(--ink)}
+  .locrow{display:flex; align-items:center; gap:10px; width:100%; text-align:left; border:0; background:none;
+    padding:10px 15px; border-top:1px solid var(--line-soft); font:inherit; cursor:pointer}
+  .locrow:hover{background:var(--surface-2)}
+  .locrow.on{background:var(--accent-soft)}
+  .locrow .li{min-width:0; margin-right:auto}
+  .locrow .li b{display:block; font-size:14px}
+  .locrow .li small{display:block; font-size:11.5px; color:var(--ink-3)}
+  .locmore{padding:9px 15px; font-size:12px; color:var(--ink-3); border-top:1px solid var(--line-soft)}
+  .st{font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap;
+    border:1px solid var(--line); color:var(--ink-3); background:var(--surface-2)}
+  .st.counted{background:var(--accent-soft); color:var(--accent-ink); border-color:var(--accent-line)}
+  .st.witnessed{background:var(--ok-soft); color:var(--ok); border-color:var(--ok)}
+  .st.closed{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+  .whoami .c .rt{font-family:"IBM Plex Sans",sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.09em;
+    vertical-align:middle; margin-right:7px; padding:2px 6px; border-radius:5px;
+    border:1px solid var(--header-line); color:var(--header-ink-2)}
+  .whoami .c .vw{font-family:"IBM Plex Sans",sans-serif; font-size:12.5px; font-weight:600; color:var(--header-ink-2); margin-right:6px}
   .catgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:10px; padding:13px 15px; border-bottom:1px solid var(--line)}
 </style>
 
@@ -377,8 +415,12 @@
         </select>
       </div>
       <div class="field" id="orgField">
-        <label for="fOrg">Counting for</label>
-        <select id="fOrg"></select>
+        <label for="orgPick">Counting for</label>
+        <div class="picker">
+          <button type="button" class="orgpick" id="orgPick" aria-expanded="false" aria-haspopup="true"><span id="orgPickTxt">All contractors</span><span class="cx">▾</span></button>
+          <div class="pickmenu hidden" id="orgMenu"></div>
+        </div>
+        <select id="fOrg" class="hidden" aria-hidden="true" tabindex="-1"></select>
       </div>
       <div class="field full">
         <label class="lblrow">Where are you counting?<button class="lnk" id="editTypes">Edit</button></label>
@@ -409,6 +451,15 @@
         <span><b>Record every line</b><small>Kept on this device so a disputed number can be played back. Turn it off if the counter would rather not be recorded.</small></span>
       </label>
       <div class="full" style="display:flex;justify-content:flex-end"><button class="btn dark" id="btnStart">Start counting</button></div>
+    </div>
+
+    <div class="card loclist" id="jobLocs">
+      <div class="lochdr">
+        <h3 id="locTitle">Locations in this job</h3>
+        <span class="locprog" id="locProg"></span>
+      </div>
+      <div class="locsearch"><input id="locSearch" placeholder="Search locations…" autocomplete="off"></div>
+      <div id="locRows"></div>
     </div>
 
     <div class="card recent hidden" id="recent"></div>
@@ -898,12 +949,20 @@ function rgba(hex,a){
   const m=hex.replace('#',''); const n=m.length===3?m.split('').map(c=>c+c).join(''):m;
   return 'rgba('+parseInt(n.slice(0,2),16)+','+parseInt(n.slice(2,4),16)+','+parseInt(n.slice(4,6),16)+','+a+')';
 }
+/* what the banner calls the current view */
+function viewLabel(){
+  const v = viewOrgs();
+  if(!isNBI()) return me().org || 'Contractor';
+  if(!v.length) return 'All contractors';
+  return v.length===1 ? v[0] : v.length+' contractors';
+}
 function applyBrand(){
   const cat = $('fCat').value;
-  const sel = $('fOrg').value;
-  const all = sel===ALL_ORGS;
-  const org = all ? '' : (sel || orgsFor(cat)[0] || '');
-  const b = all ? {color:'#3F4C7A', mono:'ALL', logo:null} : brandFor(cat, org);
+  const nbi = isNBI(), v = viewOrgs();
+  /* one contractor in view keeps their own colours — it is their stock */
+  const org = nbi ? (v.length===1 ? v[0] : '') : (me().org || '');
+  const b = org ? brandFor(cat, org)
+                : {color:'#3F4C7A', mono:(v.length>1 ? String(v.length) : 'ALL'), logo:null};
   const r = document.documentElement.style;
   r.setProperty('--accent', b.color);
   r.setProperty('--accent-soft', rgba(b.color,.13));
@@ -912,7 +971,9 @@ function applyBrand(){
   const badge = $('badge');
   badge.style.background = b.color;
   badge.innerHTML = b.logo ? '<img src="'+esc(b.logo)+'" alt="">' : esc(b.mono||initials(org));
-  $('whoOrg').textContent = all ? 'All contractors' : (org || 'No customer selected');
+  $('whoOrg').innerHTML = nbi
+    ? '<span class="rt">NBI</span><span class="vw">Viewing:</span>'+esc(viewLabel())
+    : esc(org || 'No contractor selected');
 }
 
 /* ---------- units & maths ---------- */
@@ -1303,7 +1364,7 @@ function containerLabel(){
 }
 function startSession(){
   S.current = {id:'s'+Date.now().toString(36), cat:$('fCat').value, org:$('fOrg').value,
-    ctype:PTYPE, container:containerLabel(),
+    ctype:PTYPE, container:containerLabel(), da:(selectedPlace()||{}).da || '',
     by: (isOwner() ? ($('fWho').value.trim() || me().name) : me().name),
     job: $('fJob').value || S.job,
     started:Date.now(), finished:null, lines:[]};
@@ -1405,14 +1466,17 @@ function resume(id, announce){
   return true;
 }
 function renderRecent(){
-  const el=$('recent'), cat=$('fCat').value, org=$('fOrg').value;
-  const list = visible(S.sessions).filter(s=>(s.cat||'')===cat && s.org===org).slice(0,5);
+  const el=$('recent'), cat=$('fCat').value;
+  const list = visible(S.sessions).filter(s=>(s.cat||'')===cat).slice(0,5);
   if(!list.length || (cur() && cur().lines.length)){ el.classList.add('hidden'); el.innerHTML=''; return; }
   el.classList.remove('hidden');
-  el.innerHTML = '<h3>Already counted for '+esc(org)+' — tap to add to one</h3>' + list.map(s=>{
+  const head = isNBI()
+    ? 'Viewing '+esc(viewLabel())+' — already counted, tap to add to one'
+    : 'Already counted for '+esc(me().org||'this contractor')+' — tap to add to one';
+  el.innerHTML = '<h3>'+head+'</h3>' + list.map(s=>{
     const by = rollLines(s.lines, s.cat);
     return '<div class="rrow"><span class="ri"><b>'+esc(s.container)+' <span class="tag">'+esc(PL(s.ctype||'van').label)+'</span></b>'
-      + '<small>'+s.lines.length+' lines · '+Object.keys(by).length+' items · '
+      + '<small>'+(isNBI()? esc(s.org)+' · ':'')+s.lines.length+' lines · '+Object.keys(by).length+' items · '
       + new Date(s.finished||s.started).toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
       + (s.reopens? ' · reopened '+s.reopens+'×':'')+'</small></span>'
       + '<button data-re="'+s.id+'">Add to it</button></div>';
@@ -2231,6 +2295,7 @@ const FIELDS = [
   {key:'owner',    label:'Customer',          syn:['contractor','subcontractor','supplier','vendor','owner','held by','customer','company','account','client','region']},
   {key:'placeLabel',label:'Location / reg',    syn:['registration','reg','reg no','reg number','registration number','vehicle reg','vehicle','van reg','van','fleet no','fleet number','fleet','plate','number plate','asset','asset number','unit number','location','location name','place','room','area','bar','store name','yard name','site name','depot','warehouse']},
   {key:'placeType', label:'Location type',     syn:['type','location type','place type','vehicle type','category','kind','class']},
+  {key:'da',        label:'DA served',          syn:['da','da code','da number','da no','da served','da served from location','da served from','deployment area','delivery area','serving da']},
   {key:'spot',      label:'Shelf / spot',      syn:['shelf','shelf no','shelf number','shelves','spot','bay','bay no','rack','rack no','position','aisle','bin','bin location','sub location','compartment','level']}
 ];
 const FKEY={}; FIELDS.forEach(f=>FKEY[f.key]=f);
@@ -2371,9 +2436,10 @@ function importPlaces(replace){
     const label=get('placeLabel'); if(!label) continue;
     const org=get('owner'), k=regKey(label);
     if(!byKey[k]){
-      byKey[k] = {label, type: toPtype(get('placeType')) || guessPtype(label), org, spots:[]};
+      byKey[k] = {label, type: toPtype(get('placeType')) || guessPtype(label), org, da:get('da'), spots:[]};
       out.push(byKey[k]);
     }
+    if(!byKey[k].da && get('da')) byKey[k].da = get('da');
     /* several rows for one location just add shelves to it */
     for(const sp of get('spot').split(/[,;|]/).map(x=>x.trim()).filter(Boolean))
       if(!byKey[k].spots.includes(sp)) byKey[k].spots.push(sp);
@@ -2397,7 +2463,7 @@ function importPlaces(replace){
     + (withSpots? ', '+withSpots+' with their own shelf list':'')
     + '. Counts now have to land on one of these.';
   $('mapWrap').classList.add('hidden'); IMP=null;
-  fillOrgs(); renderPlaces(); renderMgr();
+  fillOrgs(); renderPlaces(); renderMgr(); renderJobLocs();
 }
 /* The six columns the item master is read from. Anything else in the file is
    left alone; a missing one is reported rather than failing the import. */
@@ -2476,7 +2542,6 @@ function renderOrgBox(){
 /* ============================================================
    roles, jobs, location picker
    ============================================================ */
-const ALL_ORGS = '__all';
 function me(){
   const m = S.me = S.me || {};
   /* an older device may still be on the counter / owner pair */
@@ -2488,21 +2553,39 @@ function me(){
 }
 function isNBI(){ return me().role==='nbi'; }
 function isOwner(){ return isNBI(); }          /* .owner-only markup still reads this */
-/* '' means every contractor; anything else scopes the views to one */
-function viewOrg(){
+/* Which contractors the views are showing. Empty means every one of them.
+   A contractor role is always exactly itself. */
+function viewOrgs(){
   const m = me();
-  if(m.role!=='nbi') return m.org || '';
-  const el = $('fOrg');
-  const v = el ? el.value : '';
-  return (!v || v===ALL_ORGS) ? '' : v;
+  if(m.role!=='nbi') return m.org ? [m.org] : [];
+  const v = (S.view && Array.isArray(S.view.orgs)) ? S.view.orgs : [];
+  return v.slice();
 }
+function setViewOrgs(list){
+  S.view = S.view || {};
+  S.view.orgs = (list||[]).slice();
+  save();
+}
+/* the single contractor in view, or '' when it is several or all */
+function viewOrg(){ const v = viewOrgs(); return v.length===1 ? v[0] : ''; }
+/* the contractor a new count would land on — the selected location decides it */
+function activeOrg(){ const el=$('fOrg'); return el ? (el.value||'') : ''; }
 /* Views are scoped to the catalogue on screen as well as the contractor, so an
    NBI estate total is fibre stock and does not quietly absorb a pub. */
 function visible(list){
   const el = $('fCat');
   const cat = el ? el.value : '';
-  const o = viewOrg();
-  return list.filter(s => (!cat || (s.cat||'fibre')===cat) && (!o || s.org===o));
+  const v = viewOrgs();
+  return list.filter(s => (!cat || (s.cat||'fibre')===cat) && (!v.length || v.includes(s.org)));
+}
+/* every registered location for the contractors in view */
+function placesInView(cat){
+  const reg = (S.places && S.places[cat]) || [];
+  const v = viewOrgs();
+  if(!v.length) return reg.slice();
+  const mine = reg.filter(p => p.org && v.includes(p.org));
+  /* a register with no contractor column belongs to whoever is in view */
+  return mine.length ? mine : reg.slice();
 }
 
 function applyRole(){
@@ -2516,7 +2599,7 @@ function applyRole(){
   $('orgField').classList.toggle('hidden', !nbi);
   if(!nbi && $('fCat').value!=='fibre') $('fCat').value='fibre';
   fillOrgs(true);
-  renderScope(); syncStartable();
+  renderOrgPick(); renderScope(); syncStartable(); renderJobLocs();
   renderMgr(); renderRecent(); renderJobsAdmin(); renderShare(); renderHistory();
 }
 function renderScope(){
@@ -2526,17 +2609,20 @@ function renderScope(){
       + 'No other contractor\u2019s counts are on this device, and yours do not leave it until you export them.';
     return;
   }
-  const o = viewOrg();
-  el.innerHTML = o
-    ? '<b>NBI view \u2014 '+esc(o)+'.</b>&nbsp;Every location and job for this contractor. '
-      + 'Switch \u201CCounting for\u201D to All contractors for the estate total.'
-    : '<b>NBI view \u2014 all contractors.</b>&nbsp;Summed across every contractor whose counts have reached this device. '
-      + 'Pick a contractor to count into one.';
+  const v = viewOrgs();
+  el.innerHTML = v.length===1
+    ? '<b>NBI \u2014 viewing '+esc(v[0])+'.</b>&nbsp;Every location and job for this contractor. '
+      + 'Tick more in \u201CCounting for\u201D to compare, or All for the estate.'
+    : v.length
+    ? '<b>NBI \u2014 viewing '+v.length+' contractors.</b>&nbsp;'+esc(v.join(', '))+'. Rollup and History sum these.'
+    : '<b>NBI \u2014 viewing all contractors.</b>&nbsp;Summed across every contractor whose counts have reached this device.';
 }
 /* counting needs a real contractor, so All is a view scope only */
 function syncStartable(){
-  const all = isNBI() && $('fOrg').value===ALL_ORGS;
-  const b=$('btnStart'); if(b){ b.disabled = all; b.title = all ? 'Pick a contractor to count into' : ''; }
+  const b=$('btnStart'); if(!b) return;
+  const ok = !!activeOrg();
+  b.disabled = !ok;
+  b.title = ok ? '' : 'Pick a location from the list — it decides which contractor you are counting for';
 }
 function openRoleBar(){
   const m = me();
@@ -2678,16 +2764,152 @@ function addNewJob(){
 /* natural order: 12-G-12345 before 191-D-…, and 2 before 10 */
 function natCmp(a,b){ return String(a).localeCompare(String(b), 'en', {numeric:true, sensitivity:'base'}); }
 
+/* ============================================================
+   contractor filter, and the job's location list
+   ============================================================ */
+function selectedPlace(){
+  const cat=$('fCat').value, label=$('fVan').value.trim();
+  if(!label) return null;
+  const reg=(S.places&&S.places[cat])||[];
+  return reg.find(x=>regKey(x.label)===regKey(label)) || null;
+}
+/* contractors worth offering in the filter: the register's, plus anyone who
+   already has counts on this device, plus anything currently ticked */
+function filterOrgs(){
+  const cat = $('fCat').value;
+  const set = new Set(orgsFor(cat));
+  (S.sessions||[]).forEach(x=>{ if((x.cat||'fibre')===cat && x.org) set.add(x.org); });
+  ((S.places&&S.places[cat])||[]).forEach(x=>{ if(x.org) set.add(x.org); });
+  viewOrgs().forEach(o=>set.add(o));
+  return [...set].sort();
+}
+function renderOrgPick(){
+  const t=$('orgPickTxt'); if(t) t.textContent = viewLabel();
+}
+let ORG_OPEN=false;
+function renderOrgMenu(){
+  const menu=$('orgMenu'); if(!menu) return;
+  if(!ORG_OPEN){ menu.classList.add('hidden'); $('orgPick').setAttribute('aria-expanded','false'); return; }
+  const v = viewOrgs(), list = filterOrgs();
+  menu.innerHTML =
+    '<label><input type="checkbox" data-all'+(v.length?'':' checked')+'><b>All contractors</b></label>'
+    + list.map(o=>'<label><input type="checkbox" data-o="'+esc(o)+'"'+(v.includes(o)?' checked':'')+'>'+esc(o)+'</label>').join('')
+    + '<div class="mbar"><span class="sp"></span><button class="btn dark" id="orgDone">Done</button></div>';
+  menu.querySelectorAll('input[data-o]').forEach(cb=> cb.onchange = ()=>{
+    const cur = new Set(viewOrgs());
+    if(cb.checked) cur.add(cb.dataset.o); else cur.delete(cb.dataset.o);
+    setViewOrgs([...cur]); afterViewChange(); renderOrgMenu();
+  });
+  const all = menu.querySelector('input[data-all]');
+  if(all) all.onchange = ()=>{ setViewOrgs([]); afterViewChange(); renderOrgMenu(); };
+  const done = $('orgDone'); if(done) done.onclick = ()=>{ ORG_OPEN=false; renderOrgMenu(); };
+  menu.classList.remove('hidden');
+  $('orgPick').setAttribute('aria-expanded','true');
+}
+/* the hidden select holds the contractor a count would land on */
+function setActiveOrgOption(org){
+  if(!org) return;
+  const sel = $('fOrg');
+  if(![...sel.options].some(o=>o.value===org)) sel.innerHTML += '<option value="'+esc(org)+'">'+esc(org)+'</option>';
+  sel.value = org;
+}
+function afterViewChange(){
+  const v = viewOrgs(), list = orgsFor($('fCat').value), cur = $('fOrg').value;
+  if(v.length===1) setActiveOrgOption(v[0]);
+  else if(v.length && !v.includes(cur)) setActiveOrgOption(v[0]);
+  else if(!cur) $('fOrg').value = list[0]||'';
+  orgChanged();
+}
+function orgChanged(){
+  if(S.current && !S.current.lines.length) S.current=null;
+  clearRegNote(); applyBrand(); syncPlaceUI(); fillPlaces(); refreshWhere();
+  renderRecent(); renderTypeAdmin(); renderScope(); syncStartable();
+  renderOrgPick(); renderJobLocs(); renderMgr(); renderShare();
+}
+
+/* ---------- status of one location on one job ---------- */
+const LOC_LABEL = {none:'Not started', counted:'Contractor counted', witnessed:'Witnessed', closed:'Closed'};
+function locSessions(cat, jobId, org, label){
+  const k = regKey(label);
+  return allSessions().filter(x => (x.cat||'fibre')===cat && x.job===jobId
+    && (!org || x.org===org) && regKey(x.container)===k);
+}
+function locStatus(cat, jobId, pl){
+  const j = job(jobId);
+  if(j && j.closed) return 'closed';
+  const ss = locSessions(cat, jobId, pl.org, pl.label);
+  if(!ss.some(x=>x.lines.length)) return 'none';
+  if(ss.some(x=>x.witnessed)) return 'witnessed';
+  return 'counted';
+}
+let LOC_Q='';
+function renderJobLocs(){
+  const box=$('jobLocs'); if(!box) return;
+  const cat=$('fCat').value, jid=$('fJob').value || S.job;
+  const j = job(jid);
+  const reg = placesInView(cat);
+  $('locTitle').textContent = j ? 'Locations in ' + j.name : 'Locations in this job';
+  if(!reg.length){
+    $('locProg').textContent='';
+    $('locSearch').parentElement.classList.add('hidden');
+    $('locRows').innerHTML = '<div class="locmore">No location register for '+esc(viewLabel())
+      + ' yet. Import one on the Data tab and every location in this job shows up here with its status.</div>';
+    return;
+  }
+  $('locSearch').parentElement.classList.remove('hidden');
+  const rows = reg.map(pl=>({pl, st:locStatus(cat, jid, pl)}));
+  const done = rows.filter(r=>r.st!=='none').length;
+  $('locProg').textContent = done+' of '+rows.length+' locations counted';
+  const q = LOC_Q.trim().toLowerCase();
+  const hit = r => !q || r.pl.label.toLowerCase().includes(q)
+    || regKey(r.pl.label).toLowerCase().includes(regKey(q).toLowerCase())
+    || String(r.pl.da||'').toLowerCase().includes(q)
+    || String(r.pl.org||'').toLowerCase().includes(q)
+    || PL(r.pl.type||'van').label.toLowerCase().includes(q);
+  const shown = rows.filter(hit).sort((a,b)=> natCmp(a.pl.label, b.pl.label));
+  const cap = shown.slice(0,60);
+  const here = regKey($('fVan').value.trim());
+  $('locRows').innerHTML = (cap.length ? cap.map(r=>
+      '<button class="locrow'+(here && regKey(r.pl.label)===here ? ' on':'')+'" data-l="'+esc(r.pl.label)+'">'
+      + '<span class="li"><b>'+esc(r.pl.label)+'</b><small>'+esc(PL(r.pl.type||'van').label)
+      + (r.pl.org? ' · '+esc(r.pl.org):'')
+      + (r.pl.da? ' · '+esc(/^da/i.test(r.pl.da) ? r.pl.da : 'DA '+r.pl.da):'')
+      + (r.pl.spots&&r.pl.spots.length? ' · '+r.pl.spots.length+' spots':'')
+      + '</small></span><span class="st '+r.st+'">'+LOC_LABEL[r.st]+'</span></button>').join('')
+    : '<div class="locmore">Nothing matches “'+esc(LOC_Q)+'”.</div>')
+    + (shown.length>cap.length ? '<div class="locmore">'+(shown.length-cap.length)+' more — narrow the search.</div>' : '');
+  $('locRows').querySelectorAll('button[data-l]').forEach(b=> b.onclick = ()=>pickJobLoc(b.dataset.l));
+}
+function pickJobLoc(label){
+  const cat=$('fCat').value;
+  const pl = ((S.places&&S.places[cat])||[]).find(x=>x.label===label);
+  if(!pl) return;
+  if(S.current && !S.current.lines.length) S.current=null;
+  /* the location decides the contractor being counted */
+  if(pl.org && $('fOrg').value!==pl.org){
+    const opts=[...$('fOrg').options].map(o=>o.value);
+    if(!opts.includes(pl.org)) $('fOrg').innerHTML += '<option value="'+esc(pl.org)+'">'+esc(pl.org)+'</option>';
+    $('fOrg').value = pl.org;
+  }
+  if((pl.type||'van')!==PTYPE){ PTYPE = pl.type||'van'; renderSegs(); }
+  $('fVan').value = pl.label;
+  SPOT=''; closePick(); clearRegNote();
+  applyBrand(); syncPlaceUI(); fillPlaces(); renderSpots(); refreshWhere();
+  renderRecent(); renderScope(); syncStartable(); renderJobLocs();
+  $('setup').classList.remove('hidden');
+  $('setup').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
 function pickList(q){
   const cat=$('fCat').value, org=$('fOrg').value;
   const all = placesFor(cat,org);
+  /* strictly this place type — a registration never shows under Store, or the reverse */
   let list = all.filter(pl=>(pl.type||'van')===PTYPE);
-  let other = all.filter(pl=>(pl.type||'van')!==PTYPE);
   const term = String(q||'').trim().toLowerCase();
-  const hit = pl => !term || pl.label.toLowerCase().includes(term) || regKey(pl.label).toLowerCase().includes(regKey(term).toLowerCase());
+  const hit = pl => !term || pl.label.toLowerCase().includes(term) || regKey(pl.label).toLowerCase().includes(regKey(term).toLowerCase())
+    || String(pl.da||'').toLowerCase().includes(term);
   list = list.filter(hit).sort((a,b)=>natCmp(a.label,b.label));
-  other = other.filter(hit).sort((a,b)=>natCmp(a.label,b.label));
-  return {list, other, total:all.length};
+  return {list, other:[], total:all.filter(pl=>(pl.type||'van')===PTYPE).length};
 }
 function hl(label, term){
   if(!term) return esc(label);
@@ -2702,15 +2924,15 @@ function renderPickMenu(){
   const term = inp.value.trim();
   const {list, other, total} = pickList(term);
   if(!total){
-    menu.innerHTML = '<div class="none">No location register for this customer yet. Type the name and it will be used as-is, or import a register in the Data tab.</div>';
-  } else if(!list.length && !other.length){
-    menu.innerHTML = '<div class="none">Nothing on the register matches “'+esc(term)+'”. Type it in full to add it.</div>';
+    menu.innerHTML = '<div class="none">No '+esc(PL(PTYPE).label.toLowerCase())+' on the register for this contractor yet. '
+      + 'Type the name and it will be used as-is, or import a register in the Data tab.</div>';
+  } else if(!list.length){
+    menu.innerHTML = '<div class="none">No '+esc(PL(PTYPE).label.toLowerCase())+' matches “'+esc(term)+'”. Type it in full to add it.</div>';
   } else {
-    const row = pl => '<button data-v="'+esc(pl.label)+'" data-t="'+esc(pl.type||'van')+'"'
+    menu.innerHTML = list.map(pl => '<button data-v="'+esc(pl.label)+'" data-t="'+esc(pl.type||'van')+'"'
       + (regKey(pl.label)===regKey(inp.value)?' class="on"':'')+'>'
-      + '<span>'+hl(pl.label, term)+'</span><span class="ty">'+esc(PL(pl.type||'van').label)+'</span></button>';
-    menu.innerHTML = (list.length ? list.map(row).join('') : '<div class="none">No '+esc(PL(PTYPE).label.toLowerCase())+' matches</div>')
-      + (other.length ? '<div class="grp3">Other location types</div>'+other.map(row).join('') : '');
+      + '<span>'+hl(pl.label, term)+(pl.da? ' <span class="ty">'+esc(pl.da)+'</span>':'')+'</span>'
+      + '<span class="ty">'+esc(PL(pl.type||'van').label)+'</span></button>').join('');
   }
   menu.querySelectorAll('button[data-v]').forEach(b=> b.onclick = ()=>{
     if(b.dataset.t && b.dataset.t!==PTYPE){ PTYPE=b.dataset.t; renderSegs(); syncPlaceUI(); }
@@ -3222,10 +3444,15 @@ function fillOrgs(keepPlace){
   /* a contractor is pinned to their own name, even if the register has not caught up */
   if(m.role==='contractor' && m.org && !list.includes(m.org)) list = [m.org].concat(list);
   const want = $('fOrg').value;
-  $('fOrg').innerHTML = list.map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('')
-    + (isNBI() ? '<option value="'+ALL_ORGS+'">All contractors</option>' : '');
+  $('fOrg').innerHTML = list.map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('');
   if(m.role==='contractor') $('fOrg').value = m.org;
-  else if(want && (want===ALL_ORGS || list.includes(want))) $('fOrg').value = want;
+  else {
+    const v = viewOrgs();
+    if(v.length===1) $('fOrg').value = v[0];
+    else if(want && list.includes(want) && (!v.length || v.includes(want))) $('fOrg').value = want;
+    else $('fOrg').value = (v.length ? v[0] : (list[0]||''));
+  }
+  renderOrgPick();
   if(!keepPlace){
     PTYPE = CATALOGUES[cat].defaultPlace;
     SPOT = SPOT || CATALOGUES[cat].spots[0];
@@ -3243,6 +3470,7 @@ function showTab(which){
     $(v).classList.toggle('hidden', !on);
   }
   $('band').classList.toggle('hidden', which!=='count');
+  if(which==='count') renderJobLocs();
   if(which==='mgr') renderMgr();
   if(which==='hist') renderHistory();
   if(which==='cat'){ renderCat(); renderOrgBox(); renderBrands(); renderJobsAdmin(); renderPlaceAdmin(); renderTypeAdmin(); renderShare(); renderAccess(); }
@@ -3253,6 +3481,7 @@ $('fJob').onchange = ()=>{
   if($('fJob').value===NEW_JOB) return openNewJob();
   closeNewJob();
   S.job=$('fJob').value; save(); if(S.current&&!S.current.lines.length) S.current=null;
+  renderJobLocs(); renderMgr();
 };
 $('njAdd').onclick = addNewJob;
 $('njCancel').onclick = closeNewJob;
@@ -3263,15 +3492,18 @@ $('fVan').addEventListener('focus', openPick);
 $('fVan').addEventListener('keydown', e=>{
   if(e.key==='Escape') return closePick();
   if(e.key==='Enter'){
-    const {list, other} = pickList($('fVan').value.trim());
-    const first = list[0]||other[0];
+    const {list} = pickList($('fVan').value.trim());
+    const first = list[0];
     if(first && PICK_OPEN){ e.preventDefault(); $('fVan').value=first.label;
       if((first.type||'van')!==PTYPE){ PTYPE=first.type; renderSegs(); syncPlaceUI(); }
       closePick(); SPOT=''; renderSpots(); refreshWhere(); renderRecent(); }
     else closePick();
   }
 });
-document.addEventListener('click', e=>{ if(PICK_OPEN && !e.target.closest('.picker')) closePick(); });
+document.addEventListener('click', e=>{
+  if(PICK_OPEN && !e.target.closest('.picker')) closePick();
+  if(ORG_OPEN && !e.target.closest('#orgField')){ ORG_OPEN=false; renderOrgMenu(); }
+});
 $('aSave').onclick = ()=>{
   const nm = $('aName').value.trim();
   if(nm) me().name = nm;
@@ -3303,8 +3535,8 @@ $('t-cat').onclick=()=>showTab('cat');
 
 $('btnSetup').onclick = ()=>{ showTab('count'); $('setup').classList.toggle('hidden'); };
 $('btnStart').onclick = ()=>{
-  if(isNBI() && $('fOrg').value===ALL_ORGS){
-    say('Pick a contractor','All contractors is a view, not a place to count into. Choose one to start counting.',true);
+  if(!activeOrg()){
+    say('Pick a location','Choose a location from the list below — it decides which contractor this count belongs to.',true);
     return;
   }
   const prior = priorFor($('fCat').value, $('fOrg').value, $('fVan').value.trim());
@@ -3312,8 +3544,10 @@ $('btnStart').onclick = ()=>{
   ensureSession(); $('setup').classList.add('hidden');
   refreshWhere(); renderSpots(); renderTally(); renderRecent();
 };
-$('fCat').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; SPOT=''; clearRegNote(); closeNewJob(); fillOrgs(); renderScope(); syncStartable(); renderMgr(); renderTally(); renderOrgBox(); renderBrands(); renderVar(); renderPlaceAdmin(); };
-$('fOrg').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; clearRegNote(); applyBrand(); syncPlaceUI(); fillPlaces(); refreshWhere(); renderRecent(); renderTypeAdmin(); renderScope(); syncStartable(); renderMgr(); renderShare(); };
+$('fCat').onchange = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; SPOT=''; clearRegNote(); closeNewJob(); fillOrgs(); renderScope(); syncStartable(); renderJobLocs(); renderMgr(); renderTally(); renderOrgBox(); renderBrands(); renderVar(); renderPlaceAdmin(); };
+$('fOrg').onchange = orgChanged;
+$('orgPick').onclick = e=>{ e.preventDefault(); ORG_OPEN=!ORG_OPEN; renderOrgMenu(); };
+$('locSearch').oninput = e=>{ LOC_Q = e.target.value; renderJobLocs(); };
 $('fVan').oninput = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; openPick(); refreshWhere(); };
 $('fRec').onchange = ()=>{ if(!audioOn()){ if(recorder&&recorder.state==='recording'){ clipTarget=null; try{recorder.stop();}catch(e){} } recorder=null; } else if(wantListen) armRecorder(); };
 

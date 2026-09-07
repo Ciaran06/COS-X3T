@@ -1,118 +1,118 @@
 TLI Group — location register
 Sample data for TruCount
 
-Reg No,Type,Contractor,Shelf
-261-D-12844,Van,TLI Group,Floor
-261-D-12844,Van,TLI Group,Shelf A1
-261-D-12844,Van,TLI Group,Shelf A2
-261-D-12844,Van,TLI Group,Shelf A3
-261-D-12844,Van,TLI Group,Roof rack
-261-G-3391,Van,TLI Group,Floor
-261-G-3391,Van,TLI Group,Shelf A1
-261-G-3391,Van,TLI Group,Shelf A2
-261-G-3391,Van,TLI Group,Shelf A3
-261-G-3391,Van,TLI Group,Roof rack
-252-D-41207,Van,TLI Group,Floor
-252-D-41207,Van,TLI Group,Shelf A1
-252-D-41207,Van,TLI Group,Shelf A2
-252-D-41207,Van,TLI Group,Shelf A3
-252-D-41207,Van,TLI Group,Roof rack
-252-MO-1188,Van,TLI Group,Floor
-252-MO-1188,Van,TLI Group,Shelf A1
-252-MO-1188,Van,TLI Group,Shelf A2
-252-MO-1188,Van,TLI Group,Shelf A3
-252-MO-1188,Van,TLI Group,Roof rack
-251-C-9074,Van,TLI Group,Floor
-251-C-9074,Van,TLI Group,Shelf A1
-251-C-9074,Van,TLI Group,Shelf A2
-251-C-9074,Van,TLI Group,Shelf A3
-251-C-9074,Van,TLI Group,Roof rack
-251-L-2213,Van,TLI Group,Floor
-251-L-2213,Van,TLI Group,Shelf A1
-251-L-2213,Van,TLI Group,Shelf A2
-251-L-2213,Van,TLI Group,Shelf A3
-251-L-2213,Van,TLI Group,Roof rack
-242-D-58316,Van,TLI Group,Floor
-242-D-58316,Van,TLI Group,Shelf A1
-242-D-58316,Van,TLI Group,Shelf A2
-242-D-58316,Van,TLI Group,Shelf A3
-242-D-58316,Van,TLI Group,Roof rack
-242-G-7702,Van,TLI Group,Floor
-242-G-7702,Van,TLI Group,Shelf A1
-242-G-7702,Van,TLI Group,Shelf A2
-242-G-7702,Van,TLI Group,Shelf A3
-242-G-7702,Van,TLI Group,Roof rack
-241-KE-3945,Van,TLI Group,Floor
-241-KE-3945,Van,TLI Group,Shelf A1
-241-KE-3945,Van,TLI Group,Shelf A2
-241-KE-3945,Van,TLI Group,Shelf A3
-241-KE-3945,Van,TLI Group,Roof rack
-241-WX-1150,Van,TLI Group,Floor
-241-WX-1150,Van,TLI Group,Shelf A1
-241-WX-1150,Van,TLI Group,Shelf A2
-241-WX-1150,Van,TLI Group,Shelf A3
-241-WX-1150,Van,TLI Group,Roof rack
-232-D-33471,Van,TLI Group,Floor
-232-D-33471,Van,TLI Group,Shelf A1
-232-D-33471,Van,TLI Group,Shelf A2
-232-D-33471,Van,TLI Group,Shelf A3
-232-D-33471,Van,TLI Group,Roof rack
-232-CE-2264,Van,TLI Group,Floor
-232-CE-2264,Van,TLI Group,Shelf A1
-232-CE-2264,Van,TLI Group,Shelf A2
-232-CE-2264,Van,TLI Group,Shelf A3
-232-CE-2264,Van,TLI Group,Roof rack
-231-DL-1876,Van,TLI Group,Floor
-231-DL-1876,Van,TLI Group,Shelf A1
-231-DL-1876,Van,TLI Group,Shelf A2
-231-DL-1876,Van,TLI Group,Shelf A3
-231-DL-1876,Van,TLI Group,Roof rack
-231-D-27690,Van,TLI Group,Floor
-231-D-27690,Van,TLI Group,Shelf A1
-231-D-27690,Van,TLI Group,Shelf A2
-231-D-27690,Van,TLI Group,Shelf A3
-231-D-27690,Van,TLI Group,Roof rack
-222-SO-1042,Van,TLI Group,Floor
-222-SO-1042,Van,TLI Group,Shelf A1
-222-SO-1042,Van,TLI Group,Shelf A2
-222-SO-1042,Van,TLI Group,Shelf A3
-222-SO-1042,Van,TLI Group,Roof rack
-221-MO-9034,Van,TLI Group,Floor
-221-MO-9034,Van,TLI Group,Shelf A1
-221-MO-9034,Van,TLI Group,Shelf A2
-221-MO-9034,Van,TLI Group,Shelf A3
-221-MO-9034,Van,TLI Group,Roof rack
-212-LH-3318,Van,TLI Group,Floor
-212-LH-3318,Van,TLI Group,Shelf A1
-212-LH-3318,Van,TLI Group,Shelf A2
-212-LH-3318,Van,TLI Group,Shelf A3
-212-LH-3318,Van,TLI Group,Roof rack
-202-D-19455,Van,TLI Group,Floor
-202-D-19455,Van,TLI Group,Shelf A1
-202-D-19455,Van,TLI Group,Shelf A2
-202-D-19455,Van,TLI Group,Shelf A3
-202-D-19455,Van,TLI Group,Roof rack
-192-G-4471,Van,TLI Group,Floor
-192-G-4471,Van,TLI Group,Shelf A1
-192-G-4471,Van,TLI Group,Shelf A2
-192-G-4471,Van,TLI Group,Shelf A3
-192-G-4471,Van,TLI Group,Roof rack
-191-D-45871,Van,TLI Group,Floor
-191-D-45871,Van,TLI Group,Shelf A1
-191-D-45871,Van,TLI Group,Shelf A2
-191-D-45871,Van,TLI Group,Shelf A3
-191-D-45871,Van,TLI Group,Roof rack
-Ballymount yard,Yard,TLI Group,Bay 1
-Ballymount yard,Yard,TLI Group,Bay 2
-Ballymount yard,Yard,TLI Group,Bay 3
-Ballymount yard,Yard,TLI Group,Bay 4
-Ballymount main store,Inside store,TLI Group,Rack 1
-Ballymount main store,Inside store,TLI Group,Rack 2
-Ballymount main store,Inside store,TLI Group,Rack 3
-Ballymount main store,Inside store,TLI Group,Mezzanine
-Ballymount outside store,Outside store,TLI Group,Pallet area
-Ballymount outside store,Outside store,TLI Group,Drum stand
-Galway depot yard,Yard,TLI Group,Bay 1
-Galway depot yard,Yard,TLI Group,Bay 2
-Container 2 — Ballymount,Container,TLI Group,Left
-Container 2 — Ballymount,Container,TLI Group,Right
+Reg No,Type,Contractor,DA Served From Location,Shelf
+261-D-12844,Van,TLI Group,DA005,Floor
+261-D-12844,Van,TLI Group,DA005,Shelf A1
+261-D-12844,Van,TLI Group,DA005,Shelf A2
+261-D-12844,Van,TLI Group,DA005,Shelf A3
+261-D-12844,Van,TLI Group,DA005,Roof rack
+261-G-3391,Van,TLI Group,DA008,Floor
+261-G-3391,Van,TLI Group,DA008,Shelf A1
+261-G-3391,Van,TLI Group,DA008,Shelf A2
+261-G-3391,Van,TLI Group,DA008,Shelf A3
+261-G-3391,Van,TLI Group,DA008,Roof rack
+252-D-41207,Van,TLI Group,DA011,Floor
+252-D-41207,Van,TLI Group,DA011,Shelf A1
+252-D-41207,Van,TLI Group,DA011,Shelf A2
+252-D-41207,Van,TLI Group,DA011,Shelf A3
+252-D-41207,Van,TLI Group,DA011,Roof rack
+252-MO-1188,Van,TLI Group,DA014,Floor
+252-MO-1188,Van,TLI Group,DA014,Shelf A1
+252-MO-1188,Van,TLI Group,DA014,Shelf A2
+252-MO-1188,Van,TLI Group,DA014,Shelf A3
+252-MO-1188,Van,TLI Group,DA014,Roof rack
+251-C-9074,Van,TLI Group,DA017,Floor
+251-C-9074,Van,TLI Group,DA017,Shelf A1
+251-C-9074,Van,TLI Group,DA017,Shelf A2
+251-C-9074,Van,TLI Group,DA017,Shelf A3
+251-C-9074,Van,TLI Group,DA017,Roof rack
+251-L-2213,Van,TLI Group,DA020,Floor
+251-L-2213,Van,TLI Group,DA020,Shelf A1
+251-L-2213,Van,TLI Group,DA020,Shelf A2
+251-L-2213,Van,TLI Group,DA020,Shelf A3
+251-L-2213,Van,TLI Group,DA020,Roof rack
+242-D-58316,Van,TLI Group,DA023,Floor
+242-D-58316,Van,TLI Group,DA023,Shelf A1
+242-D-58316,Van,TLI Group,DA023,Shelf A2
+242-D-58316,Van,TLI Group,DA023,Shelf A3
+242-D-58316,Van,TLI Group,DA023,Roof rack
+242-G-7702,Van,TLI Group,DA026,Floor
+242-G-7702,Van,TLI Group,DA026,Shelf A1
+242-G-7702,Van,TLI Group,DA026,Shelf A2
+242-G-7702,Van,TLI Group,DA026,Shelf A3
+242-G-7702,Van,TLI Group,DA026,Roof rack
+241-KE-3945,Van,TLI Group,DA029,Floor
+241-KE-3945,Van,TLI Group,DA029,Shelf A1
+241-KE-3945,Van,TLI Group,DA029,Shelf A2
+241-KE-3945,Van,TLI Group,DA029,Shelf A3
+241-KE-3945,Van,TLI Group,DA029,Roof rack
+241-WX-1150,Van,TLI Group,DA032,Floor
+241-WX-1150,Van,TLI Group,DA032,Shelf A1
+241-WX-1150,Van,TLI Group,DA032,Shelf A2
+241-WX-1150,Van,TLI Group,DA032,Shelf A3
+241-WX-1150,Van,TLI Group,DA032,Roof rack
+232-D-33471,Van,TLI Group,DA035,Floor
+232-D-33471,Van,TLI Group,DA035,Shelf A1
+232-D-33471,Van,TLI Group,DA035,Shelf A2
+232-D-33471,Van,TLI Group,DA035,Shelf A3
+232-D-33471,Van,TLI Group,DA035,Roof rack
+232-CE-2264,Van,TLI Group,DA038,Floor
+232-CE-2264,Van,TLI Group,DA038,Shelf A1
+232-CE-2264,Van,TLI Group,DA038,Shelf A2
+232-CE-2264,Van,TLI Group,DA038,Shelf A3
+232-CE-2264,Van,TLI Group,DA038,Roof rack
+231-DL-1876,Van,TLI Group,DA041,Floor
+231-DL-1876,Van,TLI Group,DA041,Shelf A1
+231-DL-1876,Van,TLI Group,DA041,Shelf A2
+231-DL-1876,Van,TLI Group,DA041,Shelf A3
+231-DL-1876,Van,TLI Group,DA041,Roof rack
+231-D-27690,Van,TLI Group,DA044,Floor
+231-D-27690,Van,TLI Group,DA044,Shelf A1
+231-D-27690,Van,TLI Group,DA044,Shelf A2
+231-D-27690,Van,TLI Group,DA044,Shelf A3
+231-D-27690,Van,TLI Group,DA044,Roof rack
+222-SO-1042,Van,TLI Group,DA047,Floor
+222-SO-1042,Van,TLI Group,DA047,Shelf A1
+222-SO-1042,Van,TLI Group,DA047,Shelf A2
+222-SO-1042,Van,TLI Group,DA047,Shelf A3
+222-SO-1042,Van,TLI Group,DA047,Roof rack
+221-MO-9034,Van,TLI Group,DA050,Floor
+221-MO-9034,Van,TLI Group,DA050,Shelf A1
+221-MO-9034,Van,TLI Group,DA050,Shelf A2
+221-MO-9034,Van,TLI Group,DA050,Shelf A3
+221-MO-9034,Van,TLI Group,DA050,Roof rack
+212-LH-3318,Van,TLI Group,DA053,Floor
+212-LH-3318,Van,TLI Group,DA053,Shelf A1
+212-LH-3318,Van,TLI Group,DA053,Shelf A2
+212-LH-3318,Van,TLI Group,DA053,Shelf A3
+212-LH-3318,Van,TLI Group,DA053,Roof rack
+202-D-19455,Van,TLI Group,DA056,Floor
+202-D-19455,Van,TLI Group,DA056,Shelf A1
+202-D-19455,Van,TLI Group,DA056,Shelf A2
+202-D-19455,Van,TLI Group,DA056,Shelf A3
+202-D-19455,Van,TLI Group,DA056,Roof rack
+192-G-4471,Van,TLI Group,DA059,Floor
+192-G-4471,Van,TLI Group,DA059,Shelf A1
+192-G-4471,Van,TLI Group,DA059,Shelf A2
+192-G-4471,Van,TLI Group,DA059,Shelf A3
+192-G-4471,Van,TLI Group,DA059,Roof rack
+191-D-45871,Van,TLI Group,DA062,Floor
+191-D-45871,Van,TLI Group,DA062,Shelf A1
+191-D-45871,Van,TLI Group,DA062,Shelf A2
+191-D-45871,Van,TLI Group,DA062,Shelf A3
+191-D-45871,Van,TLI Group,DA062,Roof rack
+Ballymount yard,Yard,TLI Group,DA065,Bay 1
+Ballymount yard,Yard,TLI Group,DA065,Bay 2
+Ballymount yard,Yard,TLI Group,DA065,Bay 3
+Ballymount yard,Yard,TLI Group,DA065,Bay 4
+Ballymount main store,Inside store,TLI Group,DA068,Rack 1
+Ballymount main store,Inside store,TLI Group,DA068,Rack 2
+Ballymount main store,Inside store,TLI Group,DA068,Rack 3
+Ballymount main store,Inside store,TLI Group,DA068,Mezzanine
+Ballymount outside store,Outside store,TLI Group,DA071,Pallet area
+Ballymount outside store,Outside store,TLI Group,DA071,Drum stand
+Galway depot yard,Yard,TLI Group,DA074,Bay 1
+Galway depot yard,Yard,TLI Group,DA074,Bay 2
+Container 2 — Ballymount,Container,TLI Group,DA077,Left
+Container 2 — Ballymount,Container,TLI Group,DA077,Right

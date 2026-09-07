@@ -67,8 +67,18 @@ treat it as a specification of behaviour that must survive a rewrite.
   The Rollup tab breaks stock value down by Product Group under each contractor, with quantity and
   euro on every row, and the CSV export carries the same breakdown. Quantity is kept per base unit
   rather than summed across metres and each. See `unitValue()`, `valCell()`, `qtyByUnit()`, `eur()`.
-- **Location register.** Counts must land on a registered vehicle reg or named location. Unregistered
-  ones are challenged with the nearest matches. Searchable picker, filtered by place type.
+- **Location register.** Counts must land on a registered vehicle reg or named location, each with a
+  type, a contractor and the **DA it is served from** (DA008 and so on). Unregistered ones are
+  challenged with the nearest matches. The picker is **strictly scoped to the place type** — a
+  registration never appears under Store, or the reverse — and searches label, registration and DA.
+- **A job is a list of locations.** The count screen carries a *Locations in <job>* list for the
+  contractors in view: name, type, contractor, DA, spot count, and a status of Not started /
+  Contractor counted / Witnessed / Closed, with a progress line ("12 of 25 locations counted"). It is
+  searchable by name, registration, DA, type or contractor, and capped at 60 rows with a prompt to
+  narrow further. Tapping a location selects it for counting **and sets the contractor from the
+  location** — the location decides whose stock it is, not a separate dropdown. Witnessed depends on
+  the witness flow, which is not built yet, so nothing reaches that state today.
+  See `placesInView()`, `locStatus()`, `renderJobLocs()`, `pickJobLoc()`.
 - **Registration by voice.** A mic beside the registration field takes a spoken reg. What is heard is
   normalised — spaces, dashes and the spoken word "dash" stripped, uppercased, spoken digits turned
   into numbers, so "one eight two D one two four five six" becomes `182D12456`. That is matched
@@ -83,11 +93,16 @@ treat it as a specification of behaviour that must survive a rewrite.
 - **Roles.** Two roles, **NBI** and **Contractor**, switched from the chip in the header. No login and
   no PIN — it is a client-side switch to demonstrate the model, and it is **not** security.
   A contractor is fixed to their own stock and the fibre catalogue: the Catalogue and Counting-for
-  dropdowns are hidden, and every view is filtered to their org. NBI sees each contractor and gets an
-  extra **All contractors** entry in Counting-for that sums the estate; counting into All is refused,
-  since it is a view and not a place. Views are scoped by catalogue as well as contractor, so an NBI
-  estate total is fibre stock and does not quietly absorb a pub. See `me()`, `isNBI()`, `viewOrg()`,
-  `visible()`, `applyRole()`, `renderScope()`.
+  controls are hidden, and every view is filtered to their org. For NBI, **Counting for is a
+  multi-select** — tick one, several, or All, like an Excel column filter — and Rollup and History sum
+  whatever is ticked. It offers every contractor on the register or holding counts, so a filter can
+  never hide data that exists. Views are scoped by catalogue as well as contractor, so an NBI estate
+  total is fibre stock and does not quietly absorb a pub.
+  The banner says whose stock is on screen, not who you are: for NBI it reads `NBI · Viewing: TLI
+  Group` (or *3 contractors*, or *All contractors*), keeping the contractor's own logo and colours
+  when exactly one is in view, and a neutral badge otherwise. For a contractor it is just their own
+  name and logo, with no Viewing label. "Already counted for…" carries the same framing.
+  See `me()`, `isNBI()`, `viewOrgs()`, `viewLabel()`, `visible()`, `applyRole()`, `renderScope()`.
 - **Moving counts between devices.** Counts live on the device that made them. There is no server, so
   **NBI's All contractors total is only as complete as the files imported onto that device.** As a
   stop-gap, Data → *Moving counts between devices* has **Export job** (writes the selected job's
