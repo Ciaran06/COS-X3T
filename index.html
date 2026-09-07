@@ -343,6 +343,38 @@
     vertical-align:middle; margin-right:7px; padding:2px 6px; border-radius:5px;
     border:1px solid var(--header-line); color:var(--header-ink-2)}
   .whoami .c .vw{font-family:"IBM Plex Sans",sans-serif; font-size:12.5px; font-weight:600; color:var(--header-ink-2); margin-right:6px}
+  .sheetbar{display:flex; gap:9px; align-items:center; flex-wrap:wrap; padding:11px 15px; border-bottom:1px solid var(--line)}
+  .sheetbar input[type=text]{flex:1 1 150px; min-width:120px; font:inherit; font-size:14px; padding:8px 10px;
+    border-radius:8px; border:1px solid var(--line); background:var(--sunk); color:var(--ink)}
+  .sheetbar label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-2); white-space:nowrap}
+  .sheetwho{padding:10px 15px; font-size:12.5px; color:var(--ink-2); border-bottom:1px solid var(--line); background:var(--sunk)}
+  .sheetwho b{color:var(--ink)}
+
+  #tblSheet{table-layout:auto}
+  #tblSheet td,#tblSheet th{vertical-align:middle; padding:9px 8px}
+  #tblSheet td.nm,#tblSheet th:first-child{min-width:150px}
+  #tblSheet td.df,#tblSheet th:last-child{width:46px}
+  #tblSheet tr.gh td{background:var(--surface-2); font-weight:700; font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-2)}
+  #tblSheet tr.gh td .gt{float:right; font-weight:600; text-transform:none; letter-spacing:0; color:var(--ink-3)}
+  #tblSheet .nm{font-size:13.5px}
+  #tblSheet .nm small{display:block; color:var(--ink-3); font-size:11.5px}
+  #tblSheet input.cc{width:60px; font:inherit; font-size:14px; text-align:right; padding:6px 7px; border-radius:7px;
+    border:1px solid var(--line); background:var(--sunk); color:var(--ink); font-variant-numeric:tabular-nums}
+  #tblSheet input.cc:focus{outline:2px solid var(--accent); outline-offset:-1px; background:var(--surface)}
+  #tblSheet input.cc[readonly]{background:var(--surface-2); color:var(--ink-3)}
+  #tblSheet input.cc.mine{border-color:var(--accent-line)}
+  #tblSheet td.df{font-variant-numeric:tabular-nums; font-weight:600}
+  #tblSheet tr.diff td.df{color:var(--bad)}
+  #tblSheet tr.diff{background:var(--bad-soft)}
+  #tblSheet button.dfb{border:0; background:none; font:inherit; font-weight:600; color:inherit; text-decoration:underline; cursor:pointer; padding:0}
+  #tblSheet tr.drums td{background:var(--sunk)}
+  #tblSheet .flag{font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--bad)}
+  .drumline{display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin:5px 0}
+  .drumline input{font:inherit; font-size:13px; padding:6px 8px; border-radius:7px; border:1px solid var(--line); background:var(--surface); color:var(--ink)}
+  .drumline input.did{width:120px} .drumline input.dln{width:96px; text-align:right}
+  .drumline .x{border:0; background:none; color:var(--ink-3); font-size:16px; cursor:pointer; padding:0 4px}
+  .hideNarrow{display:none}
+  @media (min-width:760px){ .hideNarrow{display:table-cell} #tblSheet .nm small{display:none} }
   .catgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:10px; padding:13px 15px; border-bottom:1px solid var(--line)}
 </style>
 
@@ -354,6 +386,7 @@
     </div>
     <div class="tabs" role="tablist">
       <button role="tab" id="t-count" aria-selected="true">Count</button>
+      <button role="tab" id="t-sheet" aria-selected="false">Sheet</button>
       <button role="tab" id="t-mgr" aria-selected="false">Rollup</button>
       <button role="tab" id="t-hist" aria-selected="false">History</button>
       <button role="tab" id="t-cat" aria-selected="false">Data</button>
@@ -552,6 +585,32 @@
   </section>
 
   <!-- ================= DATA ================= -->
+  <section id="v-sheet" class="hidden mgr">
+    <div class="panel">
+      <header>
+        <h2>Count sheet</h2>
+        <span class="hint" id="sheetHint">The selected location, item by item</span>
+        <button class="btn" id="sheetAdd">Add item</button>
+      </header>
+      <div class="sheetwho" id="sheetWho"></div>
+      <div class="sheetbar">
+        <input type="text" id="sheetSearch" placeholder="Find an item, code or group…" autocomplete="off">
+        <label><input type="checkbox" id="sheetOnly"> Only rows with a count</label>
+        <button class="btn" id="sheetMic">Dictate</button>
+      </div>
+      <div id="sheetAddBox" class="hidden">
+        <div class="catgrid">
+          <div class="field"><label for="niCode">Part code</label><input id="niCode" placeholder="SAP or part code" autocomplete="off"></div>
+          <div class="field"><label for="niDesc">Description</label><input id="niDesc" placeholder="Short description" autocomplete="off"></div>
+          <div class="field"><label for="niUom">UoM</label><input id="niUom" placeholder="Each" autocomplete="off"></div>
+          <div class="field"><label for="niPack">Pack size</label><input id="niPack" type="number" min="1" placeholder="1"></div>
+        </div>
+        <div class="bar"><span class="sp" id="niNote"></span><button class="btn" id="niCancel">Cancel</button><button class="btn dark" id="niAdd">Add to sheet</button></div>
+      </div>
+      <div class="scroll"><table id="tblSheet"></table></div>
+    </div>
+  </section>
+
   <section id="v-hist" class="hidden mgr">
     <div class="panel">
       <header>
@@ -1379,7 +1438,7 @@ function addLine(it,qty,unit,drumId,raw){
   const s = ensureSession();
   if(!SPOT) SPOT = (spotsFor()||CATALOGUES[s.cat].spots)[0];
   s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code:it.code, qty, unit,
-    loc:SPOT, drumId:drumId||null, ts:Date.now(), raw:raw||null});
+    loc:SPOT, drumId:drumId||null, ts:Date.now(), raw:raw||null, role:curRole()});
   save();
   return s.lines[s.lines.length-1];
 }
@@ -1594,7 +1653,13 @@ function speak(text){
     window.speechSynthesis.speak(u);
   }catch(e){}
 }
-function setMic(on){ $('mic').dataset.live = on?'1':'0'; $('micLbl').textContent = on?'Listening':'Tap to talk'; }
+function syncSheetMic(){
+  const b=$('sheetMic'); if(!b) return;
+  const on = listening || wantListen;
+  b.textContent = on ? 'Stop dictating' : 'Dictate';
+  b.className = on ? 'btn dark' : 'btn';
+}
+function setMic(on){ $('mic').dataset.live = on?'1':'0'; $('micLbl').textContent = on?'Listening':'Tap to talk'; syncSheetMic(); }
 
 function startListen(){
   if(!SR){
@@ -1811,6 +1876,8 @@ function writeLine(it, qty, unit, drumId, text){
   speak(spoken);
 
   renderSpots(); renderTally(); refreshWhere();
+  if(!$('v-sheet').classList.contains('hidden')) renderSheet();
+  renderJobLocs();
 }
 
 function doUndo(){
@@ -3108,6 +3175,219 @@ function renderPlaceAdmin(){
 }
 
 /* ============================================================
+   the count sheet
+   One grid per location. Voice and typing both land in the same
+   session lines; a line records which role entered it.
+   ============================================================ */
+function numVal(n){ return (n===0||n==null||!isFinite(n)) ? '' : String(Math.round(n*1000)/1000); }
+function curRole(){ return isNBI() ? 'nbi' : 'contractor'; }
+function roleLabel(r){ return r==='nbi' ? 'NBI count' : 'Contractor count'; }
+function lineRole(l){ return l && l.role==='nbi' ? 'nbi' : 'contractor'; }
+const LEN_UOM = {metre:1, meter:1, m:1, mtr:1, km:1, kilometre:1, kilometer:1};
+function isDrumItem(it){
+  if(!it) return false;
+  if(it.drum) return true;
+  return /fibre/i.test(groupOf(it)+' '+(it.short||'')) && !!LEN_UOM[String(it.unit||'').toLowerCase()];
+}
+/* the session behind the location selected on the Count tab */
+function sheetSession(){
+  const cat=$('fCat').value, org=activeOrg(), label=$('fVan').value.trim();
+  if(!label) return null;
+  const c = cur();
+  if(c && (c.cat||'')===cat && c.org===org && regKey(c.container)===regKey(label)) return c;
+  return priorFor(cat, org, label);
+}
+/* the same session, made current so it can be written to */
+function sheetSessionRW(){
+  const label=$('fVan').value.trim();
+  if(!label || !activeOrg()) return null;
+  const s = sheetSession();
+  if(s && s===cur()) return s;
+  if(s){ resume(s.id, true); return cur(); }
+  ensureSession(); return cur();
+}
+function countOf(sess, code, role){
+  if(!sess) return 0;
+  let n=0;
+  for(const l of sess.lines) if(l.code===code && lineRole(l)===role) n += baseQty(item(sess.cat||l.cat, l.code), l.qty, l.unit);
+  return n;
+}
+function drumsOf(sess, code, role){
+  return sess ? sess.lines.filter(l=>l.code===code && lineRole(l)===role && l.drumId) : [];
+}
+function hasAnyCount(sess, code){
+  return !!(sess && sess.lines.some(l=>l.code===code));
+}
+/* a typed number replaces that role's plain lines; drum lines are left alone */
+function setCount(code, role, val){
+  const s = sheetSessionRW(); if(!s) return false;
+  const it = item(s.cat, code);
+  s.lines = s.lines.filter(l => !(l.code===code && lineRole(l)===role && !l.drumId));
+  const v = Number(val);
+  if(isFinite(v) && v>0){
+    s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code, qty:v, unit:it.unit,
+      loc:SPOT||'Sheet', drumId:null, ts:Date.now(), raw:null, role, typed:true});
+  }
+  save(); return true;
+}
+function addDrum(code, role, id, len){
+  const s = sheetSessionRW(); if(!s) return false;
+  const v = Number(len), did = String(id||'').trim().toUpperCase();
+  if(!did || !isFinite(v) || v<=0) return false;
+  const it = item(s.cat, code);
+  s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code, qty:v, unit:it.unit,
+    loc:SPOT||'Sheet', drumId:did, ts:Date.now(), raw:null, role, typed:true});
+  save(); return true;
+}
+function dropLine(lineId){
+  const s = sheetSessionRW(); if(!s) return;
+  s.lines = s.lines.filter(l=>l.id!==lineId);
+  save();
+}
+function diffNote(sess, code){ return (sess && sess.diff && sess.diff[code]) || null; }
+function setDiffNote(code, note, recounted){
+  const s = sheetSessionRW(); if(!s) return;
+  s.diff = s.diff || {};
+  s.diff[code] = {note:String(note||''), recounted:!!recounted, by:me().name, ts:Date.now()};
+  save();
+}
+function addSheetItem(code, desc, uom, pack){
+  const cat=$('fCat').value;
+  code = String(code||'').trim();
+  desc = String(desc||'').trim();
+  if(!code) return 'Give it a part code.';
+  if(items(cat).some(i=>i.code===code)) return 'That code is already in the catalogue.';
+  S.custom = S.custom || {};
+  S.custom[cat] = (S.custom[cat]||[]).concat([{code, short:desc||code, long:desc||code,
+    unit:normUom(uom||'each'), pack:Math.max(1, parseInt(pack,10)||1), packName:'',
+    alias:norm(desc||code), group:UNASSIGNED, price:null, needsGroup:true}]);
+  save();
+  return '';
+}
+
+let SHEET_Q='', SHEET_ONLY=false, DRUM_OPEN='', NOTE_OPEN='';
+function renderSheet(){
+  const tbl=$('tblSheet'); if(!tbl) return;
+  const cat=$('fCat').value, label=$('fVan').value.trim(), org=activeOrg();
+  const role=curRole(), other = role==='nbi' ? 'contractor' : 'nbi';
+  const sess = sheetSession();
+
+  if(!label){
+    $('sheetWho').innerHTML = 'No location selected. Pick one on the Count tab and its sheet opens here.';
+    tbl.innerHTML = '<tbody><tr><td class="empty">Pick a location on the Count tab to open its count sheet.</td></tr></tbody>';
+    return;
+  }
+  const pl = selectedPlace();
+  $('sheetWho').innerHTML = '<b>'+esc(label)+'</b> · '+esc(PL(PTYPE).label)
+    + (org? ' · '+esc(org):'') + (pl&&pl.da? ' · '+esc(pl.da):'')
+    + ' · you are entering the <b>'+esc(roleLabel(role))+'</b>'
+    + (sess? '' : ' · nothing counted here yet');
+
+  const all = items(cat).slice();
+  const q = SHEET_Q.trim().toLowerCase();
+  const rows = all.filter(it=>{
+    if(SHEET_ONLY && !hasAnyCount(sess, it.code)) return false;
+    if(!q) return true;
+    return (it.short+' '+it.long+' '+it.code+' '+groupOf(it)).toLowerCase().includes(q);
+  });
+  if(!rows.length){
+    tbl.innerHTML = '<tbody><tr><td class="empty">'+(q? 'Nothing matches “'+esc(SHEET_Q)+'”.' : 'No items in this catalogue yet — import an item master on the Data tab.')+'</td></tr></tbody>';
+    return;
+  }
+  const byGroup={};
+  for(const it of rows){ (byGroup[groupOf(it)] = byGroup[groupOf(it)] || []).push(it); }
+
+  let h = '<thead><tr><th>Item</th><th class="hideNarrow">Part code</th><th class="hideNarrow">UoM</th>'
+        + '<th class="r hideNarrow">Pack</th><th class="r">Contractor</th><th class="r">NBI</th><th class="r">Diff</th></tr></thead><tbody>';
+  for(const g of Object.keys(byGroup).sort(groupCmp)){
+    const list = byGroup[g].slice().sort((a,b)=>a.code.localeCompare(b.code));
+    let cSum=0, nSum=0; const units=new Set();
+    for(const it of list){ cSum+=countOf(sess,it.code,'contractor'); nSum+=countOf(sess,it.code,'nbi'); units.add(it.unit); }
+    h += '<tr class="gh"><td colspan="4">'+esc(g)+(g===UNASSIGNED? ' <span class="flag">needs classifying</span>':'')
+       + '<span class="gt">'+list.length+' item'+(list.length===1?'':'s')+(units.size>1? ' · mixed units':'')+'</span></td>'
+       + '<td class="r">'+(cSum? fmt(cSum):'—')+'</td><td class="r">'+(nSum? fmt(nSum):'—')+'</td>'
+       + '<td class="r df">'+(cSum&&nSum ? ((nSum-cSum)? (nSum>cSum?'+':'')+fmt(nSum-cSum) : '0') : '—')+'</td></tr>';
+    for(const it of list){
+      const c = countOf(sess,it.code,'contractor'), n = countOf(sess,it.code,'nbi');
+      const d = n - c, both = c>0 && n>0;
+      const drum = isDrumItem(it);
+      const note = diffNote(sess, it.code);
+      const cell = (r, v) => {
+        const mine = r===role;
+        return '<input class="cc'+(mine?' mine':'')+'" data-code="'+esc(it.code)+'" data-role="'+r+'" '
+          + 'inputmode="decimal" value="'+numVal(v)+'"'
+          + ((!mine || drum) ? ' readonly tabindex="-1"' : '')
+          + ' aria-label="'+esc(roleLabel(r)+' for '+it.short)+'">';
+      };
+      h += '<tr'+(both && d ? ' class="diff"':'')+'>'
+         + '<td class="nm">'+esc(it.short)+(it.needsGroup? ' <span class="flag">new</span>':'')
+         + '<small>'+esc(it.code)+' · '+esc(it.unit)+(it.pack>1? ' · '+it.pack+' per '+esc(it.packName||'pack'):'')+'</small>'
+         + (drum? '<br><button class="dfb" data-drums="'+esc(it.code)+'">Drums ('+drumsOf(sess,it.code,role).length+')</button>':'')
+         + (note && (note.note||note.recounted) ? '<br><small>'+(note.recounted? '<b>Recounted.</b> ':'')+esc(note.note)+'</small>':'')
+         + '</td>'
+         + '<td class="hideNarrow mono" style="font-size:12px">'+esc(it.code)+'</td>'
+         + '<td class="hideNarrow">'+esc(it.unit)+'</td>'
+         + '<td class="r hideNarrow">'+(it.pack>1? it.pack:'—')+'</td>'
+         + '<td class="r">'+cell('contractor', c)+'</td>'
+         + '<td class="r">'+cell('nbi', n)+'</td>'
+         + '<td class="r df">'+(both&&d ? '<button class="dfb" data-note="'+esc(it.code)+'">'+(d>0?'+':'')+fmt(d)+'</button>' : (both? '0' : '—'))+'</td></tr>';
+
+      if(DRUM_OPEN===it.code){
+        const mine = drumsOf(sess,it.code,role);
+        h += '<tr class="drums"><td colspan="7">'
+           + '<b>Drums on this line — '+esc(roleLabel(role))+'</b>'
+           + mine.map(l=>'<div class="drumline"><input class="did" value="'+esc(l.drumId)+'" readonly>'
+               + '<input class="dln" value="'+numVal(l.qty)+'" readonly><span>'+esc(it.unit)+'</span>'
+               + '<button class="x" data-dropdrum="'+esc(l.id)+'" title="Remove">✕</button></div>').join('')
+           + '<div class="drumline"><input class="did" id="ndId" placeholder="Drum ID" autocomplete="off">'
+           + '<input class="dln" id="ndLen" inputmode="decimal" placeholder="Length"><span>'+esc(it.unit)+'</span>'
+           + '<button class="btn" data-adddrum="'+esc(it.code)+'">Add drum</button></div>'
+           + '<small style="color:var(--ink-3)">The count for this item is the total of its drums.</small>'
+           + '</td></tr>';
+      }
+      if(NOTE_OPEN===it.code){
+        h += '<tr class="drums"><td colspan="7">'
+           + '<b>Difference of '+(d>0?'+':'')+fmt(d)+' on '+esc(it.short)+'</b>'
+           + '<div class="drumline"><input style="flex:1 1 180px" id="dnText" placeholder="Why? e.g. two drums on another van" value="'+esc(note?note.note:'')+'">'
+           + '<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="dnRe"'+(note&&note.recounted?' checked':'')+'> Recounted</label>'
+           + '<button class="btn dark" data-savenote="'+esc(it.code)+'">Save</button></div></td></tr>';
+      }
+    }
+  }
+  tbl.innerHTML = h+'</tbody>';
+  wireSheet();
+}
+function wireSheet(){
+  const tbl=$('tblSheet');
+  const editable = [...tbl.querySelectorAll('input.cc:not([readonly])')];
+  editable.forEach((inp,i)=>{
+    inp.onchange = ()=>{ setCount(inp.dataset.code, inp.dataset.role, inp.value); renderSheet(); renderTally(); renderJobLocs(); };
+    inp.onkeydown = e=>{
+      if(e.key==='Enter' || e.key==='Tab'){
+        e.preventDefault();
+        setCount(inp.dataset.code, inp.dataset.role, inp.value);
+        const step = e.shiftKey ? -1 : 1;
+        const code = editable[i+step] ? editable[i+step].dataset.code : null;
+        renderSheet(); renderTally(); renderJobLocs();
+        if(code){
+          const next = $('tblSheet').querySelector('input.cc[data-code="'+CSS.escape(code)+'"]:not([readonly])');
+          if(next){ next.focus(); next.select(); }
+        }
+      }
+    };
+  });
+  tbl.querySelectorAll('button[data-drums]').forEach(b=> b.onclick=()=>{ DRUM_OPEN = DRUM_OPEN===b.dataset.drums ? '' : b.dataset.drums; NOTE_OPEN=''; renderSheet(); });
+  tbl.querySelectorAll('button[data-note]').forEach(b=> b.onclick=()=>{ NOTE_OPEN = NOTE_OPEN===b.dataset.note ? '' : b.dataset.note; DRUM_OPEN=''; renderSheet(); });
+  tbl.querySelectorAll('button[data-adddrum]').forEach(b=> b.onclick=()=>{
+    if(addDrum(b.dataset.adddrum, curRole(), $('ndId').value, $('ndLen').value)){ renderSheet(); renderTally(); renderJobLocs(); }
+  });
+  tbl.querySelectorAll('button[data-dropdrum]').forEach(b=> b.onclick=()=>{ dropLine(b.dataset.dropdrum); renderSheet(); renderTally(); renderJobLocs(); });
+  tbl.querySelectorAll('button[data-savenote]').forEach(b=> b.onclick=()=>{
+    setDiffNote(b.dataset.savenote, $('dnText').value, $('dnRe').checked); NOTE_OPEN=''; renderSheet();
+  });
+}
+
+/* ============================================================
    rendering — history
    Everything here is drawn from the frozen snapshot, never from the
    live catalogue, so a closed stocktake reads the same forever.
@@ -3464,13 +3744,14 @@ function fillOrgs(keepPlace){
   syncPlaceUI(); applyBrand(); renderSpots(); renderCat(); renderRecent();
 }
 function showTab(which){
-  for(const [t,v] of [['t-count','v-count'],['t-mgr','v-mgr'],['t-hist','v-hist'],['t-cat','v-cat']]){
+  for(const [t,v] of [['t-count','v-count'],['t-sheet','v-sheet'],['t-mgr','v-mgr'],['t-hist','v-hist'],['t-cat','v-cat']]){
     const on = t==='t-'+which;
     $(t).setAttribute('aria-selected', on?'true':'false');
     $(v).classList.toggle('hidden', !on);
   }
   $('band').classList.toggle('hidden', which!=='count');
   if(which==='count') renderJobLocs();
+  if(which==='sheet') renderSheet();
   if(which==='mgr') renderMgr();
   if(which==='hist') renderHistory();
   if(which==='cat'){ renderCat(); renderOrgBox(); renderBrands(); renderJobsAdmin(); renderPlaceAdmin(); renderTypeAdmin(); renderShare(); renderAccess(); }
@@ -3527,7 +3808,21 @@ $('jAdd').onclick = ()=>{
 };
 $('t-count').onclick=()=>showTab('count');
 $('t-mgr').onclick=()=>showTab('mgr');
+$('t-sheet').onclick=()=>showTab('sheet');
 $('t-hist').onclick=()=>showTab('hist');
+$('sheetSearch').oninput = e=>{ SHEET_Q=e.target.value; renderSheet(); };
+$('sheetOnly').onchange = e=>{ SHEET_ONLY=e.target.checked; renderSheet(); };
+$('sheetMic').onclick = ()=>{ if(listening||wantListen) stopListen(); else startListen(); syncSheetMic(); };
+$('sheetAdd').onclick = ()=>{ $('sheetAddBox').classList.toggle('hidden'); $('niNote').textContent=''; if(!$('sheetAddBox').classList.contains('hidden')) setTimeout(()=>$('niCode').focus(),30); };
+$('niCancel').onclick = ()=>{ $('sheetAddBox').classList.add('hidden'); $('niNote').textContent=''; };
+$('niAdd').onclick = ()=>{
+  const err = addSheetItem($('niCode').value, $('niDesc').value, $('niUom').value, $('niPack').value);
+  if(err){ $('niNote').textContent = err; return; }
+  ['niCode','niDesc','niUom','niPack'].forEach(id=>$(id).value='');
+  $('sheetAddBox').classList.add('hidden'); $('niNote').textContent='';
+  SHEET_Q=''; $('sheetSearch').value='';
+  renderSheet(); renderCat();
+};
 $('closeJobBtn').onclick = e=>{ e.preventDefault(); openCloseJob(); };
 $('cjCancel').onclick = closeCloseJob;
 $('cjGo').onclick = doCloseJob;

@@ -53,6 +53,22 @@ treat it as a specification of behaviour that must survive a rewrite.
   the app reports which of the six were found (and under which heading in the file) and which were
   missing, along with how many rows landed in Unassigned and how many items have no unit value.
   See `EXPECTED_COLS`, `columnReport()`.
+- **Count sheet.** A *Sheet* tab holds a grid for the location selected on the Count tab: rows grouped
+  by Product Group with a subtotal per group, and columns Part code, Description, UoM, Pack size,
+  **Contractor count**, **NBI count**, **Difference**. Product Group is the group header rather than a
+  repeated column, and on a phone the code, UoM and pack fold into a sub-line under the description;
+  above 760px they get their own columns. Counts are typed straight into the cells — Enter or Tab
+  moves down the column, Shift reverses — and a device may only edit its own role's column.
+  Difference is NBI − Contractor, live, shown only once both sides have counted; a non-zero row is
+  highlighted and its figure opens a note with a *Recounted* flag.
+  **Voice and typing are the same grid**: every line records the role that entered it, so a spoken
+  count fills that role's column, and *Dictate* on the sheet drives the same recogniser. A typed
+  number replaces that role's typed lines for the item; drum lines are left alone.
+  **Add item** takes material that is not in the catalogue, files it under Unassigned and flags it
+  for NBI to classify. **Cable drums**: fibre items get a Drums sub-row of drum identifier and length,
+  one line each; the item's count is their total, the count cell is read-only, and the drum lines are
+  kept so they can be exported. See `renderSheet()`, `setCount()`, `addDrum()`, `setDiffNote()`,
+  `addSheetItem()`, `isDrumItem()`, `curRole()`.
 - **Product groups.** Every item carries a Product Group. For the fibre / NBI catalogue the list is
   fixed — see `PRODUCT_GROUPS`, 17 entries, some of which deliberately share a number prefix
   (`06. Duct` and `06. Sub Duct`). Matching is on the text, case- and punctuation-insensitive, and
