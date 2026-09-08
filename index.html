@@ -99,6 +99,9 @@
   table.vlog .what{width:38%; color:var(--ink-3); text-align:right}
   table.vlog tr.miss td{background:var(--bad-soft)}
   table.vlog tr.miss .what b{color:var(--bad); font-weight:600}
+  .lochint{margin-left:auto; font-size:10.5px; font-weight:600; letter-spacing:.02em; text-transform:none; color:var(--ink-3)}
+  .lochint.bad{color:var(--bad)}
+  #jobLocs{margin-bottom:14px}
   .engwrap{display:flex; justify-content:center; margin:8px 0 0}
   .engchip{display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:999px;
     border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
@@ -237,6 +240,8 @@
   .newjob .bar{margin-top:10px}
   .pickmenu{position:absolute; z-index:20; left:0; right:0; top:calc(100% + 4px); max-height:262px; overflow-y:auto;
     background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--lift); padding:4px}
+  .pickmenu .pickempty{padding:11px 12px; font-size:12.5px; color:var(--ink-3)}
+  .pickmenu button small{margin-left:auto; font-size:11px; color:var(--ink-3); font-weight:500}
   .pickmenu .grp3{padding:8px 10px 4px; font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
   .pickmenu button{display:flex; align-items:baseline; gap:8px; width:100%; text-align:left; border:0; background:none;
     padding:9px 10px; border-radius:7px; font-size:14px; font-weight:500}
@@ -535,6 +540,17 @@
         </div>
         <select id="fOrg" class="hidden" aria-hidden="true" tabindex="-1"></select>
       </div>
+      <div class="field full" id="locField">
+        <label class="lblrow" for="fLoc">Location<span class="lochint" id="locHint"></span></label>
+        <div class="picker">
+          <input id="fLoc" placeholder="Search or type…" autocomplete="off" role="combobox" aria-expanded="false">
+          <button class="caretbtn micbtn" id="locMic" aria-label="Say the location" title="Say the location">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5a2.6 2.6 0 0 0-2.6 2.6v6a2.6 2.6 0 0 0 5.2 0v-6A2.6 2.6 0 0 0 12 2.5z"/><path d="M5.5 10.5v.8a6.5 6.5 0 0 0 13 0v-.8"/><path d="M12 17.8v3.7"/></svg>
+          </button>
+          <button class="caretbtn" id="locToggle" aria-label="Show list">▾</button>
+          <div class="pickmenu hidden" id="locMenu"></div>
+        </div>
+      </div>
       <div class="field full">
         <label class="lblrow">Where are you counting?<button class="lnk" id="editTypes">Edit</button></label>
         <div class="segs" id="segs"></div>
@@ -564,15 +580,6 @@
         <span><b>Record every line</b><small>Kept on this device so a disputed number can be played back. Turn it off if the counter would rather not be recorded.</small></span>
       </label>
       <div class="full" style="display:flex;justify-content:flex-end"><button class="btn dark" id="btnStart">Start counting</button></div>
-    </div>
-
-    <div class="card loclist" id="jobLocs">
-      <div class="lochdr">
-        <h3 id="locTitle">Locations in this job</h3>
-        <span class="locprog" id="locProg"></span>
-      </div>
-      <div class="locsearch"><input id="locSearch" placeholder="Search locations…" autocomplete="off"></div>
-      <div id="locRows"></div>
     </div>
 
     <div class="card recent hidden" id="recent"></div>
@@ -708,6 +715,14 @@
   </section>
 
   <section id="v-hist" class="hidden mgr">
+    <div class="card loclist" id="jobLocs">
+      <div class="lochdr">
+        <h3 id="locTitle">Locations in this job</h3>
+        <span class="locprog" id="locProg"></span>
+      </div>
+      <div class="locsearch"><input id="locSearch" placeholder="Search locations…" autocomplete="off"></div>
+      <div id="locRows"></div>
+    </div>
     <div class="panel">
       <header>
         <h2>Closed stocktakes</h2>
@@ -744,6 +759,22 @@
         <button class="btn" id="vlogClear">Clear</button>
         <button class="btn" id="vlogExport">Export CSV</button>
       </div>
+    </div>
+
+    <div class="panel">
+      <header><h2>Locations</h2><span class="hint">one list per contractor · a column of location names, and a DA column if you have one</span></header>
+      <div class="catgrid">
+        <div class="field"><label for="locOrg">These locations belong to</label><select id="locOrg"></select></div>
+        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label>
+          <label class="lbl-btn" style="text-align:center">Choose a file<input type="file" id="locFile" accept=".xlsx,.xls,.csv" class="hidden"></label>
+        </div>
+      </div>
+      <div class="drop" id="locDrop">
+        <b>Drop a location list here</b>
+        <small>One column of names — Location, Town, Site, Depot, whatever it is called — and a DA column if the list has one. Junk rows above the heading are fine. Uploading again replaces that contractor's list.</small>
+        <span class="dropstat" id="locStat"></span>
+      </div>
+      <div id="locAdmin" class="joblist"></div>
     </div>
 
     <div class="panel">
@@ -1415,6 +1446,10 @@ function parse(text, cat){
   if(!t) return {kind:'none'};
 
   if(/^(pause|hang on|hold on|hold up|wait)\b/.test(t)) return {kind:'pause'};
+  {
+    const m = t.match(/^(?:go to |move to |i.?m (?:at|in) |at |in )?(?:the )?(?:location|site|town|depot|area)\s+(?:of\s+)?(.+)$/);
+    if(m) return {kind:'loc', label:m[1].trim()};
+  }
   if(/^(undo|scratch that|delete that|remove that|cancel that|take that off)\b/.test(t)) return {kind:'undo'};
   if(/^(total|totals|what.?s the total|read the total|give me the total|read it back)\b/.test(t)) return {kind:'total'};
 
@@ -1594,6 +1629,52 @@ function matchPlace(cat, org, label){
   }).filter(x=>x.d<=Math.max(2, Math.round(k.length*0.25))).sort((a,b)=>a.d-b.d);
   return {open:false, exact:null, near:scored.slice(0,4).map(x=>x.p)};
 }
+/* ══════════════════════════════════════════════════════════════════════
+   Locations — the site the count is happening at, above and separate from
+   "where are you counting" (which is the vehicle or room inside it).
+   The list is uploaded per contractor and is closed: a count has to land on
+   one of these, and voice may never invent one.
+   ══════════════════════════════════════════════════════════════════════ */
+let LOC = '', LOCDA = '';
+function locsFor(cat, org){
+  const reg = (S.locs && S.locs[cat]) || [];
+  if(!reg.length) return [];
+  /* No falling back to somebody else's list, the way the place register does:
+     these lists are per contractor and showing KN Circet's towns to TLI would
+     be a leak, not a convenience. A row with no owner is shared on purpose. */
+  return reg.filter(l=>!l.org || l.org===org);
+}
+function locByName(cat, org, name){
+  const k = norm(name);
+  return locsFor(cat,org).find(l=>norm(l.name)===k) || null;
+}
+/* exact, or the nearest few — never a silent best guess */
+function matchLoc(cat, org, label){
+  const list = locsFor(cat,org);
+  if(!list.length) return {none:true, exact:null, near:[]};
+  const nm = norm(label), k = regKey(label);
+  const exact = list.find(l=>norm(l.name)===nm) || null;
+  if(exact) return {none:false, exact, near:[]};
+  const scored = list.map(l=>{
+    const ln = norm(l.name);
+    let d = dist(k, regKey(l.name));
+    if(nm && ln && (ln.includes(nm) || nm.includes(ln))) d = Math.min(d, 1);
+    return {l, d};
+  }).filter(x=>x.d <= Math.max(2, Math.round(k.length*0.34))).sort((a,b)=>a.d-b.d);
+  return {none:false, exact:null, near:scored.slice(0,4).map(x=>x.l)};
+}
+function setLoc(name, quiet){
+  const cat = $('fCat').value, org = $('fOrg').value;
+  const l = locByName(cat, org, name);
+  LOC = l ? l.name : '';
+  LOCDA = l ? (l.da||'') : '';
+  const s = cur();
+  if(s){ s.loc = LOC; if(LOCDA) s.da = LOCDA; save(); }
+  renderLocField();
+  syncStartable();
+  if(!quiet) refreshWhere();
+  return !!l;
+}
 function addPlace(cat, label, type, org){
   S.places = S.places || {};
   S.places[cat] = S.places[cat] || [];
@@ -1615,7 +1696,8 @@ function containerLabel(){
 }
 function startSession(){
   S.current = {id:'s'+Date.now().toString(36), cat:$('fCat').value, org:$('fOrg').value,
-    ctype:PTYPE, container:containerLabel(), da:(selectedPlace()||{}).da || '',
+    ctype:PTYPE, container:containerLabel(), loc:LOC,
+    da: LOCDA || (selectedPlace()||{}).da || '',
     by: (isOwner() ? ($('fWho').value.trim() || me().name) : me().name),
     job: $('fJob').value || S.job,
     started:Date.now(), finished:null, lines:[]};
@@ -2553,7 +2635,9 @@ function whereLine(){
   const s = cur();
   const p = PL(PTYPE);
   const label = s ? s.container : containerLabel();
-  return p.label+' · '+label + (SPOT ? ' · <b>'+esc(SPOT)+'</b>' : '');
+  const loc = (s && s.loc) || LOC;
+  return (loc ? esc(loc)+' · ' : '') + p.label+' · '+label
+       + (SPOT ? ' · <b>'+esc(SPOT)+'</b>' : '');
 }
 function refreshWhere(){ $('whoWhere').innerHTML = whereLine(); }
 
@@ -2585,7 +2669,7 @@ function resolvePick(text){
   if(!PEND) return -2;
   const t = norm(text), toks = t.split(' ').filter(Boolean);
   if(/^(cancel|forget it|never mind|none|neither|no)\b/.test(t)) return -1;
-  if(PEND.kind==='verify' && /^(yes|yeah|yep|correct|that.?s (it|right)|go on)\b/.test(t)) return 0;
+  if((PEND.kind==='verify' || PEND.kind==='loc') && /^(yes|yeah|yep|correct|that.?s (it|right)|go on)\b/.test(t)) return 0;
   let best=-2, bs=0;
   PEND.list.forEach((c,i)=>{
     let sc=0;
@@ -2652,6 +2736,7 @@ function handle(text){
   }
 
   if(p.kind==='pause') return pauseVoice(true);
+  if(p.kind==='loc') return goLoc(p.label);
   if(p.kind==='undo'){ LASTLINE=null; return doUndo(); }
   if(p.kind==='total'){ LASTLINE=null; return doTotal(); }
   if(p.kind==='finish'){ LASTLINE=null; return doFinish(); }
@@ -2742,6 +2827,45 @@ function writeLine(it, qty, unit, drumId, text){
   renderSpots(); renderTally(); refreshWhere();
   if(!$('v-sheet').classList.contains('hidden')) renderSheet();
   renderJobLocs();
+}
+
+/* Spoken locations are closed: it must be on the list. A near miss is offered
+   back as a yes/no, anything else is refused, and voice never adds one. */
+function goLoc(label){
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const m = matchLoc(cat, org, label);
+  if(m.none){
+    say('No location list yet','Upload one for this contractor on the Data tab, then the location can be spoken.',true);
+    speak('There is no location list for this contractor.');
+    return;
+  }
+  if(m.exact){
+    setLoc(m.exact.name);
+    say('Location — '+m.exact.name, (m.exact.da? 'Served from '+m.exact.da+'. ' : '')+'Now say where you are counting, or go ahead.');
+    speak(m.exact.name+'.');
+    return;
+  }
+  if(m.near.length===1){
+    const only = m.near[0];
+    const list = [{label:'Yes — '+only.name, keys:['yes','yeah','yep','correct','right', norm(only.name)], loc:only}];
+    PEND = {kind:'loc', list, onPick:()=>{ clearPend(); setLoc(only.name);
+      say('Location — '+only.name, 'Go ahead.'); speak(only.name+'.'); }};
+    askChoices(list);
+    say('Did you mean '+only.name+'?', '“'+label+'” is not on the list. Say yes, or say the location again.');
+    speak('Did you mean '+only.name+'?');
+    return;
+  }
+  if(m.near.length){
+    const list = m.near.map(l=>({label:l.name, sub:l.da||'', keys:[norm(l.name)], loc:l}));
+    PEND = {kind:'loc', list, onPick:(i)=>{ const c=list[i]; clearPend(); setLoc(c.loc.name);
+      say('Location — '+c.loc.name, 'Go ahead.'); speak(c.loc.name+'.'); }};
+    askChoices(list);
+    say('“'+label+'” is not on the list', 'Closest matches below — say the number, or say it again.');
+    speak('Which one? '+list.map((c,i)=>(i+1)+', '+c.label).join('. ')+'.');
+    return;
+  }
+  say('“'+label+'” is not on the location list', 'Nothing close to it. Say it again, or pick from the list — locations can only be added on the Data tab.',true);
+  speak(label+' is not on the location list.');
 }
 
 function doUndo(){
@@ -3538,7 +3662,11 @@ function applyRole(){
   $('orgField').classList.toggle('hidden', !nbi);
   if(!nbi && $('fCat').value!=='fibre') $('fCat').value='fibre';
   fillOrgs(true);
-  renderOrgPick(); renderScope(); syncStartable(); renderJobLocs();
+  renderOrgPick(); renderScope();
+  /* a different contractor has a different list — drop a location that is not on it */
+  if(LOC && !locByName($('fCat').value, $('fOrg').value, LOC)) setLoc('', true);
+  renderLocField(); fillLocOrgs();
+  syncStartable(); renderJobLocs();
   renderMgr(); renderRecent(); renderJobsAdmin(); renderShare(); renderHistory();
 }
 function renderScope(){
@@ -3559,9 +3687,12 @@ function renderScope(){
 /* counting needs a real contractor, so All is a view scope only */
 function syncStartable(){
   const b=$('btnStart'); if(!b) return;
-  const ok = !!activeOrg();
+  const org = activeOrg();
+  const needsLoc = !!org && locsFor($('fCat').value, org).length>0;
+  const ok = !!org && (!needsLoc || !!LOC);
   b.disabled = !ok;
-  b.title = ok ? '' : 'Pick a location from the list — it decides which contractor you are counting for';
+  b.title = !org ? 'Pick which contractor you are counting for'
+          : !ok ? 'Pick the location first' : '';
 }
 function openRoleBar(){
   const m = me();
@@ -3804,7 +3935,10 @@ function afterViewChange(){
 }
 function orgChanged(){
   if(S.current && !S.current.lines.length) S.current=null;
-  clearRegNote(); applyBrand(); syncPlaceUI(); fillPlaces(); refreshWhere();
+  /* a different contractor has a different list — a location that is not on
+     theirs cannot stay selected */
+  if(LOC && !locByName($('fCat').value, $('fOrg').value, LOC)){ LOC=''; LOCDA=''; }
+  clearRegNote(); applyBrand(); syncPlaceUI(); fillPlaces(); renderLocField(); fillLocOrgs(); refreshWhere();
   renderRecent(); renderTypeAdmin(); renderScope(); syncStartable();
   renderOrgPick(); renderJobLocs(); renderMgr(); renderShare();
 }
@@ -4069,13 +4203,134 @@ function fillPlaces(){
   if(PICK_OPEN) renderPickMenu();
   renderSpots();
 }
+/* ---------- reading a location list ---------- */
+const LOC_HDR = /^(location|location name|site|site name|town|depot|place|area|exchange|village)$/;
+const DA_HDR  = /^(da|da code|da no|da number|da served|deployment area|serving da)$/;
+/* the heading is wherever it is — these files arrive with a title and a blank
+   row above it as often as not */
+function findLocHeader(rows){
+  for(let r=0;r<Math.min(rows.length,25);r++){
+    const cells=(rows[r]||[]).map(c=>String(c==null?'':c).trim().toLowerCase());
+    const name = cells.findIndex(c=>LOC_HDR.test(c));
+    if(name>=0) return {row:r, name, da:cells.findIndex(c=>DA_HDR.test(c))};
+  }
+  /* no heading at all — take the first column of a single-column list */
+  const wide = rows.some(r=>(r||[]).filter(c=>String(c==null?'':c).trim()).length>1);
+  return wide ? null : {row:-1, name:0, da:-1};
+}
+function importLocs(rows, cat, org){
+  const h = findLocHeader(rows);
+  if(!h) return {ok:false, why:'Could not find a column of location names. Name the heading “Location”.'};
+  const out=[], seen=new Set();
+  for(let r=h.row+1;r<rows.length;r++){
+    const cells = rows[r]||[];
+    const name = String(cells[h.name]==null?'':cells[h.name]).trim();
+    if(!name || LOC_HDR.test(name.toLowerCase())) continue;
+    const k = norm(name);
+    if(!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push({name, da: h.da>=0 ? String(cells[h.da]==null?'':cells[h.da]).trim() : '', org});
+  }
+  if(!out.length) return {ok:false, why:'No location names in that file.'};
+  S.locs = S.locs || {};
+  /* one list per contractor — a new upload replaces theirs and leaves the rest */
+  S.locs[cat] = (S.locs[cat]||[]).filter(l=>(l.org||'')!==(org||'')).concat(out);
+  save();
+  const withDa = out.filter(l=>l.da).length;
+  return {ok:true, n:out.length, withDa};
+}
+function readLocFile(f, cat, org){
+  return new Promise(resolve=>{
+    if(!f) return resolve({ok:false, why:'No file.'});
+    const isX=/\.(xlsx|xls)$/i.test(f.name), rd=new FileReader();
+    rd.onerror = ()=>resolve({ok:false, why:'That file could not be read.'});
+    rd.onload = ()=>{
+      let rows;
+      try{
+        if(isX){
+          if(!window.XLSX) return resolve({ok:false, why:'Excel reader did not load — save it as CSV.'});
+          const wb=XLSX.read(rd.result,{type:'array'});
+          rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+        } else rows=parseCSV(String(rd.result));
+      }catch(e){ return resolve({ok:false, why:'Could not read that file.'}); }
+      resolve(importLocs((rows||[]).filter(Array.isArray), cat, org));
+    };
+    if(isX) rd.readAsArrayBuffer(f); else rd.readAsText(f);
+  });
+}
+function renderLocAdmin(){
+  const el=$('locAdmin'); if(!el) return;
+  const cat=$('fCat').value, all=(S.locs&&S.locs[cat])||[];
+  if(!all.length){ el.className='joblist'; el.innerHTML='<p class="note">No location lists yet. Until one is uploaded, the Location field stays empty and a count cannot start.</p>'; return; }
+  const byOrg={};
+  all.forEach(l=>{ (byOrg[l.org||'—']=byOrg[l.org||'—']||[]).push(l); });
+  el.className='joblist';
+  el.innerHTML = Object.keys(byOrg).sort().map(o=>{
+    const list=byOrg[o], das=[...new Set(list.map(l=>l.da).filter(Boolean))];
+    return '<div class="jrow"><span class="ji"><b>'+esc(o)+' — '+list.length+' locations</b>'
+      + '<small>'+list.slice(0,10).map(l=>esc(l.name)).join(' · ')+(list.length>10?' … +'+(list.length-10):'')
+      + (das.length? '<br>'+das.length+' DAs: '+das.slice(0,8).map(esc).join(', ') : '')+'</small></span>'
+      + '<button class="btn" data-loczap="'+esc(o)+'">Remove</button></div>';
+  }).join('');
+  el.querySelectorAll('button[data-loczap]').forEach(b=> b.onclick = ()=>{
+    const o=b.dataset.loczap==='—'?'':b.dataset.loczap;
+    S.locs[cat]=(S.locs[cat]||[]).filter(l=>(l.org||'')!==o);
+    if(!locByName(cat,$('fOrg').value,LOC)) setLoc('');
+    save(); renderLocAdmin(); renderLocField();
+  });
+}
+function fillLocOrgs(){
+  const sel=$('locOrg'); if(!sel) return;
+  const cat=$('fCat').value, list=orgsFor(cat), keep=sel.value;
+  sel.innerHTML = list.map(o=>'<option>'+esc(o)+'</option>').join('');
+  if(list.includes(keep)) sel.value=keep;
+  else if(activeOrg() && list.includes(activeOrg())) sel.value=activeOrg();
+}
+
+/* ---------- the Location picker ---------- */
+let LOCMENU_OPEN = false;
+function renderLocField(){
+  const inp = $('fLoc'); if(!inp) return;
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const list = locsFor(cat,org);
+  const hint = $('locHint');
+  if(!list.length){
+    LOC=''; LOCDA='';
+    inp.value=''; inp.disabled=true;
+    inp.placeholder='No location list for this contractor';
+    hint.textContent='Upload one on the Data tab'; hint.className='lochint bad';
+  }else{
+    inp.disabled=false;
+    inp.placeholder='Search '+list.length+' locations…';
+    if(LOC && inp.value.trim()!==LOC) inp.value = LOC;
+    hint.textContent = LOCDA ? 'Served from '+LOCDA : '';
+    hint.className='lochint';
+  }
+  if(LOCMENU_OPEN) renderLocMenu();
+}
+function renderLocMenu(){
+  const el=$('locMenu'); if(!el) return;
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const q = norm($('fLoc').value.trim());
+  const list = locsFor(cat,org).filter(l=>!q || norm(l.name).includes(q) || (l.da||'').toLowerCase().includes(q));
+  el.innerHTML = list.length
+    ? list.slice(0,60).map(l=>'<button type="button" data-loc="'+esc(l.name)+'">'+esc(l.name)
+        +(l.da? '<small>'+esc(l.da)+'</small>':'')+'</button>').join('')
+    : '<div class="pickempty">Nothing matches — a location has to be on the list.</div>';
+  el.querySelectorAll('button[data-loc]').forEach(b=> b.onclick = ()=>{
+    setLoc(b.dataset.loc); closeLocMenu();
+  });
+}
+function openLocMenu(){ if($('fLoc').disabled) return; LOCMENU_OPEN=true; $('locMenu').classList.remove('hidden'); $('fLoc').setAttribute('aria-expanded','true'); renderLocMenu(); }
+function closeLocMenu(){ LOCMENU_OPEN=false; $('locMenu').classList.add('hidden'); $('fLoc').setAttribute('aria-expanded','false'); }
+
 /* shelf numbers can be uploaded against a location */
 function spotsFor(){
   const cat=$('fCat').value, org=$('fOrg').value, label=$('fVan').value.trim();
   const pl = placesFor(cat,org).find(x=>regKey(x.label)===regKey(label));
   return (pl && pl.spots && pl.spots.length) ? pl.spots.slice() : null;
 }
-function renderPlaces(){ fillPlaces(); renderPlaceAdmin(); }
+function renderPlaces(){ fillPlaces(); renderLocField(); renderPlaceAdmin(); }
 function renderPlaceAdmin(){
   const el=$('placeAdmin'); if(!el) return;
   const cat=$('fCat').value, list=(S.places&&S.places[cat])||[];
@@ -5730,6 +5985,54 @@ $('njCancel').onclick = closeNewJob;
 $('njName').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addNewJob(); } });
 $('regMic').onclick = e=>{ e.preventDefault(); regListen(); };
 $('pickToggle').onclick = e=>{ e.preventDefault(); PICK_OPEN? closePick() : openPick(); };
+/* ---------- Location field ---------- */
+$('fLoc').addEventListener('focus', openLocMenu);
+$('fLoc').oninput = ()=>{ openLocMenu(); };
+$('fLoc').addEventListener('keydown', e=>{
+  if(e.key==='Escape') return closeLocMenu();
+  if(e.key==='Enter'){
+    e.preventDefault();
+    const cat=$('fCat').value, org=$('fOrg').value, v=$('fLoc').value.trim();
+    const m = matchLoc(cat, org, v);
+    if(m.exact){ setLoc(m.exact.name); closeLocMenu(); }
+    else if(m.near.length===1){ setLoc(m.near[0].name); closeLocMenu(); }
+    else openLocMenu();
+  }
+});
+$('fLoc').addEventListener('blur', ()=>setTimeout(()=>{
+  closeLocMenu();
+  /* typing is as closed as speaking — only a name on the list sticks */
+  const cat=$('fCat').value, org=$('fOrg').value, v=$('fLoc').value.trim();
+  if(!v){ if(LOC) setLoc(''); return; }
+  const m = matchLoc(cat, org, v);
+  if(m.exact) setLoc(m.exact.name);
+  else { $('fLoc').value = LOC || ''; renderLocField(); }
+}, 160));
+$('locToggle').onclick = ()=>{ LOCMENU_OPEN ? closeLocMenu() : (openLocMenu(), $('fLoc').focus()); };
+$('locMic').onclick = ()=>{ primeAudio(); $('setup').classList.add('hidden'); startListen();
+  say('Say the location','For example, “location Claremorris”.'); };
+
+/* ---------- the location list upload ---------- */
+function doLocUpload(f){
+  const cat=$('fCat').value, org=$('locOrg').value;
+  if(!org){ $('locStat').textContent='Add a contractor first.'; return Promise.resolve(false); }
+  return dropFeedback('locDrop','locStat', async ()=>{
+    const r = await readLocFile(f, cat, org);
+    if(!r.ok){ $('locStat').textContent = r.why; return false; }
+    $('locStat').textContent = r.n+' locations for '+org+(r.withDa? ', '+r.withDa+' with a DA':'')+'.';
+    renderLocAdmin(); renderLocField(); syncStartable();
+    return true;
+  }, 'Loaded');
+}
+$('locFile').onchange = e => { const f=e.target.files[0]; if(f) doLocUpload(f); e.target.value=''; };
+$('locDrop').onclick = ()=> $('locFile').click();
+$('locDrop').addEventListener('dragover', e=>{ e.preventDefault(); $('locDrop').classList.add('over'); });
+$('locDrop').addEventListener('dragleave', ()=> $('locDrop').classList.remove('over'));
+$('locDrop').addEventListener('drop', e=>{
+  e.preventDefault(); $('locDrop').classList.remove('over');
+  const f = e.dataTransfer.files[0]; if(f) doLocUpload(f);
+});
+
 $('fVan').addEventListener('focus', openPick);
 $('fVan').addEventListener('keydown', e=>{
   if(e.key==='Escape') return closePick();
@@ -5885,6 +6188,9 @@ applyRole();
 renderTally();
 renderMgr();
 renderCat();
+fillLocOrgs();
+renderLocAdmin();
+renderLocField();
 renderOrgBox();
 renderBrands();
 renderRecent();

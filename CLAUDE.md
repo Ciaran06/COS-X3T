@@ -222,7 +222,20 @@ treat it as a specification of behaviour that must survive a rewrite.
   The Rollup tab breaks stock value down by Product Group under each contractor, with quantity and
   euro on every row, and the CSV export carries the same breakdown. Quantity is kept per base unit
   rather than summed across metres and each. See `unitValue()`, `valCell()`, `qtyByUnit()`, `eur()`.
-- **Location register.** Counts must land on a registered vehicle reg or named location, each with a
+- **Location is a field of its own, and the list is closed.** *Where* the count is happening
+  (Claremorris) is asked before *what* is being counted in (a van, the inside store) — the Location
+  field sits above "Where are you counting?" on the Count tab, with type-ahead, a list and a mic.
+  The list is **uploaded per contractor** on the Data tab: a column of names under any of the usual
+  headings, plus a `DA` column if the file has one, with junk rows above the heading tolerated as
+  everywhere else. `locsFor()` deliberately does **not** fall back to another contractor's list the
+  way `placesFor()` does — showing one contractor another's towns is a leak, not a convenience — so
+  a contractor with no list gets an empty field and cannot start counting. Picking a location
+  carries its DA onto the session.
+  - **Nothing may invent a location.** Typed or spoken, it has to be on the list: an exact name is
+    taken, one near miss comes back as *"Did you mean Claremorris?"*, several near misses become a
+    numbered choice, anything else is refused outright. Voice can never add one — locations are
+    added by uploading a list, and only there. Typing a name off the list reverts the field.
+- **Location register.** The vehicle regs and named rooms *within* a location. Counts must land on a registered vehicle reg or named location, each with a
   type, a contractor and the **DA it is served from** (DA008 and so on). Unregistered ones are
   challenged with the nearest matches. The picker is **strictly scoped to the place type** — a
   registration never appears under Store, or the reverse — and searches label, registration and DA.
@@ -265,6 +278,10 @@ treat it as a specification of behaviour that must survive a rewrite.
   receiving device can describe and value them) and **Import job** (merges sessions, skipping any id
   already present, and adds the job, any unknown items and any new contractor). Re-importing the same
   file changes nothing. See `exportJobFile()`, `importJobFile()`, `saveFile()`.
+- **Job progress per location** lives at the top of the **History** tab, above the closed
+  stocktakes — never on Count. It went there rather than into a tab of its own because the tab bar
+  is already full enough that the wordmark hides below 480px, and because per-location progress is
+  a property of a job, which is what History is already about. Count is a screen for counting.
 - **Jobs.** Counts belong to a named job (month-end, daily, etc.) with progress against a target.
   The job dropdown on the count screen ends in **+ New job…**, which opens an inline form — name,
   type (Month end / Mid-year / Year end / Ad hoc) and date — and the job it creates becomes the
@@ -364,7 +381,10 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
 
 ## Sample data
 
-`sample-data/` has three files, all real-shaped, all exercising the importer:
+`sample-data/` has four files, all real-shaped, all exercising the importer:
+
+- `KN02_locations.xlsx` — the KN Circet location list: 23 Mayo/Roscommon towns across 7 DAs, with a
+  title and a blank row above the heading so the header-finding is exercised.
 
 - `TLI-location-register-sample.csv` — 20 Irish vehicle registrations plus named locations, each with
   its own shelf list. Junk rows above the header, on purpose.
