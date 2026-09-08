@@ -32,7 +32,25 @@ treat it as a specification of behaviour that must survive a rewrite.
 
 ### What works today
 
-- **Voice capture, two engines.** **ElevenLabs** is the good ear: Scribe v2 Realtime over a
+- **Three engines, in tiers: Agent, then Scribe, then the browser.** The chip names the one
+  actually running and goes amber the moment it is below the tier the settings ask for.
+  - **ElevenLabs Agents is the top tier and owns the conversation.** Turn taking, interruptions,
+    stop words and barge-in are the agent's job, not ours — the hand-built half-duplex machine
+    below it is what runs when there is no agent. The SDK is loaded as the `@elevenlabs/client`
+    IIFE build (global `ElevenLabsClient`), which is the only form a page with no build step can
+    use. The Worker mints a short-lived conversation token from `/agent-token`; the key never
+    reaches the browser. Set the agent up with `agent/README.md`; its system prompt is versioned
+    at `agent/system-prompt.md` and must be kept in step with the dashboard.
+  - **The tools are the only way the agent can touch data.** `AGENT_TOOLS` — `find_item`,
+    `record_count`, `undo_last`, `set_location`, `read_total`, `pause`, `resume`, and in review
+    `next_line`, `confirm_line`, `correct_line`, `jump_to`. The agent never matches an item, never
+    converts a unit and never invents a code: `find_item` runs the app's own matcher and returns
+    candidates with a confidence, `record_count` refuses an unknown code or a non-numeric quantity,
+    and the unit conversion happens here. Every tool goes through `tool()`, which logs the call,
+    its arguments and its result with a timestamp into *What the app heard*.
+  - **While the agent runs it owns the voice and the microphone.** `speakThen()` returns silently
+    and `openEar()` refuses to open. Anything that speaks or listens must respect `AGENT.on`.
+- **Voice capture, the fallback engines.** **ElevenLabs** is the good ear: Scribe v2 Realtime over a
   WebSocket for listening, and ElevenLabs text-to-speech (voice `IQjnnInWsKbdAesop75D`) for every
   readback. The **browser's own engine** (`webkitSpeechRecognition` + `speechSynthesis`) is the
   floor and the fallback — it is what runs when no proxy is set, when the proxy is unreachable, or

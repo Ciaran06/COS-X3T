@@ -8,6 +8,8 @@
  *   GET  /stt-token  mint a single-use token so the browser can open the
  *                    Scribe realtime WebSocket directly (expires in 15 min)
  *   POST /tts        { text } -> audio/mpeg, spoken in the configured voice
+ *   GET  /agent-token      ?agent_id= -> { token }       for a WebRTC Agents session
+ *   GET  /agent-signed-url ?agent_id= -> { signed_url }  for a WebSocket one
  *
  * Secrets and variables (see README.md):
  *   ELEVENLABS_API_KEY  required, secret
@@ -78,6 +80,24 @@ export default {
       }
       const data = await r.json();
       return json({ token: data.token }, env);
+    }
+
+    /* An Agents session. The browser SDK connects directly to ElevenLabs with a
+       short-lived credential, so audio never passes through this Worker either.
+       WebRTC wants a conversation token; WebSocket wants a signed URL. */
+    if (url.pathname === '/agent-token' || url.pathname === '/agent-signed-url') {
+      const agentId = url.searchParams.get('agent_id');
+      if (!agentId) return json({ error: 'no_agent_id', message: 'Pass ?agent_id=' }, env, 400);
+      const isToken = url.pathname === '/agent-token';
+      const api = isToken
+        ? 'https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=' + encodeURIComponent(agentId)
+        : 'https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=' + encodeURIComponent(agentId);
+      const r = await fetch(api, { headers: { 'xi-api-key': env.ELEVENLABS_API_KEY } });
+      if (!r.ok) {
+        return json({ error: 'agent_failed', status: r.status, message: (await r.text()).slice(0, 400) }, env, 502);
+      }
+      const data = await r.json();
+      return isToken ? json({ token: data.token }, env) : json({ signed_url: data.signed_url }, env);
     }
 
     if (url.pathname === '/tts' && req.method === 'POST') {

@@ -98,6 +98,7 @@
   table.vlog .eng .sp2{font-weight:600; opacity:.7}
   table.vlog .what{width:38%; color:var(--ink-3); text-align:right}
   table.vlog tr.miss td{background:var(--bad-soft)}
+  table.vlog tr.toolrow td{background:var(--sunk); font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:11.5px}
   table.vlog tr.miss .what b{color:var(--bad); font-weight:600}
   #tblCat td.act{white-space:nowrap; width:1%}
   #tblCat .ed{padding:4px 9px; border-radius:7px; border:1px solid var(--line); background:var(--surface-2); font:600 11.5px/1.6 inherit; cursor:pointer}
@@ -915,6 +916,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- ElevenLabs Agents. The IIFE build is the one a page with no build step can
+     use: it defines window.ElevenLabsClient. If it does not load, the app falls
+     back to Scribe and then to the browser engine on its own. -->
+<script src="https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.25.0/dist/lib.iife.js"></script>
 <script>
 /* ============================================================
    TruCount — voice stocktake
@@ -2004,14 +2009,21 @@ function setEngine(stt, tts, note){
 }
 /* the counter should never have to guess which engine is running */
 function renderEngineChip(){
+  /* Three tiers: the Agent holds the conversation, Scribe is the ear-and-voice
+     pair we drive ourselves, the browser is the floor. Green only at the tier
+     the settings ask for with nothing fallen back; amber the moment we are
+     running below it, with the reason on the chip. */
+  const agent = VOICE.stt === 'agent';
   const el = VOICE.stt === 'eleven';
-  /* green only when ElevenLabs is doing both jobs and nothing has fallen back
-     this session. Anything less is amber, with the reason on the chip. */
-  const amber = el && (VOICE.tts !== 'eleven' || VOICE.degraded);
-  const who = 'Voice: ' + (el ? (VOICE.tts==='eleven' ? 'ElevenLabs' : 'ElevenLabs ear, browser voice') : 'Browser');
+  const wanted = (voiceCfg().prefer==='browser') ? 'browser' : (agentId() ? 'agent' : proxyBase() ? 'eleven' : 'browser');
+  const now = agent ? 'agent' : el ? 'eleven' : 'browser';
+  const amber = (now !== wanted) || VOICE.degraded || (el && VOICE.tts !== 'eleven');
+  const who = 'Voice: ' + (agent ? 'Agent'
+    : el ? (VOICE.tts==='eleven' ? 'Scribe' : 'Scribe ear, browser voice')
+    : 'Browser');
   ['engChip','engChip2'].forEach(id=>{
     const b = $(id); if(!b) return;
-    b.className = 'engchip' + (amber ? ' warn' : el ? ' el' : '');
+    b.className = 'engchip' + (amber ? ' warn' : (agent||el) ? ' el' : '');
     b.innerHTML = '<span class="eled"></span><span class="ewho">'+esc(who)+'</span>'
       + (VOICE.note ? '<span class="ewhy">— '+esc(VOICE.note)+'</span>' : '');
   });
@@ -2028,6 +2040,16 @@ async function probeVoice(quiet){
     if(!d.key){ setEngine('browser','browser','proxy has no API key'); VOICE.probed=true; return VOICE; }
     if(d.authed === false){ setEngine('browser','browser','proxy rejected the app token'); VOICE.probed=true; return VOICE; }
     VOICE.degraded = false;
+    if(agentId()){
+      if(!(window.ElevenLabsClient && ElevenLabsClient.Conversation)){
+        setEngine('eleven','eleven','agent SDK did not load — on Scribe');
+      } else {
+        const t = await proxyFetch('/agent-token?agent_id='+encodeURIComponent(agentId()));
+        if(t.ok) setEngine('agent','agent', d.guarded ? '' : 'proxy is unguarded — set APP_TOKEN');
+        else setEngine('eleven','eleven','agent id was refused — on Scribe');
+      }
+      VOICE.probed = true; return VOICE;
+    }
     setEngine('eleven','eleven', d.guarded ? '' : 'proxy is unguarded — set APP_TOKEN');
   }catch(e){
     setEngine('browser','browser','proxy unreachable');
@@ -2168,7 +2190,7 @@ function renderKeyterms(){
     + '</div>';
 }
 function vlogStats(){
-  const L = vlog(), out = {el:{n:0,ok:0}, br:{n:0,ok:0}};
+  const L = vlog(), out = {ag:{n:0,ok:0}, el:{n:0,ok:0}, br:{n:0,ok:0}};
   L.forEach(e=>{ const b=out[e.eng]; if(!b) return; b.n++; if(e.ok) b.ok++; });
   return out;
 }
@@ -2179,25 +2201,214 @@ function renderVlog(){
   renderKeyterms();
   const box = $('vlogBox'); if(!box) return;
   const L = vlog().slice(-25).reverse(), st = vlogStats();
-  const head = '<div class="vstat"><span><b>ElevenLabs</b> '+pct(st.el.ok,st.el.n)+' of '+st.el.n+'</span>'
+  const head = '<div class="vstat"><span><b>Agent</b> '+st.ag.n+' events</span>'
+    + '<span><b>Scribe</b> '+pct(st.el.ok,st.el.n)+' of '+st.el.n+'</span>'
     + '<span><b>Browser</b> '+pct(st.br.ok,st.br.n)+' of '+st.br.n+'</span></div>';
   if(!L.length){ box.innerHTML = head + '<p class="note">Nothing heard yet. Speak a few lines, then come back — each one lands here with the engine that heard it.</p>'; return; }
   box.innerHTML = head + '<div class="scroll"><table class="vlog"><tbody>' + L.map(e=>
       '<tr class="'+(e.ok?'':'miss')+'"><td class="eng">'+(e.eng==='el'?'EL':'Br')
       + (e.spoke? '<br><span class="sp2">'+(e.spoke==='el'?'\u25b8EL':'\u25b8Br')+'</span>' : '')+'</td>'
     + '<td>'+esc(e.text)+'</td>'
-    + '<td class="what">'+(e.ok? esc(e.what) : '<b>'+esc(e.what)+'</b>')+'</td></tr>').join('')
+    + '<td class="what">'+(e.ok? esc(e.what) : '<b>'+esc(e.what)+'</b>')
+      + (e.result? '<br><small>'+esc(e.result)+'</small>' : '')
+      + '<br><small style="opacity:.6">'+new Date(e.t).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'</small>'
+      +'</td></tr>').join('')
     + '</tbody></table></div>';
 }
 function vlogCsv(){
-  const rows = [['when','heard by','readback spoken by','mode','heard','understood','result']].concat(
-    vlog().map(e=>[new Date(e.t).toISOString(), e.eng==='el'?'ElevenLabs':'Browser',
-                   e.spoke==='el'?'ElevenLabs':e.spoke==='br'?'Browser':'\u2014', e.mode,
-                   e.text, e.ok?'yes':'no', e.what]));
+  const rows = [['when','engine','event','mode','text','understood','result','tool result']].concat(
+    vlog().map(e=>[new Date(e.t).toISOString(), e.eng==='ag'?'Agent':e.eng==='el'?'ElevenLabs':'Browser',
+                   e.kind || 'heard', e.mode,
+                   e.text, e.ok?'yes':'no', e.what, e.result||'']));
   return rows.map(r=>r.map(c=>{
     const v = String(c==null?'':c);
     return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
   }).join(',')).join('\n');
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ElevenLabs Agents.
+
+   The agent owns the conversation — turn taking, interruptions and stop words
+   are its job, not ours. TruCount is the set of tools it calls, and the tools
+   are the only way it can touch data: it can neither invent an item nor write
+   a number we did not convert. When the agent is running, nothing else in the
+   app speaks or opens a microphone.
+   ══════════════════════════════════════════════════════════════════════ */
+let AGENT = {on:false, conv:null, mode:'', starting:false};
+function agentId(){ return String(voiceCfg().agentId||'').trim(); }
+function agentReady(){ return !!(window.ElevenLabsClient && ElevenLabsClient.Conversation) && !!agentId() && !!proxyBase(); }
+
+/* every utterance and every tool call, with a timestamp, in "What the app heard" */
+function agentLog(kind, text, extra){
+  const L = vlog();
+  L.push(Object.assign({t:Date.now(), eng:'ag', text:String(text||'').slice(0,240),
+                        ok:true, what:kind, mode:REVIEW.active?'review':'count', spoke:'ag', kind}, extra||{}));
+  while(L.length>VLOG_MAX) L.shift();
+  save(); renderVlog();
+}
+function toolLog(name, args, result){
+  agentLog('tool', name+'('+JSON.stringify(args||{}).slice(0,120)+')', {tool:name, result:JSON.stringify(result).slice(0,240), ok:!(result&&result.error)});
+}
+/* a tool is only ever a thin wrapper that logs and delegates */
+function tool(name, fn){
+  return async (args)=>{
+    let out;
+    try{ out = await fn(args||{}); }
+    catch(e){ out = {error:String(e && e.message || e)}; }
+    if(out===undefined) out = {ok:true};
+    toolLog(name, args, out);
+    return out;
+  };
+}
+
+function candidatesFor(spoken){
+  const cat = $('fCat').value;
+  const toks = norm(String(spoken||'')).split(' ').filter(Boolean);
+  return matchItemAll(cat, toks).slice(0,3).map(c=>({
+    code: c.it.code,
+    short_name: c.it.short,
+    uom: c.it.unit,
+    pack: c.it.pack>1 ? c.it.pack : 1,
+    pack_name: c.it.pack>1 ? (c.it.packName||'case') : '',
+    confidence: Math.round(c.conf*100)/100
+  }));
+}
+const AGENT_TOOLS = {
+  find_item: tool('find_item', ({spoken_text})=>{
+    const list = candidatesFor(spoken_text);
+    if(!list.length) return {found:false, candidates:[], message:'Not on the sheet.'};
+    return {found:true, confident: list[0].confidence>=MATCH_BAR && !(list[1] && list[0].confidence-list[1].confidence<MATCH_TIE),
+            candidates:list};
+  }),
+  record_count: tool('record_count', ({item_code, quantity, unit_as_spoken})=>{
+    const cat = $('fCat').value;
+    const it = items(cat).find(i=>i.code===String(item_code||'').toUpperCase());
+    if(!it) return {error:'no such item code', item_code};
+    const qty = Number(quantity);
+    if(!isFinite(qty)) return {error:'quantity was not a number', quantity};
+    /* the app converts the unit, always — the agent never does */
+    const unit = unitOf(String(unit_as_spoken||'')) || (String(unit_as_spoken||'').trim() || it.unit);
+    const line = writeLine(it, qty, unit, null, 'agent');
+    return {recorded:true, short_name:it.short, quantity:qty, uom:plural(unit,qty),
+            spot:SPOT, line_id:line?line.id:null};
+  }),
+  undo_last: tool('undo_last', ()=>{
+    const s = cur();
+    if(!s || !s.lines.length) return {removed:false, message:'Nothing to remove.'};
+    const gone = s.lines.pop(); save();
+    LASTLINE = null;
+    renderSpots(); renderTally(); refreshWhere(); renderRecent();
+    if(!$('v-sheet').classList.contains('hidden')) renderSheet();
+    const it = item(s.cat, gone.code);
+    return {removed:true, short_name:it.short, quantity:gone.qty, uom:plural(gone.unit,gone.qty)};
+  }),
+  set_location: tool('set_location', ({spoken_text})=>{
+    const cat=$('fCat').value, org=$('fOrg').value;
+    const m = matchLoc(cat, org, String(spoken_text||''));
+    if(m.none) return {set:false, message:'No location list for this contractor.'};
+    if(m.exact){ setLoc(m.exact.name); return {set:true, location:m.exact.name, da:m.exact.da||''}; }
+    if(m.near.length) return {set:false, candidates:m.near.slice(0,3).map(l=>({location:l.name, da:l.da||''}))};
+    return {set:false, message:'Not on the location list.'};
+  }),
+  read_total: tool('read_total', ()=>{
+    const s = cur();
+    if(!s || !s.lines.length) return {lines:0, items:0, message:'Nothing counted here yet.'};
+    const by = rollLines(s.lines, s.cat);
+    const rows = Object.values(by).map(r=>({short_name:r.it.short, quantity:r.base, uom:plural(r.it.unit,r.base)}));
+    const v = sumValue(by);
+    return {location:s.container, lines:s.lines.length, items:rows.length,
+            value: eur(v.value), value_complete: !v.unpriced, rows};
+  }),
+  pause: tool('pause', ()=>{ PAUSED = true; paintMic(); say('Paused','Nothing is being recorded.'); return {paused:true}; }),
+  resume: tool('resume', ()=>{ PAUSED = false; paintMic(); say('Listening','Go ahead.'); return {paused:false}; }),
+
+  /* review mode */
+  next_line: tool('next_line', ()=>{
+    if(!REVIEW.active) return {error:'review is not running'};
+    reviewMove(1);
+    const r = reviewRow();
+    return r ? {short_name:r.desc, uom:r.uom, current: countOf(sheetSession(), r.code, (reviewSaved()||{}).role) || 0}
+             : {finished:true};
+  }),
+  confirm_line: tool('confirm_line', ()=>{
+    if(!REVIEW.active) return {error:'review is not running'};
+    reviewMove(1);
+    const r = reviewRow();
+    return r ? {short_name:r.desc, uom:r.uom} : {finished:true};
+  }),
+  correct_line: tool('correct_line', ({quantity, unit_as_spoken})=>{
+    if(!REVIEW.active) return {error:'review is not running'};
+    const row = reviewRow();
+    if(!row) return {error:'no row'};
+    reviewSetCount(Number(quantity), String(unit_as_spoken||''));
+    return {corrected:true, short_name:row.desc, quantity:Number(quantity), uom:row.uom};
+  }),
+  jump_to: tool('jump_to', ({spoken_text})=>{
+    if(!REVIEW.active) return {error:'review is not running'};
+    const hits = reviewFind(String(spoken_text||''));
+    if(!hits.length) return {found:false};
+    if(hits.length>1) return {found:false, candidates:hits.slice(0,3).map(h=>({short_name:h.row.desc}))};
+    const r = reviewSaved(); r.idx = hits[0].i; save();
+    reviewSpeakCurrent();
+    return {found:true, short_name:hits[0].row.desc};
+  })
+};
+
+/* a short chime, so the counter knows the mic is live before anyone speaks */
+function chime(){
+  try{
+    const c = new (window.AudioContext||window.webkitAudioContext)();
+    const o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.frequency.setValueAtTime(880, c.currentTime);
+    o.frequency.setValueAtTime(1320, c.currentTime+0.09);
+    g.gain.setValueAtTime(0.0001, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.16, c.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime+0.24);
+    o.start(); o.stop(c.currentTime+0.26);
+    setTimeout(()=>{ try{ c.close(); }catch(e){} }, 600);
+  }catch(e){}
+}
+
+async function startAgent(){
+  if(AGENT.on || AGENT.starting) return true;
+  AGENT.starting = true;
+  try{
+    if(!window.ElevenLabsClient || !ElevenLabsClient.Conversation) throw new Error('SDK did not load');
+    const id = agentId();
+    if(!id) throw new Error('no agent id');
+    /* the key never leaves the proxy: it mints a short-lived credential */
+    const r = await proxyFetch('/agent-token?agent_id='+encodeURIComponent(id));
+    if(!r.ok) throw new Error('token '+r.status);
+    const {token} = await r.json();
+    if(!token) throw new Error('no token');
+    AGENT.conv = await ElevenLabsClient.Conversation.startSession({
+      conversationToken: token,
+      connectionType: 'webrtc',
+      clientTools: AGENT_TOOLS,
+      onConnect: ()=>{ AGENT.on = true; setTurn('open'); paintMic(); agentLog('session','Session started.'); },
+      onDisconnect: d=>{ agentLog('session','Session ended.'+(d&&d.reason? ' '+d.reason : ''));
+                         AGENT.on=false; AGENT.conv=null; setTurn('shut'); paintMic(); },
+      onMessage: m=>{
+        if(!m || !m.message) return;
+        if(m.source === 'user'){ $('heard').innerHTML = '<b>'+esc(m.message)+'</b>'; agentLog('heard', m.message); }
+        else agentLog('said', m.message);
+      },
+      onModeChange: m=>{ AGENT.mode = (m && m.mode) || ''; setTurn(AGENT.mode==='speaking' ? 'speaking' : 'open'); paintMic(); },
+      onError: e=>{ agentLog('error', String(e && e.message || e)); }
+    });
+    AGENT.on = true; AGENT.starting = false;
+    return true;
+  }catch(e){
+    AGENT.starting = false; AGENT.on = false; AGENT.conv = null;
+    throw e;
+  }
+}
+async function stopAgent(){
+  const c = AGENT.conv;
+  AGENT.conv = null; AGENT.on = false; AGENT.mode = '';
+  if(c){ try{ await c.endSession(); }catch(e){} }
 }
 
 /* ---------- microphone to 16 kHz PCM ---------- */
@@ -2302,6 +2513,7 @@ function setMic(on){ paintMic(); }
 function openEar(){
   clearTimeout(reopenTimer);
   if(PAUSED || !wantListen) return;
+  if(AGENT.on) return;                 /* the agent holds the microphone */
   if(TURN==='open' || VOICE.busy) return;
   setTurn('open');
   if(VOICE.stt === 'eleven'){
@@ -2591,6 +2803,8 @@ function bargeIn(){
 /* every readback in the app goes through here */
 function speakThen(text, cb){
   if(!text){ if(cb) cb(false); return; }
+  /* the agent does all the talking when it is running */
+  if(AGENT.on){ if(cb) cb(false); return; }
   VOICE.busy = true;
   closeEar();                 /* nothing we say can ever reach our own ear */
   setTurn('speaking');
@@ -2679,6 +2893,18 @@ function startListen(){
   wantListen = true;
   PAUSED = false;
   primeAudio();
+  if(VOICE.stt === 'agent'){
+    chime();
+    setTurn('thinking'); paintMic();
+    startAgent().catch(e=>{
+      const m = String(e && e.message || e);
+      VOICE.degraded = true;
+      setEngine(proxyBase()?'eleven':'browser', proxyBase()?'eleven':'browser',
+        /SDK/.test(m) ? 'agent SDK did not load' : /token/.test(m) ? 'agent token refused' : 'agent would not start');
+      startAudio(); openEar();
+    });
+    return;
+  }
   startAudio();
   openEar();
 }
@@ -2686,6 +2912,7 @@ function stopListen(){
   wantListen = false;
   PAUSED = false;
   clearTimeout(reopenTimer);
+  if(AGENT.on || AGENT.conv) stopAgent();
   closeEar();
   stopAudio();
   setTurn('shut');
@@ -2895,6 +3122,7 @@ function writeLine(it, qty, unit, drumId, text){
   renderSpots(); renderTally(); refreshWhere();
   if(!$('v-sheet').classList.contains('hidden')) renderSheet();
   renderJobLocs();
+  return line;
 }
 
 /* Spoken locations are closed: it must be on the list. A near miss is offered
