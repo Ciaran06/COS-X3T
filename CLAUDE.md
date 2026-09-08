@@ -265,10 +265,23 @@ treat it as a specification of behaviour that must survive a rewrite.
 - Irish spelling and en-IE formatting throughout (`metre`, `colour`, `toLocaleString('en-IE')`).
 - Copy is written in the customer's language, not the system's: "vehicle", "yard", "spot", "counter".
 - The page must open in a working state with example data visible, never an empty shell.
-- Light and dark themes are both first-class; every colour comes from a CSS custom property, and
-  `--accent` is overwritten at runtime with the selected customer's brand colour. `--accent-ink`
-  and `--accent-hdr` are derived cuts for text on light surfaces and on the dark header — use those
-  for text, never raw `--accent`.
+- **Blue and white, and the blue lives in one line.** `--brand` (currently `#1D5FD1`) is the only
+  place TruCount's colour is written down; the header bar, the active tab, primary buttons, the mic
+  and every accent are cut from it with `color-mix()`, so changing that one declaration reshades the
+  whole app. Everything else is white and light grey with dark grey text. Every colour still comes
+  from a CSS custom property — never a literal in a rule.
+- **The theme is TruCount's; the contractor's colour is theirs.** `--org` and `--on-org` hold the
+  selected contractor's brand colour, set at runtime by `applyBrand()`, and they dress exactly two
+  things: their badge and the band that carries their name. The chrome never changes when you switch
+  contractor. Do not reintroduce a runtime override of `--accent` — that is what made the app wear
+  a different customer's colours on every screen.
+- `--accent-ink` is the cut for brand-coloured text on white, `--accent-hdr` for text on the blue
+  bar, `--on-accent` for text on a brand-filled surface. Use those, never raw `--accent`.
+  `--ok`/`--bad` are for light surfaces; on the blue header they disappear, so the header has
+  `--ok-hdr`, `--bad-hdr` and `--warn-hdr`.
+- **Light only.** The OS-driven dark theme was removed with the blue: the app is one look on every
+  phone, whatever the handset is set to. There is no theme toggle. If dark comes back it needs to be
+  a deliberate blue-dark palette and a switch the counter can find, not a media query.
 - **No `prompt()`, `alert()` or `confirm()`.** They are blocked in the hosting frame and fail
   silently. Everything is inline UI.
 - **No secret ever reaches the page.** API keys, tokens and anything else that costs money live

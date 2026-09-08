@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#131C20">
+<meta name="theme-color" content="#1D5FD1">
 <meta name="description" content="TruCount — voice stocktaking for vans, stores and yards. An X3T product.">
 <style>
-  html{color-scheme:light dark}
+  html{color-scheme:light}
   body{margin:0}
   img{max-width:100%}
   [hidden]{display:none !important}
@@ -17,39 +17,42 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root{
-    --ground:#EEF2F3; --surface:#FFFFFF; --surface-2:#E2E9EB; --sunk:#F6F9FA;
-    --line:#CDD8DB; --line-soft:#E1E8EA;
-    --ink:#0E1719; --ink-2:#465760; --ink-3:#78888F;
-    --header:#131C20; --header-ink:#EEF3F4; --header-ink-2:#8B9BA2; --header-line:#2A363B;
-    --accent:#06A99B; --accent-soft:rgba(6,169,155,.14); --accent-line:rgba(6,169,155,.42); --on-accent:#FFFFFF;
-    --accent-ink:color-mix(in srgb, var(--accent) 62%, #0A1005);
-    --accent-hdr:color-mix(in srgb, var(--accent) 52%, #FFFFFF);
+    /* ══════════════════════════════════════════════════════════════════
+       TruCount's colour. Change this ONE line to reshade the whole app —
+       header, active tab, primary buttons, mic and every accent are cut
+       from it. A contractor's own colour is kept separately, in --org.
+       ══════════════════════════════════════════════════════════════════ */
+    --brand:#1D5FD1;
+
+    --ground:#F3F5F8; --surface:#FFFFFF; --surface-2:#EDEFF3; --sunk:#F8F9FB;
+    --line:#D4DCE7; --line-soft:#E6EBF2;
+    --ink:#1A2230; --ink-2:#4A5568; --ink-3:#7B8698;
+
+    /* the header wears the brand, and carries white */
+    --header:var(--brand); --header-ink:#FFFFFF;
+    --header-ink-2:color-mix(in srgb, #FFFFFF 76%, var(--brand));
+    --header-line:color-mix(in srgb, var(--brand) 72%, #000000);
+
+    /* app accents, all cut from the brand so one line moves them together */
+    --accent:var(--brand);
+    --accent-soft:color-mix(in srgb, var(--brand) 13%, #FFFFFF);
+    --accent-line:color-mix(in srgb, var(--brand) 36%, #FFFFFF);
+    --accent-ink:color-mix(in srgb, var(--brand) 84%, #0B1220);  /* brand text on white */
+    --accent-hdr:#FFFFFF;                                        /* text on the brand bar */
+    --on-accent:#FFFFFF;
+
+    /* The contractor's own colour, set at runtime by applyBrand(). It dresses
+       their badge and their band, and nothing else — the theme is ours. */
+    --org:#3F4C7A; --on-org:#FFFFFF;
+    --org-hdr:color-mix(in srgb, var(--org) 45%, #FFFFFF);
+
     --ok:#0B7355; --ok-soft:rgba(11,115,85,.12);
     --bad:#A82316; --bad-soft:rgba(168,35,22,.11);
-    --lift:0 1px 2px rgba(14,23,25,.06), 0 12px 30px -18px rgba(14,23,25,.5);
+    /* the dark status colours vanish on blue, so the header gets its own cut */
+    --ok-hdr:#63E7B6; --bad-hdr:#FFA091; --warn-hdr:#FFC862;
+
+    --lift:0 1px 2px rgba(20,35,70,.06), 0 12px 30px -18px rgba(20,35,70,.42);
     --r:11px;
-  }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --ground:#0B1114; --surface:#141C20; --surface-2:#1C262B; --sunk:#0F171A;
-      --line:#2A363C; --line-soft:#212B30;
-      --ink:#E6EDEF; --ink-2:#9FAFB6; --ink-3:#6B7C84;
-      --header:#080D0F; --header-ink:#E6EDEF; --header-ink-2:#7E8E96; --header-line:#1E282D;
-      --accent-ink:color-mix(in srgb, var(--accent) 86%, #FFFFFF);
-      --accent-ink:color-mix(in srgb, var(--accent) 86%, #FFFFFF);
-    --ok:#3FBE94; --ok-soft:rgba(63,190,148,.13);
-      --bad:#FF7A69; --bad-soft:rgba(255,122,105,.13);
-      --lift:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -20px rgba(0,0,0,.9);
-    }
-  }
-  :root[data-theme="dark"]{
-    --ground:#0B1114; --surface:#141C20; --surface-2:#1C262B; --sunk:#0F171A;
-    --line:#2A363C; --line-soft:#212B30;
-    --ink:#E6EDEF; --ink-2:#9FAFB6; --ink-3:#6B7C84;
-    --header:#080D0F; --header-ink:#E6EDEF; --header-ink-2:#7E8E96; --header-line:#1E282D;
-    --ok:#3FBE94; --ok-soft:rgba(63,190,148,.13);
-    --bad:#FF7A69; --bad-soft:rgba(255,122,105,.13);
-    --lift:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -20px rgba(0,0,0,.9);
   }
 
   *{box-sizing:border-box}
@@ -78,11 +81,11 @@
   .rolechip{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; white-space:nowrap;
     border:1px solid var(--header-line); background:transparent; color:var(--header-ink-2); padding:5px 10px; border-radius:999px}
   .rolechip .rl{width:7px; height:7px; border-radius:50%; background:var(--header-ink-2)}
-  .rolechip.owner{border-color:var(--accent-hdr); color:var(--accent-hdr)}
-  .rolechip.owner .rl{background:var(--accent-hdr)}
+  .rolechip.owner{border-color:var(--header-ink); color:var(--header-ink)}
+  .rolechip.owner .rl{background:var(--header-ink)}
   .sync{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--header-ink-2); white-space:nowrap}
   .sync .led{width:7px; height:7px; border-radius:50%; background:var(--header-ink-2)}
-  .sync.on .led{background:var(--ok)} .sync.queued .led{background:var(--accent)}
+  .sync.on .led{background:var(--ok-hdr)} .sync.queued .led{background:var(--warn-hdr)}
   .vstat{display:flex; gap:18px; flex-wrap:wrap; padding:0 0 10px; font-size:13px; color:var(--ink-2)}
   .vstat b{color:var(--ink)}
   table.vlog{width:100%; border-collapse:collapse; font-size:12.5px}
@@ -93,7 +96,7 @@
   table.vlog tr.miss .what b{color:var(--bad); font-weight:600}
   .engwrap{display:flex; justify-content:center; margin:8px 0 0}
   .engchip{display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:999px;
-    border:1px solid var(--line); background:var(--card); color:var(--ink-2);
+    border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
     font:600 11.5px/1 inherit; cursor:pointer; white-space:nowrap; max-width:100%}
   .engchip .eled{width:7px; height:7px; border-radius:50%; background:var(--ink-3); flex:0 0 auto}
   .engchip.el .eled{background:var(--ok)}
@@ -104,15 +107,15 @@
   @media (max-width:400px){ .mark .nm{display:none} }
 
   /* customer band */
-  .band{background:var(--header); border-bottom:3px solid var(--accent-hdr); color:var(--header-ink)}
+  .band{background:var(--header); border-bottom:3px solid var(--org-hdr); color:var(--header-ink)}
   .bandin{max-width:1140px; margin:0 auto; padding:2px 14px 14px; display:flex; align-items:center; gap:12px}
   .badge{width:46px; height:46px; border-radius:11px; display:grid; place-items:center; flex:none; overflow:hidden;
-    font-family:"Archivo",sans-serif; font-weight:800; font-size:16px; letter-spacing:.02em; background:var(--accent); color:var(--on-accent)}
+    font-family:"Archivo",sans-serif; font-weight:800; font-size:16px; letter-spacing:.02em; background:var(--org); color:var(--on-org)}
   .badge img{width:100%; height:100%; object-fit:contain; background:#fff; padding:3px}
   .whoami{display:flex; flex-direction:column; min-width:0; margin-right:auto; line-height:1.22}
   .whoami .c{font-family:"Archivo",sans-serif; font-weight:800; font-size:19px; letter-spacing:-.012em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .whoami .w{font-size:12.5px; color:var(--header-ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .whoami .w b{color:var(--accent-hdr); font-weight:600}
+  .whoami .w b{color:var(--org-hdr); font-weight:600}
   .ghost{border:1px solid var(--header-line); background:transparent; color:var(--header-ink-2); padding:6px 11px; border-radius:8px; font-size:12px; font-weight:600; white-space:nowrap}
   .ghost:hover{color:var(--header-ink)}
 
@@ -230,7 +233,7 @@
   .say button{padding:10px 16px; border-radius:9px; border:1px solid var(--line); background:var(--surface-2); font-weight:600; font-size:14px}
   .acts{display:flex; gap:7px; margin-top:11px; flex-wrap:wrap; justify-content:center}
   .acts button{padding:8px 13px; border-radius:999px; border:1px solid var(--line); background:var(--surface); font-size:12.5px; font-weight:600; color:var(--ink-2)}
-  .acts button.primary{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+  .acts button.primary{background:var(--brand); color:#FFFFFF; border-color:var(--brand)}
 
   .prog{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin-top:12px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden}
   .prog div{background:var(--surface); padding:10px 8px; text-align:center}
@@ -289,7 +292,7 @@
   .tag.open{background:var(--ok-soft); border-color:color-mix(in srgb,var(--ok) 30%,transparent); color:var(--ok)}
   .dotc{display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:7px; vertical-align:-1px}
   .btn{padding:7px 13px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); font-size:12.5px; font-weight:600}
-  .btn.dark{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+  .btn.dark{background:var(--brand); color:#FFFFFF; border-color:var(--brand)}
   .btn[disabled]{opacity:.45; cursor:default}
   .drop.busy{border-style:solid; border-color:var(--accent); background:var(--accent-soft)}
   .drop.bad{border-style:solid; border-color:var(--bad)}
@@ -1115,10 +1118,6 @@ function lum(hex){
   const f = v => v<=.03928 ? v/12.92 : Math.pow((v+.055)/1.055,2.4);
   return .2126*f(r)+.7152*f(g)+.0722*f(b);
 }
-function rgba(hex,a){
-  const m=hex.replace('#',''); const n=m.length===3?m.split('').map(c=>c+c).join(''):m;
-  return 'rgba('+parseInt(n.slice(0,2),16)+','+parseInt(n.slice(2,4),16)+','+parseInt(n.slice(4,6),16)+','+a+')';
-}
 /* what the banner calls the current view */
 function viewLabel(){
   const v = viewOrgs();
@@ -1134,10 +1133,9 @@ function applyBrand(){
   const b = org ? brandFor(cat, org)
                 : {color:'#3F4C7A', mono:(v.length>1 ? String(v.length) : 'ALL'), logo:null};
   const r = document.documentElement.style;
-  r.setProperty('--accent', b.color);
-  r.setProperty('--accent-soft', rgba(b.color,.13));
-  r.setProperty('--accent-line', rgba(b.color,.40));
-  r.setProperty('--on-accent', lum(b.color)>0.55 ? '#12191C' : '#FFFFFF');
+  /* their colour, on their badge and their band — never on our chrome */
+  r.setProperty('--org', b.color);
+  r.setProperty('--on-org', lum(b.color)>0.55 ? '#12191C' : '#FFFFFF');
   const badge = $('badge');
   badge.style.background = b.color;
   badge.innerHTML = b.logo ? '<img src="'+esc(b.logo)+'" alt="">' : esc(b.mono||initials(org));
