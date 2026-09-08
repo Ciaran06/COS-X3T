@@ -86,11 +86,16 @@
   .sync{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--header-ink-2); white-space:nowrap}
   .sync .led{width:7px; height:7px; border-radius:50%; background:var(--header-ink-2)}
   .sync.on .led{background:var(--ok-hdr)} .sync.queued .led{background:var(--warn-hdr)}
+  .ktbox{margin:0 0 12px; font-size:12.5px; color:var(--ink-2)}
+  .ktbox .kts{display:flex; flex-wrap:wrap; gap:5px; margin-top:7px}
+  .ktbox .kt{padding:2px 7px; border-radius:999px; background:var(--accent-soft); border:1px solid var(--accent-line); font-size:11.5px}
+  .ktbox .kt.cmd{background:var(--surface-2); border-color:var(--line); color:var(--ink-3)}
   .vstat{display:flex; gap:18px; flex-wrap:wrap; padding:0 0 10px; font-size:13px; color:var(--ink-2)}
   .vstat b{color:var(--ink)}
   table.vlog{width:100%; border-collapse:collapse; font-size:12.5px}
   table.vlog td{padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top}
-  table.vlog .eng{width:30px; color:var(--ink-3); font-weight:700; font-size:10.5px; letter-spacing:.04em}
+  table.vlog .eng{width:34px; color:var(--ink-3); font-weight:700; font-size:10.5px; letter-spacing:.04em}
+  table.vlog .eng .sp2{font-weight:600; opacity:.7}
   table.vlog .what{width:38%; color:var(--ink-3); text-align:right}
   table.vlog tr.miss td{background:var(--bad-soft)}
   table.vlog tr.miss .what b{color:var(--bad); font-weight:600}
@@ -100,6 +105,8 @@
     font:600 11.5px/1 inherit; cursor:pointer; white-space:nowrap; max-width:100%}
   .engchip .eled{width:7px; height:7px; border-radius:50%; background:var(--ink-3); flex:0 0 auto}
   .engchip.el .eled{background:var(--ok)}
+  .engchip.warn .eled{background:#D98A00}
+  .engchip.warn{border-color:#E9C87A}
   .engchip .ewhy{font-weight:500; opacity:.75; overflow:hidden; text-overflow:ellipsis}
   @media (max-width:560px){ .sync{display:none} .tabs button{padding:6px 9px; font-size:12.5px} .rolechip{padding:5px 8px} .mark .nm small{display:none} }
   /* four tabs need the room on a narrow phone — the mic square still carries the brand */
@@ -166,7 +173,17 @@
   .spot[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
   .spot.add{border-style:dashed; color:var(--ink-3)}
 
-  .micwrap{position:relative; width:150px; height:150px; margin:2px auto 0; display:grid; place-items:center}
+  .micwrap{position:relative; width:100%; margin:2px auto 0; display:flex; align-items:center; justify-content:center; gap:14px}
+  .micstack{position:relative; width:150px; height:150px; display:grid; place-items:center; flex:none}
+  .pausebtn{flex:none; width:82px; height:82px; border-radius:22px; border:1px solid var(--line);
+    background:var(--surface); color:var(--ink-2); display:grid; place-items:center; gap:3px;
+    font:700 11px/1 inherit; letter-spacing:.06em; text-transform:uppercase; box-shadow:var(--lift)}
+  .pausebtn .pico{width:26px; height:26px; fill:currentColor}
+  .pausebtn.on{background:var(--brand); border-color:var(--brand); color:#fff}
+  .pausebtn:active{transform:translateY(1px)}
+  .mic[data-turn="thinking"]{opacity:.72}
+  .mic[data-turn="speaking"]{opacity:.72}
+  @media (max-width:400px){ .pausebtn{width:70px; height:70px; border-radius:19px} }
   .ring{position:absolute; inset:0; border-radius:50%; border:2px solid var(--accent-line); transform:scale(var(--lvl,1)); transition:transform .09s linear; opacity:.75}
   .mic{width:124px; height:124px; border-radius:50%; border:0; background:var(--accent); color:var(--on-accent); display:grid; place-items:center; position:relative;
     box-shadow:0 12px 34px -14px var(--accent-line); transition:transform .12s ease}
@@ -563,6 +580,7 @@
     <div class="card stage" id="stage">
       <div class="spots" id="spots"></div>
       <div class="micwrap">
+        <div class="micstack">
         <span class="ring" id="ring"></span>
         <button class="mic" id="mic" data-live="0" aria-label="Start counting by voice">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -570,6 +588,11 @@
             <path d="M5.5 11a6.5 6.5 0 0 0 13 0"></path><path d="M12 17.5V21"></path>
           </svg>
           <span class="lbl" id="micLbl">Tap to talk</span>
+        </button>
+        </div>
+        <button class="pausebtn" id="pauseBtn" aria-pressed="false" aria-label="Pause listening">
+          <svg class="pico" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5" width="3.5" height="14" rx="1.2"/><rect x="13.5" y="5" width="3.5" height="14" rx="1.2"/></svg>
+          <span class="plbl">Pause</span>
         </button>
       </div>
       <div class="engwrap"><button type="button" class="engchip" id="engChip" title="Which speech engine is running — tap to change it"><span class="eled"></span><span class="ewho">Voice: Browser</span></button></div>
@@ -714,6 +737,7 @@
 
     <div class="panel">
       <header><h2>What the app heard</h2><span class="hint">every spoken line, the engine that heard it, and whether it landed</span></header>
+      <div id="ktBox" class="ktbox"></div>
       <div id="vlogBox"></div>
       <div class="bar">
         <span class="sp">Count the same lines on each engine and compare the two rates. A line marked in red was heard but could not be used.</span>
@@ -1324,22 +1348,55 @@ function distinguishers(list){
     return {c, words, nums, all:mine};
   });
 }
-function matchItemAll(cat, words){
-  const q = words.map(w=>numCanon(sing(w))).filter(w=>w.length>2 || /^\d+$/.test(w));
-  if(!q.length) return [];
-  const per=new Map();
-  for(const it of items(cat)) for(const c of candStrings(it)){
-    const ct = c.split(' ').map(t=>numCanon(sing(t)));
-    const hits = q.filter(t=>ct.includes(t)).length;
-    const score = hits*20 + (ct.join(' ')===q.join(' ')?50:0);
-    const cur=per.get(it.code);
-    if(score>=20 && (!cur||score>cur.score)) per.set(it.code,{it, score, len:1, start:0, fromAlias:false, coverage:0.4});
-  }
-  const list=[...per.values()].sort((a,b)=>b.score-a.score);
-  if(!list.length) return [];
-  return list.filter(x=>x.score===list[0].score);
+/* Words that identify nothing on their own. A quantity is not evidence of an
+   item, and neither is the unit: "350 each" told us how many, not of what. */
+/* the scaffolding a spoken number is built from — "three hundred and fifty" is
+   a quantity, and "hundred" and "and" must never be evidence of an item.
+   A manhole cover and frame was being reached through the word "and". */
+const NUMWORD = new Set(['hundred','thousand','million','billion','and','dozen','half',
+                         'quarter','point','oh','nil','zero','nought','couple','few']);
+function identifying(words){
+  return words.filter(w=> w && !isNumTok(w) && !NUMWORD.has(w))
+    .map(w=>numCanon(sing(w)))
+    .filter(w=> w && w.length>1 && !NUMWORD.has(w) && !FILLER.includes(w) && !unitOf(w) && !/^\d+$/.test(w));
 }
-function matchItem(cat, words){ const l=matchItemAll(cat,words); return l.length? l[0].it : null; }
+/* How well an item explains what was actually said.
+   The old rule scored one matching token at 20 and accepted anything ≥20, so a
+   single incidental word bound a line: "350 ml pole bolt" became 350 poles on
+   the strength of "pole", and "nine m hole 350 each" reached an MDU Fibre
+   Retraction Tool because the word "each" appears in its description. Both are
+   below the bar now and both ask instead. */
+const MATCH_BAR = 0.55;        /* under this, it asks rather than guesses */
+const MATCH_TIE = 0.10;        /* two candidates this close is not a decision */
+function matchItemAll(cat, words){
+  const q = identifying(words);
+  if(!q.length) return [];                   /* never on the number alone */
+  const out = [];
+  for(const it of items(cat)){
+    const als = aliasSet(it);
+    let best = null;
+    for(const c of candStrings(it)){
+      const ct = c.split(' ').map(t=>numCanon(sing(t))).filter(Boolean);
+      const set = new Set(ct);
+      const hits = q.filter(t=>set.has(t));
+      if(!hits.length) continue;
+      const own = ct.filter(t=>!FILLER.includes(t)).length || 1;
+      /* mostly: how much of what they said this item accounts for.
+         partly: how much of the item's own name they got through. */
+      const said = hits.length / q.length;
+      const name = Math.min(1, hits.length / own);
+      const conf = said*0.75 + name*0.25;
+      if(!best || conf>best.conf) best = {it, conf, hits:hits.length, words:hits,
+                                          fromAlias:als.has(c), len:hits.length, start:0, coverage:name};
+    }
+    if(best) out.push(best);
+  }
+  return out.sort((a,b)=>b.conf-a.conf);
+}
+function matchItem(cat, words){
+  const l = matchItemAll(cat,words);
+  return (l.length && l[0].conf>=MATCH_BAR && !(l[1] && l[0].conf-l[1].conf<MATCH_TIE)) ? l[0].it : null;
+}
 function placeFromWords(t, cat, org){
   let best=null, bl=0;
   const list = (cat!=null) ? placeTypes(cat, org) : BASE_PLACES;
@@ -1357,6 +1414,7 @@ function parse(text, cat){
   const t = norm(text);
   if(!t) return {kind:'none'};
 
+  if(/^(pause|hang on|hold on|hold up|wait)\b/.test(t)) return {kind:'pause'};
   if(/^(undo|scratch that|delete that|remove that|cancel that|take that off)\b/.test(t)) return {kind:'undo'};
   if(/^(total|totals|what.?s the total|read the total|give me the total|read it back)\b/.test(t)) return {kind:'total'};
 
@@ -1451,14 +1509,36 @@ function parse(text, cat){
     chosen = unitIdx>=0 ? (runs.filter(r=>r.e<unitIdx).pop() || runs[0]) : runs[runs.length-1];
     qty = wordsToNum(trimNum(rest.slice(chosen.s,chosen.e+1).filter(x=>x!=='and')));
   }
+  /* everything they said that was not the number and not the unit */
+  const leftover = rest.filter((x,i)=> !(chosen && i>=chosen.s && i<=chosen.e) && i!==unitIdx && !FILLER.includes(x));
+  /* Scored against the whole utterance, not the words left over after an exact
+     phrase was lifted out of it — the item has to account for everything they
+     said about the item, not just the bit it happened to match. */
+  const ranked = matchItemAll(cat, toks);
   if(!hit){
-    const leftover = rest.filter((x,i)=> !(chosen && i>=chosen.s && i<=chosen.e) && i!==unitIdx && !FILLER.includes(x));
-    const loose = matchItemAll(cat, leftover);
-    if(loose.length>1 && qty!=null) return {kind:'choose', options:loose.slice(0,5), qty, unit, drumId:null, said:t};
-    if(loose.length) { hit=loose[0]; all=loose; }
-    else return qty!=null ? {kind:'noitem', text:t, qty, unit, said:leftover.join(' ')} : {kind:'unclear', text:t};
+    if(!ranked.length) return qty!=null ? {kind:'noitem', text:t, qty, unit, said:leftover.join(' ')} : {kind:'unclear', text:t};
+    if(qty==null) return {kind:'unclear', text:t};
+    hit = ranked[0]; all = [ranked[0]];
   }
   if(qty==null) return {kind:'unclear', text:t};
+
+  /* The bar, applied whichever way the item was found. An exact phrase or an
+     alias used to walk straight past this, which is how "350 ml pole bolt"
+     became 350 poles on the strength of the one word "pole" while "ml" and
+     "bolt" went unexplained. If the item does not account for most of what was
+     said, we ask — we never guess. */
+  {
+    const mine = ranked.find(c=>c.it.code===hit.it.code);
+    const conf = mine ? mine.conf : 0;
+    const rival = ranked.find(c=>c.it.code!==hit.it.code);
+    const weak = conf < MATCH_BAR;
+    const tied = rival && Math.abs(conf-rival.conf) < MATCH_TIE;
+    if(weak || tied){
+      const opts = (mine ? [mine] : [{it:hit.it, conf, len:1, start:0, fromAlias:!!hit.fromAlias, coverage:conf}])
+        .concat(ranked.filter(c=>c.it.code!==hit.it.code)).slice(0,3);
+      return {kind:'choose', options:opts, qty, unit, drumId:null, said:t, weak};
+    }
+  }
 
   const it = hit.it;
   const full = rest.includes('full');
@@ -1787,10 +1867,13 @@ function setEngine(stt, tts, note){
 /* the counter should never have to guess which engine is running */
 function renderEngineChip(){
   const el = VOICE.stt === 'eleven';
-  const who = 'Voice: ' + (el ? 'ElevenLabs' : 'Browser');
+  /* green only when ElevenLabs is doing both jobs and nothing has fallen back
+     this session. Anything less is amber, with the reason on the chip. */
+  const amber = el && (VOICE.tts !== 'eleven' || VOICE.degraded);
+  const who = 'Voice: ' + (el ? (VOICE.tts==='eleven' ? 'ElevenLabs' : 'ElevenLabs ear, browser voice') : 'Browser');
   ['engChip','engChip2'].forEach(id=>{
     const b = $(id); if(!b) return;
-    b.className = 'engchip' + (el ? ' el' : '');
+    b.className = 'engchip' + (amber ? ' warn' : el ? ' el' : '');
     b.innerHTML = '<span class="eled"></span><span class="ewho">'+esc(who)+'</span>'
       + (VOICE.note ? '<span class="ewhy">— '+esc(VOICE.note)+'</span>' : '');
   });
@@ -1806,6 +1889,7 @@ async function probeVoice(quiet){
     const d = await r.json();
     if(!d.key){ setEngine('browser','browser','proxy has no API key'); VOICE.probed=true; return VOICE; }
     if(d.authed === false){ setEngine('browser','browser','proxy rejected the app token'); VOICE.probed=true; return VOICE; }
+    VOICE.degraded = false;
     setEngine('eleven','eleven', d.guarded ? '' : 'proxy is unguarded — set APP_TOKEN');
   }catch(e){
     setEngine('browser','browser','proxy unreachable');
@@ -1914,10 +1998,24 @@ function logHeard(text){
   const o = outcomeOf(text);
   const L = vlog();
   L.push({t:Date.now(), eng:(VOICE.stt==='eleven'?'el':'br'), text:String(text).slice(0,180),
-          ok:o.ok, what:o.what, mode:REVIEW.active?'review':'count'});
+          ok:o.ok, what:o.what, mode:REVIEW.active?'review':'count', spoke:LASTSPOKE});
   while(L.length>VLOG_MAX) L.shift();
   save();
   renderVlog();
+}
+function renderKeyterms(){
+  const box = $('ktBox'); if(!box) return;
+  const sent = VOICE.terms;
+  const now = keytermsFor();
+  const list = sent || now;
+  const head = sent
+    ? '<b>'+sent.length+' keyterms</b> went up with the last listening session'
+      + (VOICE.sentAt? ' at '+new Date(VOICE.sentAt).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}) : '')+'.'
+    : '<b>Nothing sent yet.</b> These '+now.length+' would go up next time — ElevenLabs takes at most '
+      + KEYTERM_MAX + ' of ' + KEYTERM_CHARS + ' characters.';
+  box.innerHTML = head + '<div class="kts">'
+    + list.map(t=>'<span class="kt'+(CMD_TERMS.includes(t)?' cmd':'')+'">'+esc(t)+'</span>').join('')
+    + '</div>';
 }
 function vlogStats(){
   const L = vlog(), out = {el:{n:0,ok:0}, br:{n:0,ok:0}};
@@ -1925,21 +2023,26 @@ function vlogStats(){
   return out;
 }
 function pct(a,b){ return b ? Math.round(a/b*100)+'%' : '—'; }
+/* Proof, on the phone, that the boosted vocabulary is really going up with the
+   session — the question "are keyterms actually being sent?" answered on device. */
 function renderVlog(){
+  renderKeyterms();
   const box = $('vlogBox'); if(!box) return;
   const L = vlog().slice(-25).reverse(), st = vlogStats();
   const head = '<div class="vstat"><span><b>ElevenLabs</b> '+pct(st.el.ok,st.el.n)+' of '+st.el.n+'</span>'
     + '<span><b>Browser</b> '+pct(st.br.ok,st.br.n)+' of '+st.br.n+'</span></div>';
   if(!L.length){ box.innerHTML = head + '<p class="note">Nothing heard yet. Speak a few lines, then come back — each one lands here with the engine that heard it.</p>'; return; }
   box.innerHTML = head + '<div class="scroll"><table class="vlog"><tbody>' + L.map(e=>
-      '<tr class="'+(e.ok?'':'miss')+'"><td class="eng">'+(e.eng==='el'?'EL':'Br')+'</td>'
+      '<tr class="'+(e.ok?'':'miss')+'"><td class="eng">'+(e.eng==='el'?'EL':'Br')
+      + (e.spoke? '<br><span class="sp2">'+(e.spoke==='el'?'\u25b8EL':'\u25b8Br')+'</span>' : '')+'</td>'
     + '<td>'+esc(e.text)+'</td>'
     + '<td class="what">'+(e.ok? esc(e.what) : '<b>'+esc(e.what)+'</b>')+'</td></tr>').join('')
     + '</tbody></table></div>';
 }
 function vlogCsv(){
-  const rows = [['when','engine','mode','heard','understood','result']].concat(
-    vlog().map(e=>[new Date(e.t).toISOString(), e.eng==='el'?'ElevenLabs':'Browser', e.mode,
+  const rows = [['when','heard by','readback spoken by','mode','heard','understood','result']].concat(
+    vlog().map(e=>[new Date(e.t).toISOString(), e.eng==='el'?'ElevenLabs':'Browser',
+                   e.spoke==='el'?'ElevenLabs':e.spoke==='br'?'Browser':'\u2014', e.mode,
                    e.text, e.ok?'yes':'no', e.what]));
   return rows.map(r=>r.map(c=>{
     const v = String(c==null?'':c);
@@ -2010,10 +2113,83 @@ function stopPcm(){
   pcmNode=null; pcmSink=null; pcmCtx=null; pcmBuf=[]; pcmLen=0;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   Turn taking — half duplex, always.
+
+   The ear is open or the mouth is, never both. The old build listened
+   continuously, so a readback went out of the speaker and came back in the
+   microphone: one transcript read "9m hole 350 each confirmed no no 350 each"
+   — the counter's words, the app's own "confirmed", and the correction, all
+   run together into a single line. One utterance is one line now: listen,
+   close, think, speak, reopen.
+   ══════════════════════════════════════════════════════════════════════ */
+let TURN = 'shut';          /* shut · open · thinking · speaking */
+let PAUSED = false;
+let reopenTimer = null;
+
+function setTurn(t){ TURN = t; paintMic(); }
+function paintMic(){
+  const m = $('mic'); if(!m) return;
+  m.dataset.live = TURN==='open' ? '1' : '0';
+  m.dataset.turn = TURN;
+  const lbl = PAUSED ? 'Paused'
+    : TURN==='open' ? 'Listening'
+    : TURN==='thinking' ? 'One moment'
+    : TURN==='speaking' ? 'Reading back'
+    : wantListen ? 'Starting…' : 'Tap to talk';
+  $('micLbl').textContent = lbl;
+  const pb = $('pauseBtn');
+  if(pb){
+    pb.setAttribute('aria-pressed', PAUSED ? 'true' : 'false');
+    pb.classList.toggle('on', PAUSED);
+    pb.querySelector('.plbl').textContent = PAUSED ? 'Resume' : 'Pause';
+  }
+  syncSheetMic();
+}
+function setMic(on){ paintMic(); }
+
+/* open the ear — never while paused, never while we are still talking */
+function openEar(){
+  clearTimeout(reopenTimer);
+  if(PAUSED || !wantListen) return;
+  if(TURN==='open' || VOICE.busy) return;
+  setTurn('open');
+  if(VOICE.stt === 'eleven'){
+    elevenListen().catch(e=>{
+      const m = String(e && e.message || e);
+      voiceFellBack(/token 401/.test(m) ? 'proxy rejected the app token'
+        : /token/.test(m) ? 'proxy could not mint a token'
+        : /microphone/.test(m) ? 'no microphone'
+        : 'ElevenLabs unreachable');
+    });
+    return;
+  }
+  startBrowserListen();
+}
+function closeEar(){
+  clearTimeout(reopenTimer);
+  /* Say it is us before we do it. We shut the socket at the end of every single
+     turn, and the close handler could not tell that from the connection failing
+     — so one spoken line was enough to demote the whole session to the browser
+     engine, ear and voice. That is what "it still sounds robotic" was. */
+  if(TURN==='open') setTurn('shut');
+  VOICE.closing = true;
+  stopEleven();
+  VOICE.closing = false;
+  if(rec){ try{ rec.stop(); }catch(e){} }
+  listening = false;
+}
+/* a beat after we stop talking, so it feels like a conversation not a queue */
+function reopenSoon(ms){
+  clearTimeout(reopenTimer);
+  if(PAUSED || !wantListen) return;
+  reopenTimer = setTimeout(()=>{ if(!VOICE.busy) openEar(); else reopenSoon(200); }, ms||400);
+}
+
 /* ---------- what we do with what we heard, whichever engine heard it ---------- */
 function onHeardPartial(text){
-  if(!text) return;
-  if(VOICE.busy && isEcho(text)) return;
+  if(!text || PAUSED) return;
+  if(VOICE.busy) return;
   $('heard').innerHTML = '<b>'+esc(text)+'</b>';
 }
 /* The mic stays open while we speak, so we hear ourselves. Rather than going
@@ -2038,15 +2214,68 @@ function isEcho(text){
   const freeHit = free.filter(w=>bag.has(w)).length;
   return free.length ? freeHit/free.length >= 0.6 : hit/heard.length >= 0.6;
 }
+/* the words a counter uses to take something back — checked before the parser
+   ever sees them, so "no" can never be read as an item or a quantity */
+const NEG = /^(no+|no no|nope|nah|wrong|thats wrong|that is wrong|not that|not right|incorrect|scratch that|delete that)\b/;
+function isNegation(t){ return NEG.test(norm(t)); }
+const STOPW = /^(stop|wait|hang on|hold on|hold up|pause)\b/;
+
 function onHeardFinal(text){
-  if(!text) return;
-  if(VOICE.busy){
-    if(isEcho(text)) return;
-    bargeIn();                       /* they talked over us — we stop, they win */
-  }
+  if(!text || PAUSED) return;
+  /* the ear is shut while we speak, so this is belt and braces */
+  if(VOICE.busy || TURN==='speaking') return;
+  closeEar();
+  setTurn('thinking');
   logHeard(text);
+
+  const t = norm(text);
+  /* "stop", "wait", "hang on" — halt and hold, whatever was happening */
+  if(STOPW.test(t) && !PEND){ return pauseVoice(true); }
+  /* "no" straight after a readback takes that line back off the sheet */
+  if(!PEND && LASTLINE && isNegation(t)) return undoLastSpoken();
+
   if(REVIEW.active) reviewHeard(text);
   else handle(text);
+  /* if nothing spoke, nobody will reopen the ear for us */
+  if(!VOICE.busy) reopenSoon(250);
+}
+
+/* ---------- pause ----------
+   Tap, or say "pause": the microphone shuts and nothing is recorded until it
+   is tapped again. This is the counter putting the phone in their pocket. */
+function pauseVoice(spoken){
+  PAUSED = true;
+  clearTimeout(reopenTimer);
+  stopSpeaking();
+  closeEar();
+  setTurn('shut');
+  say('Paused', 'Nothing is being recorded. Tap Resume, or the mic, to carry on.');
+  paintMic();
+  speakThen('Paused.');                    /* the ear stays shut behind it */
+  return true;
+}
+function resumeVoice(){
+  PAUSED = false;
+  wantListen = true;
+  say('Listening', 'Go ahead — item, then how many.');
+  paintMic();
+  reopenSoon(150);
+}
+function togglePause(){ PAUSED ? resumeVoice() : pauseVoice(false); }
+
+/* ---------- taking a line back ---------- */
+let LASTLINE = null;      /* {id} of the line we just read back */
+function undoLastSpoken(){
+  const s = cur();
+  const i = s ? s.lines.findIndex(l=>l.id===LASTLINE) : -1;
+  LASTLINE = null;
+  if(i<0){ say('Nothing to take back','That line is already gone.',true); speakThen('Nothing to take back.'); return; }
+  const gone = s.lines.splice(i,1)[0];
+  save();
+  say('Deleted — '+gone.short, 'Say that line again.');
+  renderSpots(); renderTally(); refreshWhere(); renderRecent();
+  if(!$('v-sheet').classList.contains('hidden')) renderSheet();
+  speakThen('Deleted. Say it again.');
 }
 
 /* ---------- listening on ElevenLabs ---------- */
@@ -2064,7 +2293,9 @@ async function elevenListen(){
   const terms = keytermsFor();
   terms.forEach(t=>qs.append('keyterms', t));
   VOICE.terms = terms;
+  VOICE.sentAt = Date.now();
   VOICE.sig = keytermSig();
+  renderKeyterms();
   const ws = new WebSocket(EL_WS+'?'+qs.toString());
   elWs = ws;
   await new Promise((res,rej)=>{
@@ -2075,15 +2306,25 @@ async function elevenListen(){
   ws.onmessage = ev => {
     let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
     if(m.message_type==='partial_transcript' && m.text) onHeardPartial(m.text);
-    else if(m.message_type==='committed_transcript' && m.text && m.text.trim()) onHeardFinal(m.text.trim());
+    else if(m.message_type==='committed_transcript' && m.text && m.text.trim()){
+      /* VAD says they stopped talking — that is the end of the turn */
+      onHeardFinal(m.text.trim());
+    }
     else if(m.error || /error/i.test(m.message_type||'')) voiceFellBack('ElevenLabs: '+(m.error||m.message_type));
   };
-  ws.onclose = ()=>{ if(elWs===ws){ elWs=null; if(wantListen && VOICE.stt==='eleven' && !VOICE.retuning) voiceFellBack('connection dropped'); } };
+  ws.onclose = ()=>{
+    if(elWs!==ws) return;
+    elWs = null;
+    /* we close it ourselves at the end of every turn — only an unexpected
+       close, while the ear is meant to be open, is a real drop */
+    if(wantListen && !PAUSED && TURN==='open' && VOICE.stt==='eleven'
+       && !VOICE.retuning && !VOICE.closing) voiceFellBack('connection dropped');
+  };
   const ok = await startPcm(pcm=>{
     if(ws.readyState===1) ws.send(JSON.stringify({message_type:'input_audio_chunk', audio_base_64:pcmToB64(pcm), sample_rate:16000}));
   });
   if(!ok) throw new Error('no microphone');
-  listening = true; setMic(true);
+  listening = true; setTurn('open');
 }
 function stopEleven(){
   stopPcm();
@@ -2121,7 +2362,21 @@ function voiceFellBack(why){
 }
 
 /* ---------- speaking ---------- */
-let ttsAudio=null, speakFin=null;
+let ttsAudio=null, speakFin=null, audioPrimed=false;
+/* iOS refuses audio a page starts by itself; a silent play inside the tap that
+   starts listening buys the right to speak for the rest of the session. Without
+   this the ElevenLabs mp3 is refused and every readback falls to the browser
+   voice — which is exactly what "it still sounds robotic" means. */
+function primeAudio(){
+  if(audioPrimed) return;
+  try{
+    const a = new Audio('data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA');
+    a.volume = 0;
+    const pr = a.play();
+    if(pr && pr.then) pr.then(()=>{ audioPrimed = true; }).catch(()=>{});
+    else audioPrimed = true;
+  }catch(e){}
+}
 /* whoever is speaking parks its finisher here, so stopping settles the
    callback immediately instead of leaving it to a watchdog */
 function stopSpeaking(){
@@ -2131,6 +2386,7 @@ function stopSpeaking(){
   if(f) f();
 }
 function browserSpeak(text, cb){
+  LASTSPOKE = 'br';
   try{
     if(!window.speechSynthesis){ if(cb) cb(); return; }
     speechSynthesis.cancel();
@@ -2148,6 +2404,7 @@ function browserSpeak(text, cb){
   }catch(e){ if(cb) cb(); }
 }
 async function elevenSpeak(text, cb){
+  LASTSPOKE = 'el';
   const r = await proxyFetch('/tts', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({text})});
   if(!r.ok) throw new Error('tts '+r.status);
   const url = URL.createObjectURL(await r.blob());
@@ -2172,6 +2429,8 @@ async function elevenSpeak(text, cb){
 /* what we are saying right now, so we can recognise it coming back at us
    and so it can be cut short */
 let SPEAK = {text:'', cut:false};
+/* which engine actually made the last sound — not which one we hoped would */
+let LASTSPOKE = '';
 /* the counter spoke over the readback — stop talking and let the callback know
    not to carry on, because whatever they said supersedes it */
 function bargeIn(){
@@ -2183,6 +2442,8 @@ function bargeIn(){
 function speakThen(text, cb){
   if(!text){ if(cb) cb(false); return; }
   VOICE.busy = true;
+  closeEar();                 /* nothing we say can ever reach our own ear */
+  setTurn('speaking');
   const me = {text:String(text), cut:false};
   SPEAK = me;
   let fired = false;
@@ -2190,13 +2451,20 @@ function speakThen(text, cb){
     if(fired) return; fired = true;
     const cut = me.cut;
     if(SPEAK === me) SPEAK = {text:'', cut:false};
-    /* a short tail, because the last syllable is still in the air */
-    if(cut) VOICE.busy = false; else setTimeout(()=>{ VOICE.busy = false; }, 250);
+    VOICE.busy = false;
+    if(TURN==='speaking') setTurn('shut');
     if(cb) cb(cut);
+    reopenSoon(cut ? 120 : 350);        /* a beat, then the ear opens again */
   };
   if(VOICE.tts === 'eleven'){
-    elevenSpeak(text, done).catch(()=>{
-      setEngine('browser','browser','readback failed, using the browser voice');
+    elevenSpeak(text, done).catch(e=>{
+      /* the ear may be perfectly fine — only the voice failed. Say which. */
+      VOICE.degraded = true;
+      VOICE.tts = 'browser';
+      const why = (e && e.name==='NotAllowedError')
+        ? 'the phone blocked audio playback — tap the mic once to allow it'
+        : 'the readback call failed, using the browser voice';
+      setEngine(VOICE.stt, 'browser', why);
       browserSpeak(text, done);
     });
     return;
@@ -2206,12 +2474,11 @@ function speakThen(text, cb){
 function speak(text){ speakThen(text); }
 function syncSheetMic(){
   const b=$('sheetMic'); if(!b) return;
-  const on = listening || wantListen;
+  const on = wantListen && !PAUSED;
   b.textContent = on ? 'Stop dictating' : 'Dictate';
   b.className = on ? 'btn dark' : 'btn';
 }
-function setMic(on){ $('mic').dataset.live = on?'1':'0'; $('micLbl').textContent = on?'Listening':'Tap to talk'; syncSheetMic(); }
-
+let earStarted = 0, emptyTurns = 0;
 /* the browser's own recogniser — the floor, and the fallback */
 function startBrowserListen(){
   if(!SR){
@@ -2221,10 +2488,30 @@ function startBrowserListen(){
   startAudio();
   if(listening) return;
   rec = new SR();
-  rec.lang='en-IE'; rec.continuous=true; rec.interimResults=true;
-  rec.onstart = ()=>{ listening=true; setMic(true); };
-  rec.onerror = e=>{ if(e.error==='not-allowed'||e.error==='service-not-allowed'){ wantListen=false; say('Microphone blocked','Allow microphone access for this page, then tap the mic again.',true); } };
-  rec.onend = ()=>{ listening=false; setMic(false); if(wantListen){ try{ rec.start(); }catch(e){} } };
+  /* one utterance per session — continuous is what let a readback and a
+     correction run into the same transcript */
+  rec.lang='en-IE'; rec.continuous=false; rec.interimResults=true;
+  rec.onstart = ()=>{ listening=true; earStarted=Date.now(); emptyTurns=0; setTurn('open'); };
+  rec.onerror = e=>{ if(e.error==='not-allowed'||e.error==='service-not-allowed'){ wantListen=false; PAUSED=false; say('Microphone blocked','Allow microphone access for this page, then tap the mic again.',true); } };
+  rec.onend = ()=>{
+    listening=false;
+    if(TURN!=='open') return;
+    setTurn('shut');
+    /* A recogniser that ends the moment it opens has no speech service behind
+       it. Reopening on a timer would spin forever and flatten the battery, so
+       back off and then say so plainly. */
+    if(Date.now()-earStarted < 400){
+      if(++emptyTurns >= 4){
+        wantListen = false; emptyTurns = 0;
+        say('Voice is not working on this device','Speech recognition closed straight away every time. Use the typing box, or try Chrome on Android or Safari on iOS.',true);
+        paintMic();
+        return;
+      }
+      return reopenSoon(300*emptyTurns);
+    }
+    emptyTurns = 0;
+    reopenSoon(150);                                   /* heard nothing — go again */
+  };
   rec.onresult = ev=>{
     let interim='', final='';
     for(let i=ev.resultIndex;i<ev.results.length;i++){
@@ -2236,30 +2523,22 @@ function startBrowserListen(){
   };
   try{ rec.start(); }catch(e){}
 }
-/* one entry point. It picks the engine; if ElevenLabs will not start we say
-   why on the chip and carry on with the browser rather than stopping. */
+/* one entry point for the whole app. A tap here is also the gesture that
+   unlocks audio playback on iOS, which is why priming happens on the way in. */
 function startListen(){
   wantListen = true;
-  if(listening) return;
-  if(VOICE.stt === 'eleven'){
-    startAudio();
-    elevenListen().catch(e=>{
-      const m = String(e && e.message || e);
-      voiceFellBack(/token 401/.test(m) ? 'proxy rejected the app token'
-        : /token/.test(m) ? 'proxy could not mint a token'
-        : /microphone/.test(m) ? 'no microphone'
-        : 'ElevenLabs unreachable');
-    });
-    return;
-  }
-  startBrowserListen();
+  PAUSED = false;
+  primeAudio();
+  startAudio();
+  openEar();
 }
 function stopListen(){
-  wantListen=false;
-  if(rec){ try{ rec.stop(); }catch(e){} }
-  stopEleven();
-  listening=false;
-  stopAudio(); setMic(false);
+  wantListen = false;
+  PAUSED = false;
+  clearTimeout(reopenTimer);
+  closeEar();
+  stopAudio();
+  setTurn('shut');
 }
 
 /* ============================================================
@@ -2346,6 +2625,14 @@ function handle(text){
     askChoices(list);
 
     let q, spoken;
+    if(p.weak){
+      /* we did not really recognise it — do not pretend otherwise */
+      q = 'Which item?';
+      spoken = 'Which item? '+list.map((c,i)=>(i+1)+', '+c.label).join('. ')+'.';
+      say(q, 'I only caught part of that. Say the number, or say the item again.');
+      speak(spoken);
+      return;
+    }
     if(p.kind==='verify'){
       q = 'Did you mean '+list[0].label+'?';
       spoken = q+' Say yes, or say it again.';
@@ -2364,9 +2651,10 @@ function handle(text){
     return;
   }
 
-  if(p.kind==='undo') return doUndo();
-  if(p.kind==='total') return doTotal();
-  if(p.kind==='finish') return doFinish();
+  if(p.kind==='pause') return pauseVoice(true);
+  if(p.kind==='undo'){ LASTLINE=null; return doUndo(); }
+  if(p.kind==='total'){ LASTLINE=null; return doTotal(); }
+  if(p.kind==='finish'){ LASTLINE=null; return doFinish(); }
 
   if(p.kind==='place'){
     const org = $('fOrg').value;
@@ -2445,9 +2733,10 @@ function writeLine(it, qty, unit, drumId, text){
   l2 += SPOT+' now holds '+fmt(spotBase)+' '+plural(it.unit,spotBase)+' of '+it.short+'.';
   say(l1,l2);
 
-  let spoken = it.short+', '+fmt(p.qty)+' '+plural(p.unit,p.qty)+(p.drumId? ', drum '+p.drumId.split('').join(' '):'')+', confirmed. ';
-  if(base!==p.qty) spoken += 'That is '+fmt(base)+' '+plural(it.unit,base)+'. ';
-  spoken += SPOT+' total, '+fmt(spotBase)+' '+plural(it.unit,spotBase)+'.';
+  /* short: item, then number, then unit — the screen carries the rest */
+  let spoken = it.short+'. '+fmt(p.qty)+' '+plural(p.unit,p.qty)
+             + (p.drumId? ', drum '+p.drumId.split('').join(' ') : '') + '.';
+  LASTLINE = line.id;                 /* "no" now takes this one back */
   speak(spoken);
 
   renderSpots(); renderTally(); refreshWhere();
@@ -5531,7 +5820,20 @@ $('locSearch').oninput = e=>{ LOC_Q = e.target.value; renderJobLocs(); };
 $('fVan').oninput = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; openPick(); refreshWhere(); };
 $('fRec').onchange = ()=>{ if(!audioOn()){ if(recorder&&recorder.state==='recording'){ clipTarget=null; try{recorder.stop();}catch(e){} } recorder=null; } else if(wantListen) armRecorder(); };
 
-$('mic').onclick = ()=>{ if(wantListen||listening) stopListen(); else { $('setup').classList.add('hidden'); startListen(); } };
+$('mic').onclick = ()=>{
+  primeAudio();
+  /* mid-readback, a tap is "stop talking and listen to me" */
+  if(VOICE.busy){ bargeIn(); reopenSoon(80); return; }
+  if(PAUSED) return resumeVoice();
+  if(wantListen) return stopListen();
+  $('setup').classList.add('hidden');
+  startListen();
+};
+$('pauseBtn').onclick = ()=>{
+  primeAudio();
+  if(!wantListen && !PAUSED){ $('setup').classList.add('hidden'); return startListen(); }
+  togglePause();
+};
 $('typeGo').onclick = ()=>{ const v=$('typeIn').value.trim(); if(v){ handle(v); $('typeIn').value=''; } };
 $('typeIn').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('typeGo').click(); } });
 $('aUndo').onclick=doUndo;

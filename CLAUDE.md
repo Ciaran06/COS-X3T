@@ -58,21 +58,58 @@ treat it as a specification of behaviour that must survive a rewrite.
     exactly when it would, and `retuneListening()` reconnects on that, debounced and never
     mid-sentence: a handful of reconnects per sheet, never one per row. A reconnect sets
     `VOICE.retuning` so the close is not mistaken for a dropped connection.
-  - **Barge-in.** The mic stays open while the app speaks, so it hears itself. Rather than going
-    deaf for the length of every readback — which is what makes a hands-free app feel slow —
-    `isEcho()` decides whether what came back is our own voice or the counter's, on word overlap
-    with what is currently being said. A one- or two-word utterance is a command unless every
-    word was in that sentence. Anything that is not an echo stops the readback dead and is acted
-    on, and the readback's callback is told it was cut short so the walk is never advanced from
-    under someone who has just spoken.
+  - **Half duplex, always. One utterance, one line.** The ear is open or the mouth is, never
+    both — `TURN` is `shut · open · thinking · speaking` and `openEar()`/`closeEar()` are the only
+    ways through it. Listening continuously is what let a readback out of the speaker and back in
+    the microphone: a real transcript read *"9m hole 350 each confirmed no no 350 each"* — the
+    counter's words, the app's own "confirmed", and the correction, all one line. So: listen,
+    close on the end of the utterance (VAD commit on ElevenLabs, `continuous=false` on the
+    browser), think, speak, then reopen after a beat. `speakThen()` closes the ear before it makes
+    a sound and reopens it when the sound stops. Nothing else may open a recogniser.
+  - **Never let the app's own close look like a failure.** `closeEar()` sets `VOICE.closing`
+    because it shuts the socket at the end of *every* turn; without that flag the close handler
+    read it as a dropped connection and demoted the session to the browser engine after the first
+    spoken line — ear and voice both. That is what "it still sounds like the robotic browser
+    voice" was. The same trap exists for `VOICE.retuning`.
+  - **Interrupting.** With the ear shut there is no microphone barge-in; tapping the mic during a
+    readback stops it and listens instead. Readbacks are kept to *item, number, unit* so there is
+    little to talk over.
+  - **Stop words and taking a line back.** `"pause" / "wait" / "hang on" / "stop"` halt everything
+    and hold. `"no" / "no no" / "wrong"` **straight after a readback** deletes that line
+    (`LASTLINE`) and re-listens. Both are matched in `onHeardFinal()` *before* the parser sees the
+    words, so a correction can never be read as an item or a quantity, and each is its own
+    utterance in the log rather than being appended to the previous one.
+  - **Pause is a real control.** A thumb-sized button beside the mic, and the spoken word does the
+    same thing. While paused the microphone is shut and `onHeardFinal()` drops everything: nothing
+    is recorded until it is tapped again.
+  - **Audio has to be unlocked by a tap.** iOS refuses audio a page starts by itself, which sends
+    every ElevenLabs readback to the browser voice. `primeAudio()` plays a silent clip inside the
+    tap that starts listening. Keep it on every entry point.
   - **What the app heard.** Every final transcript is logged to `S.vlog` with the engine that
-    heard it and whether the parser could use it, classified by re-running the pure parser
-    (`outcomeOf()`). Data → *What the app heard* shows the hit rate per engine and exports CSV.
-    A field trial has to produce a number, not a feeling. Typed input is never logged — it is
-    not something the ear produced, and counting it would flatter the rate.
+    heard it, **the engine that spoke the readback** (`LASTSPOKE` — the two are not always the
+    same, and only the second one tells you why it sounds robotic), and whether the parser could
+    use it, classified by re-running the pure parser (`outcomeOf()`). Data → *What the app heard*
+    shows the hit rate per engine and exports CSV. A field trial has to produce a number, not a
+    feeling. Typed input is never logged — it is not something the ear produced, and counting it
+    would flatter the rate.
+  - **The chip never flatters.** Green only when ElevenLabs is doing both jobs and nothing has
+    fallen back this session; **amber** the moment the voice drops to the browser while the ear
+    stays on ElevenLabs, with the reason on the chip. `VOICE.degraded` latches until the next
+    successful probe. Data → *Voice engine* also lists the keyterms actually sent with the last
+    session, so "are they really going up?" is answerable on the phone.
 - **Parsing** (`parse()`): number words including "and" ("one thousand two hundred and fifty"),
   pack-size conversion, drum IDs with part lengths, Irish and UK registration plates spoken as
   digits and letters, shelf codes, location commands, undo/total/finish.
+- **Never guess an item.** A match has to explain most of what was said. `identifying()` throws
+  away the quantity, the number's own scaffolding (*hundred*, *and*), the unit and the filler, and
+  what is left is scored by `matchItemAll()` against the whole utterance: mostly how much of what
+  they said the item accounts for, partly how much of the item's own name they got through. Under
+  `MATCH_BAR` (0.55), or within `MATCH_TIE` of the runner-up, it asks **"Which item?"** and shows
+  the three closest rather than recording anything. The bar applies however the item was found —
+  an exact phrase or an alias used to walk straight past it, which is how *"350 ml pole bolt"*
+  became 350 poles on the strength of the one word "pole", and how *"nine m hole 350 each"*
+  reached an MDU Fibre Retraction Tool because the word "each" appears in its description. Never
+  match on the number alone: with no identifying words there is no candidate list at all.
 - **Disambiguation.** When a phrase matches more than one item, it asks — out loud and on screen —
   and works the question out by diffing the candidates' descriptions. *"four hundred coach screws"*
   against two SAP codes produces "Which one — 360 or 500?"; *"twelve fibre"* against UG and OH
