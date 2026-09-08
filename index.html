@@ -1725,6 +1725,7 @@ function matchLoc(cat, org, label){
   return {none:false, exact:null, near:scored.slice(0,4).map(x=>x.l)};
 }
 function setLoc(name, quiet){
+  /* announced below once it has actually taken */
   const cat = $('fCat').value, org = $('fOrg').value;
   const l = locByName(cat, org, name);
   LOC = l ? l.name : '';
@@ -1734,6 +1735,7 @@ function setLoc(name, quiet){
   renderLocField();
   syncStartable();
   if(!quiet) refreshWhere();
+  if(l) agentContext('Location is now '+l.name+(l.da? ', served from '+l.da : '')+'.');
   return !!l;
 }
 function addPlace(cat, label, type, org){
@@ -2387,7 +2389,15 @@ async function startAgent(){
       conversationToken: token,
       connectionType: 'webrtc',
       clientTools: AGENT_TOOLS,
-      onConnect: ()=>{ AGENT.on = true; setTurn('open'); paintMic(); agentLog('session','Session started.'); },
+      onConnect: ()=>{
+        AGENT.on = true; setTurn('open'); paintMic();
+        agentLog('session','Session started.');
+        const s = cur();
+        agentContext('Counting for ' + ($('fOrg').value || 'no contractor')
+          + (LOC? ' at ' + LOC : '') + '. Container: ' + (s? s.container : containerLabel())
+          + '. Spot: ' + (SPOT||'not set') + '. '
+          + (REVIEW.active ? 'Review mode is running — walk the sheet.' : 'Normal counting.'));
+      },
       onDisconnect: d=>{ agentLog('session','Session ended.'+(d&&d.reason? ' '+d.reason : ''));
                          AGENT.on=false; AGENT.conv=null; setTurn('shut'); paintMic(); },
       onMessage: m=>{
@@ -2404,6 +2414,21 @@ async function startAgent(){
     AGENT.starting = false; AGENT.on = false; AGENT.conv = null;
     throw e;
   }
+}
+/* Tell the agent something it could not have heard — that a review has started,
+   that the location changed. It is context, not a turn: the agent does not
+   answer it, it just knows. */
+function agentContext(text){
+  if(!AGENT.on || !AGENT.conv || !text) return false;
+  try{ AGENT.conv.sendContextualUpdate(String(text)); agentLog('context', text); return true; }
+  catch(e){ return false; }
+}
+/* the typed box drives the same agent, so an automated run exercises the real
+   tools rather than a parallel path */
+function agentSay(text){
+  if(!AGENT.on || !AGENT.conv || !text) return false;
+  try{ AGENT.conv.sendUserMessage(String(text)); return true; }
+  catch(e){ return false; }
 }
 async function stopAgent(){
   const c = AGENT.conv;
@@ -5662,6 +5687,7 @@ function reviewStart(mode, resume){
   };
   save();
   REVIEW.active = true; REVIEW.pending = null;
+  agentContext('Review has started. Walk the sheet with next_line — say the short name and the current number, then wait.');
   const w = reviewWalk();
   if(!w.length){
     REVIEW.active = false;
@@ -5698,17 +5724,24 @@ function reviewMove(step){
   r.idx = next; save();
   reviewSpeakCurrent();
 }
+/* leaving a walk stops our own recogniser, but never ends the agent's
+   conversation — the counter is still standing there and may carry on */
+function endWalkListening(){
+  if(AGENT.on) return;
+  stopListen();
+}
 function reviewPause(){
   REVIEW.active = false; REVIEW.pending = null;
   stopSpeaking();
-  stopListen();
+  endWalkListening();
   REVIEW.line = 'Paused. Resume picks up at row '+((reviewSaved()||{idx:0}).idx+1)+'.';
   renderReview(); renderSheet();
 }
 function reviewStop(){
+  if(REVIEW.active) agentContext('Review has stopped. Back to normal counting.');
   REVIEW.active = false;
   stopSpeaking();
-  stopListen();
+  endWalkListening();
   S.review = null; save();
   REVIEW.line = '';
   renderReview(); renderSheet();

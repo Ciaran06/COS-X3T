@@ -48,6 +48,14 @@ treat it as a specification of behaviour that must survive a rewrite.
     candidates with a confidence, `record_count` refuses an unknown code or a non-numeric quantity,
     and the unit conversion happens here. Every tool goes through `tool()`, which logs the call,
     its arguments and its result with a timestamp into *What the app heard*.
+  - **The agent is told what it could not have heard.** `agentContext()` wraps the SDK's
+    contextual update: which contractor and location the count is under when the session opens,
+    that a review has started or stopped, that the location changed. It is context, not a turn —
+    the agent does not answer it. `agentSay()` pushes text in as a user turn, which is how the
+    typed box drives the real tools in an automated run rather than a parallel path.
+  - **Ending a walk is not hanging up.** `endWalkListening()` stops our own recogniser but leaves
+    an agent conversation running: the counter is still standing there and may carry on counting.
+    Only `stopListen()` ends a session.
   - **While the agent runs it owns the voice and the microphone.** `speakThen()` returns silently
     and `openEar()` refuses to open. Anything that speaks or listens must respect `AGENT.on`.
 - **Voice capture, the fallback engines.** **ElevenLabs** is the good ear: Scribe v2 Realtime over a
