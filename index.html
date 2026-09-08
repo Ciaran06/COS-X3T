@@ -83,6 +83,14 @@
   .sync{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--header-ink-2); white-space:nowrap}
   .sync .led{width:7px; height:7px; border-radius:50%; background:var(--header-ink-2)}
   .sync.on .led{background:var(--ok)} .sync.queued .led{background:var(--accent)}
+  .vstat{display:flex; gap:18px; flex-wrap:wrap; padding:0 0 10px; font-size:13px; color:var(--ink-2)}
+  .vstat b{color:var(--ink)}
+  table.vlog{width:100%; border-collapse:collapse; font-size:12.5px}
+  table.vlog td{padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top}
+  table.vlog .eng{width:30px; color:var(--ink-3); font-weight:700; font-size:10.5px; letter-spacing:.04em}
+  table.vlog .what{width:38%; color:var(--ink-3); text-align:right}
+  table.vlog tr.miss td{background:var(--bad-soft)}
+  table.vlog tr.miss .what b{color:var(--bad); font-weight:600}
   .engwrap{display:flex; justify-content:center; margin:8px 0 0}
   .engchip{display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:999px;
     border:1px solid var(--line); background:var(--card); color:var(--ink-2);
@@ -698,6 +706,16 @@
         <span class="sp" id="vNote">The API key is never held in this page. It lives in the proxy — see proxy/README.md for the ten-minute setup.</span>
         <button class="btn" id="vTest">Test connection</button>
         <button class="btn dark" id="vSave">Save</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <header><h2>What the app heard</h2><span class="hint">every spoken line, the engine that heard it, and whether it landed</span></header>
+      <div id="vlogBox"></div>
+      <div class="bar">
+        <span class="sp">Count the same lines on each engine and compare the two rates. A line marked in red was heard but could not be used.</span>
+        <button class="btn" id="vlogClear">Clear</button>
+        <button class="btn" id="vlogExport">Export CSV</button>
       </div>
     </div>
 
@@ -1747,7 +1765,11 @@ const EL_WS = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
 const EL_MODEL = 'scribe_v2_realtime';
 /* the realtime API takes at most 50 keyterms of 20 characters each */
 const KEYTERM_MAX = 50, KEYTERM_CHARS = 20;
-const CMD_TERMS = ['yes','next','skip','zero','back','pause','stop'];
+/* Only words the parsers actually act on. Boosting a word the app then fails to
+   understand is worse than not boosting it — it turns a misheard line into a
+   confidently misheard line. Shortest and most confusable first. */
+const CMD_TERMS = ['yes','next','skip','back','stop','pause','zero','nil','none',
+                   'undo','total','finish','correct','scratch that'];
 
 let VOICE = {stt:'browser', tts:'browser', probed:false, note:'no proxy set', busy:false};
 function voiceCfg(){ S.voice = S.voice || {proxy:'', token:'', prefer:'auto'}; return S.voice; }
@@ -1774,6 +1796,7 @@ function renderEngineChip(){
     b.innerHTML = '<span class="eled"></span><span class="ewho">'+esc(who)+'</span>'
       + (VOICE.note ? '<span class="ewhy">— '+esc(VOICE.note)+'</span>' : '');
   });
+  if(typeof voiceNote === 'function') voiceNote();
 }
 async function probeVoice(quiet){
   if(voiceCfg().prefer === 'browser'){ setEngine('browser','browser','set to browser'); VOICE.probed=true; return VOICE; }
@@ -1802,9 +1825,17 @@ function trimTerm(t){
   return (sp>8 ? cut.slice(0,sp) : cut).trim();
 }
 function bareGroup(g){ return String(g||'').replace(/^\s*\d+[.\s-]*/,'').trim(); }
-/* Commands always. Then, in Review, the group being walked and its items —
-   that is the rotation. Then the remaining groups, then everything else,
-   until the 50 slots are gone. */
+/* what a person would actually say for a row — the catalogue's alias if it has
+   one ("ninety six fibre"), otherwise the description printed on the sheet */
+function spokenFor(r){
+  const a = String(r.alias||'').split(',')[0].trim();
+  return a || r.desc || r.code;
+}
+/* Fifty slots, spent nearest-first: commands, then the rows around the one being
+   read, then the rest of that group, then the group we are about to walk into,
+   then the group names, then whatever still fits. On a 385-row sheet the tail
+   never gets in — which is why this has to be recomputed as the walk moves. */
+const WINDOW_BACK = 2, WINDOW_FWD = 6;
 function keytermsFor(){
   const out=[], seen=new Set();
   const add = t => {
@@ -1817,14 +1848,105 @@ function keytermsFor(){
   CMD_TERMS.forEach(add);
   let rows = [];
   try{ rows = reviewRowList(); }catch(e){ rows = []; }
-  const here = REVIEW.active ? reviewRow() : null;
+  let walk = [], at = -1;
+  if(REVIEW.active){
+    try{ walk = reviewWalk(); at = (reviewSaved()||{}).idx; }catch(e){ walk=[]; at=-1; }
+  }
+  const here = (at>=0 && walk[at]) || null;
   if(here){
+    /* the rows either side of the cursor — what is about to be said */
+    for(let i=Math.max(0,at-WINDOW_BACK); i<Math.min(walk.length, at+WINDOW_FWD+1); i++) add(spokenFor(walk[i]));
     add(bareGroup(here.group));
-    rows.filter(r=>r.group===here.group).forEach(r=>add(r.desc));
+    walk.filter(r=>r.group===here.group).forEach(r=>add(spokenFor(r)));
+    /* the boundary: the next group starts being spoken before a reconnect lands */
+    const nextG = (walk.slice(at).find(r=>r.group!==here.group)||{}).group;
+    if(nextG){
+      add(bareGroup(nextG));
+      walk.filter(r=>r.group===nextG).slice(0,6).forEach(r=>add(spokenFor(r)));
+    }
   }
   [...new Set(rows.map(r=>r.group))].forEach(g=>add(bareGroup(g)));
-  rows.forEach(r=>add(r.desc));
+  rows.forEach(r=>add(spokenFor(r)));
   return out;
+}
+/* changes exactly when the boosted set would materially change */
+function keytermSig(){
+  let key=''; try{ key = sheetKeyFor()||''; }catch(e){}
+  if(!REVIEW.active) return 'idle:'+($('fCat')? $('fCat').value : '')+':'+key;
+  const r = reviewRow();
+  return 'walk:'+key+':'+(r? r.group : '');
+}
+
+/* ---------- what was heard, and whether it landed ----------
+   A field trial has to produce a number, not a feeling. Every final transcript
+   is logged with the engine that heard it and whether the parser could do
+   anything with it, so old and new can be compared on the same ten lines. */
+const VLOG_MAX = 400;
+function vlog(){ S.vlog = S.vlog || []; return S.vlog; }
+/* Classify without acting — parse() and reviewParse() are both pure.
+   "Understood" means the app could do something with it, which includes asking
+   which of two items was meant; that is the disambiguator working, not a miss. */
+function outcomeOf(text){
+  try{
+    if(REVIEW.active){
+      const p = reviewParse(text);
+      if(!p || p.cmd==='none') return {ok:false, what:'nothing in it'};
+      if(p.cmd==='jump'){
+        const hits = reviewFind(p.text);
+        return hits.length ? {ok:true, what:'jumped to '+hits[0].row.desc}
+                           : {ok:false, what:'no row matched'};
+      }
+      if(p.cmd==='num') return {ok:true, what:p.qty+(p.unit? ' '+p.unit : '')};
+      return {ok:true, what:p.cmd};
+    }
+    const p = parse(text, $('fCat').value);
+    if(!p) return {ok:false, what:'nothing in it'};
+    if(p.kind==='line') return {ok:true, what:(p.it && (p.it.short||p.it.code)) || 'line'};
+    if(p.kind==='choose') return {ok:true, what:'asked which of '+p.options.length};
+    if(p.kind==='verify') return {ok:true, what:'asked to confirm'};
+    if(p.kind==='place') return {ok:true, what:'location '+(p.label||'')};
+    if(p.kind==='spot') return {ok:true, what:'spot '+(p.name||'')};
+    if(p.kind==='noitem') return {ok:false, what:'quantity but no item'};
+    if(p.kind==='unclear') return {ok:false, what:'not understood'};
+    if(p.kind==='none') return {ok:false, what:'nothing in it'};
+    return {ok:true, what:p.kind};
+  }catch(e){ return {ok:false, what:'error'}; }
+}
+function logHeard(text){
+  const o = outcomeOf(text);
+  const L = vlog();
+  L.push({t:Date.now(), eng:(VOICE.stt==='eleven'?'el':'br'), text:String(text).slice(0,180),
+          ok:o.ok, what:o.what, mode:REVIEW.active?'review':'count'});
+  while(L.length>VLOG_MAX) L.shift();
+  save();
+  renderVlog();
+}
+function vlogStats(){
+  const L = vlog(), out = {el:{n:0,ok:0}, br:{n:0,ok:0}};
+  L.forEach(e=>{ const b=out[e.eng]; if(!b) return; b.n++; if(e.ok) b.ok++; });
+  return out;
+}
+function pct(a,b){ return b ? Math.round(a/b*100)+'%' : '—'; }
+function renderVlog(){
+  const box = $('vlogBox'); if(!box) return;
+  const L = vlog().slice(-25).reverse(), st = vlogStats();
+  const head = '<div class="vstat"><span><b>ElevenLabs</b> '+pct(st.el.ok,st.el.n)+' of '+st.el.n+'</span>'
+    + '<span><b>Browser</b> '+pct(st.br.ok,st.br.n)+' of '+st.br.n+'</span></div>';
+  if(!L.length){ box.innerHTML = head + '<p class="note">Nothing heard yet. Speak a few lines, then come back — each one lands here with the engine that heard it.</p>'; return; }
+  box.innerHTML = head + '<div class="scroll"><table class="vlog"><tbody>' + L.map(e=>
+      '<tr class="'+(e.ok?'':'miss')+'"><td class="eng">'+(e.eng==='el'?'EL':'Br')+'</td>'
+    + '<td>'+esc(e.text)+'</td>'
+    + '<td class="what">'+(e.ok? esc(e.what) : '<b>'+esc(e.what)+'</b>')+'</td></tr>').join('')
+    + '</tbody></table></div>';
+}
+function vlogCsv(){
+  const rows = [['when','engine','mode','heard','understood','result']].concat(
+    vlog().map(e=>[new Date(e.t).toISOString(), e.eng==='el'?'ElevenLabs':'Browser', e.mode,
+                   e.text, e.ok?'yes':'no', e.what]));
+  return rows.map(r=>r.map(c=>{
+    const v = String(c==null?'':c);
+    return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  }).join(',')).join('\n');
 }
 
 /* ---------- microphone to 16 kHz PCM ---------- */
@@ -1892,12 +2014,39 @@ function stopPcm(){
 
 /* ---------- what we do with what we heard, whichever engine heard it ---------- */
 function onHeardPartial(text){
-  if(!text || VOICE.busy) return;
+  if(!text) return;
+  if(VOICE.busy && isEcho(text)) return;
   $('heard').innerHTML = '<b>'+esc(text)+'</b>';
 }
+/* The mic stays open while we speak, so we hear ourselves. Rather than going
+   deaf for the length of every readback — which is what makes a hands-free app
+   feel slow — decide whether what came back is our own voice or the counter's.
+   Anything that is not an echo stops the readback dead and is acted on. */
+const STOPWORDS = new Set(['the','a','of','and','is','it','in','on','at','to','for','currently','box','each']);
+function words(t){
+  return String(t||'').toLowerCase().replace(/[^a-z0-9 ]+/g,' ').split(/\s+/).filter(Boolean);
+}
+function isEcho(text){
+  const spoken = words(SPEAK.text);
+  if(!spoken.length) return false;
+  const heard = words(text);
+  if(!heard.length) return true;
+  const bag = new Set(spoken);
+  const hit = heard.filter(w=>bag.has(w)).length;
+  /* one or two words is a command, not an echo, unless every word was in the
+     sentence we are still saying */
+  if(heard.length<=2) return hit===heard.length;
+  const free = heard.filter(w=>!STOPWORDS.has(w));
+  const freeHit = free.filter(w=>bag.has(w)).length;
+  return free.length ? freeHit/free.length >= 0.6 : hit/heard.length >= 0.6;
+}
 function onHeardFinal(text){
-  /* the mic stays open while we speak — don't count our own readback */
-  if(!text || VOICE.busy) return;
+  if(!text) return;
+  if(VOICE.busy){
+    if(isEcho(text)) return;
+    bargeIn();                       /* they talked over us — we stop, they win */
+  }
+  logHeard(text);
   if(REVIEW.active) reviewHeard(text);
   else handle(text);
 }
@@ -1917,6 +2066,7 @@ async function elevenListen(){
   const terms = keytermsFor();
   terms.forEach(t=>qs.append('keyterms', t));
   VOICE.terms = terms;
+  VOICE.sig = keytermSig();
   const ws = new WebSocket(EL_WS+'?'+qs.toString());
   elWs = ws;
   await new Promise((res,rej)=>{
@@ -1930,7 +2080,7 @@ async function elevenListen(){
     else if(m.message_type==='committed_transcript' && m.text && m.text.trim()) onHeardFinal(m.text.trim());
     else if(m.error || /error/i.test(m.message_type||'')) voiceFellBack('ElevenLabs: '+(m.error||m.message_type));
   };
-  ws.onclose = ()=>{ if(elWs===ws){ elWs=null; if(wantListen && VOICE.stt==='eleven') voiceFellBack('connection dropped'); } };
+  ws.onclose = ()=>{ if(elWs===ws){ elWs=null; if(wantListen && VOICE.stt==='eleven' && !VOICE.retuning) voiceFellBack('connection dropped'); } };
   const ok = await startPcm(pcm=>{
     if(ws.readyState===1) ws.send(JSON.stringify({message_type:'input_audio_chunk', audio_base_64:pcmToB64(pcm), sample_rate:16000}));
   });
@@ -1941,6 +2091,30 @@ function stopEleven(){
   stopPcm();
   if(elWs){ try{ elWs.close(); }catch(e){} elWs=null; }
 }
+/* Keyterms are fixed for the life of a socket — they go up in the query string.
+   So the rotation only happens if we reopen the socket when the set changes.
+   The walk moves group by group, so that is a handful of reconnects a sheet,
+   never one per row. Debounced, and never mid-sentence. */
+let retuneTimer=null;
+function retuneListening(){
+  if(VOICE.stt!=='eleven' || !wantListen || VOICE.retuning) return;
+  if(keytermSig() === VOICE.sig) return;
+  clearTimeout(retuneTimer);
+  retuneTimer = setTimeout(async ()=>{
+    if(VOICE.stt!=='eleven' || !wantListen || VOICE.retuning) return;
+    if(keytermSig() === VOICE.sig) return;
+    if(VOICE.busy) return retuneListening();      /* wait until the readback ends */
+    VOICE.retuning = true;
+    try{
+      stopEleven();
+      await elevenListen();
+    }catch(e){
+      VOICE.retuning = false;
+      return voiceFellBack('lost the connection while retuning');
+    }
+    VOICE.retuning = false;
+  }, 700);
+}
 /* one place decides we are back on the browser engine, and says why */
 function voiceFellBack(why){
   stopEleven();
@@ -1949,10 +2123,14 @@ function voiceFellBack(why){
 }
 
 /* ---------- speaking ---------- */
-let ttsAudio=null;
+let ttsAudio=null, speakFin=null;
+/* whoever is speaking parks its finisher here, so stopping settles the
+   callback immediately instead of leaving it to a watchdog */
 function stopSpeaking(){
+  const f = speakFin; speakFin = null;
   try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
   if(ttsAudio){ try{ ttsAudio.pause(); }catch(e){} ttsAudio=null; }
+  if(f) f();
 }
 function browserSpeak(text, cb){
   try{
@@ -1964,8 +2142,9 @@ function browserSpeak(text, cb){
     const pick = vs.find(v=>/en-IE/.test(v.lang)) || vs.find(v=>/en-GB/.test(v.lang)) || vs.find(v=>/^en/.test(v.lang));
     if(pick) u.voice = pick;
     let done=false;
-    const fin = ()=>{ if(done) return; done=true; clearTimeout(wd); if(cb) cb(); };
+    const fin = ()=>{ if(done) return; done=true; clearTimeout(wd); if(speakFin===fin) speakFin=null; if(cb) cb(); };
     const wd = setTimeout(fin, Math.min(12000, 1800 + text.length*70));
+    speakFin = fin;
     u.onend = fin; u.onerror = fin;
     speechSynthesis.speak(u);
   }catch(e){ if(cb) cb(); }
@@ -1978,16 +2157,45 @@ async function elevenSpeak(text, cb){
   const a = new Audio(url);
   ttsAudio = a;
   let done=false;
-  const fin = ()=>{ if(done) return; done=true; clearTimeout(wd); URL.revokeObjectURL(url); if(cb) cb(); };
+  const fin = ()=>{ if(done) return; done=true; clearTimeout(wd); if(speakFin===fin) speakFin=null; URL.revokeObjectURL(url); if(cb) cb(); };
   const wd = setTimeout(fin, Math.min(20000, 3000 + text.length*90));
+  speakFin = fin;
   a.onended = fin; a.onerror = fin;
-  await a.play();
+  /* A readback cut off by the next one is normal — a fast walk does it on every
+     row. Only an outright refusal to play means the engine is no good to us;
+     anything else finishes quietly and we stay on ElevenLabs. */
+  try{
+    await a.play();
+  }catch(e){
+    if(e && e.name === 'NotAllowedError') throw e;
+    fin();
+  }
+}
+/* what we are saying right now, so we can recognise it coming back at us
+   and so it can be cut short */
+let SPEAK = {text:'', cut:false};
+/* the counter spoke over the readback — stop talking and let the callback know
+   not to carry on, because whatever they said supersedes it */
+function bargeIn(){
+  SPEAK.cut = true;
+  stopSpeaking();
+  VOICE.busy = false;
 }
 /* every readback in the app goes through here */
 function speakThen(text, cb){
-  if(!text){ if(cb) cb(); return; }
+  if(!text){ if(cb) cb(false); return; }
   VOICE.busy = true;
-  const done = ()=>{ setTimeout(()=>{ VOICE.busy = false; }, 300); if(cb) cb(); };
+  const me = {text:String(text), cut:false};
+  SPEAK = me;
+  let fired = false;
+  const done = ()=>{
+    if(fired) return; fired = true;
+    const cut = me.cut;
+    if(SPEAK === me) SPEAK = {text:'', cut:false};
+    /* a short tail, because the last syllable is still in the air */
+    if(cut) VOICE.busy = false; else setTimeout(()=>{ VOICE.busy = false; }, 250);
+    if(cb) cb(cut);
+  };
   if(VOICE.tts === 'eleven'){
     elevenSpeak(text, done).catch(()=>{
       setEngine('browser','browser','readback failed, using the browser voice');
@@ -4429,7 +4637,7 @@ function reviewRowList(){
         pack:a.pack>1?String(a.pack):'', group:UNASSIGNED})));
   }
   return items(cat).map(it=>({code:it.code, desc:it.short, uom:it.unit,
-    pack:it.pack>1?String(it.pack):'', group:groupOf(it)}));
+    pack:it.pack>1?String(it.pack):'', group:groupOf(it), alias:it.alias||''}));
 }
 function reviewWalk(){
   const r = reviewSaved(); if(!r) return [];
@@ -4453,8 +4661,14 @@ function sayThen(text, cb){
   if(!r || !r.speak || !canSpeak){ REVIEW.speaking=false; renderReview(); if(cb) cb(); return; }
   REVIEW.speaking = true; renderReview();
   let fired = false;
-  const done = ()=>{ if(fired) return; fired=true; REVIEW.speaking=false; renderReview(); if(cb) cb(); };
-  try{ speakThen(text, done); }catch(e){ done(); }
+  const done = cut => {
+    if(fired) return; fired=true;
+    REVIEW.speaking=false; renderReview();
+    /* cut short means the counter said something instead — never advance the
+       walk under them; what they said is being handled already */
+    if(!cut && cb) cb();
+  };
+  try{ speakThen(text, done); }catch(e){ done(false); }
 }
 function reviewSay(text){ REVIEW.line = text; sayThen(text); renderReview(); }
 
@@ -4490,6 +4704,7 @@ function reviewSpeakCurrent(prefix){
   const r = reviewSaved();
   REVIEW.line = rowSpeech(row);
   renderReview(); renderSheet(); scrollToReviewRow();
+  retuneListening();
   sayThen((prefix||'') + REVIEW.line);
 }
 function reviewFinish(){
@@ -4509,14 +4724,14 @@ function reviewMove(step){
 }
 function reviewPause(){
   REVIEW.active = false; REVIEW.pending = null;
-  try{ speechSynthesis.cancel(); }catch(e){}
+  stopSpeaking();
   stopListen();
   REVIEW.line = 'Paused. Resume picks up at row '+((reviewSaved()||{idx:0}).idx+1)+'.';
   renderReview(); renderSheet();
 }
 function reviewStop(){
   REVIEW.active = false;
-  try{ speechSynthesis.cancel(); }catch(e){}
+  stopSpeaking();
   stopListen();
   S.review = null; save();
   REVIEW.line = '';
@@ -5406,7 +5621,13 @@ $('vTest').onclick = e => withFeedback(e.currentTarget, async ()=>{
   speak('Voice engine connected.');
 }, 'Connected');
 ['engChip','engChip2'].forEach(id=>{ const b=$(id); if(b) b.onclick = ()=>{ showTab('cat'); const p=$('voicePanel'); if(p) p.scrollIntoView({behavior:'smooth', block:'start'}); }; });
+$('vlogClear').onclick = e => withFeedback(e.currentTarget, ()=>{ S.vlog=[]; save(); renderVlog(); }, 'Cleared');
+$('vlogExport').onclick = e => withFeedback(e.currentTarget, ()=>{
+  if(!vlog().length) return false;
+  return saveFile('trucount-voice-log.csv', vlogCsv());
+}, 'Exported');
 fillVoiceBox();
+renderVlog();
 probeVoice().then(voiceNote);
 
 initSync();

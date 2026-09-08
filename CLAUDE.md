@@ -45,11 +45,31 @@ treat it as a specification of behaviour that must survive a rewrite.
     phone opens the Scribe socket itself — audio never round-trips the Worker) and `/tts`.
     `proxy/README.md` is the ten-minute setup. Configure it in **Data → Voice engine**; the config
     lives in `S.voice` as `{proxy, token, prefer}`.
-  - **Keyterms.** Every listening session sends a boosted vocabulary: the command words
-    (yes, next, skip, zero, back, pause, stop) first, then — when a review walk is running — the
-    product group being walked and its items, then the remaining groups, then everything else.
-    The realtime API takes **50 terms of 20 characters each**, so on a 385-row sheet the list
-    rotates as the walk moves from group to group. See `keytermsFor()`.
+  - **Keyterms.** Every listening session sends a boosted vocabulary, spent nearest-first
+    across the **50 terms of 20 characters** the realtime API allows: the command words, then
+    the rows either side of the one being read, then the rest of that group, then the group the
+    walk is about to enter, then the group names, then whatever still fits. The spoken form
+    wins over the printed one — the catalogue's first `alias` ("ninety six fibre") rather than
+    its description — because the counter says the former. Only words a parser actually acts on
+    go in `CMD_TERMS`: boosting a word the app then fails to understand turns a misheard line
+    into a *confidently* misheard one. See `keytermsFor()` and `spokenFor()`.
+  - **Keyterms are fixed for the life of a socket** — they go up in the query string. So the
+    rotation only happens if the socket is reopened when the set changes. `keytermSig()` changes
+    exactly when it would, and `retuneListening()` reconnects on that, debounced and never
+    mid-sentence: a handful of reconnects per sheet, never one per row. A reconnect sets
+    `VOICE.retuning` so the close is not mistaken for a dropped connection.
+  - **Barge-in.** The mic stays open while the app speaks, so it hears itself. Rather than going
+    deaf for the length of every readback — which is what makes a hands-free app feel slow —
+    `isEcho()` decides whether what came back is our own voice or the counter's, on word overlap
+    with what is currently being said. A one- or two-word utterance is a command unless every
+    word was in that sentence. Anything that is not an echo stops the readback dead and is acted
+    on, and the readback's callback is told it was cut short so the walk is never advanced from
+    under someone who has just spoken.
+  - **What the app heard.** Every final transcript is logged to `S.vlog` with the engine that
+    heard it and whether the parser could use it, classified by re-running the pure parser
+    (`outcomeOf()`). Data → *What the app heard* shows the hit rate per engine and exports CSV.
+    A field trial has to produce a number, not a feeling. Typed input is never logged — it is
+    not something the ear produced, and counting it would flatter the rate.
 - **Parsing** (`parse()`): number words including "and" ("one thousand two hundred and fifty"),
   pack-size conversion, drum IDs with part lengths, Irish and UK registration plates spoken as
   digits and letters, shelf codes, location commands, undo/total/finish.
@@ -283,9 +303,11 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
 6. **Transfers between locations** — one movement, two locations updated. This is where it stops being
    a stocktake app and becomes stock control.
 7. ~~**Cloud speech tier.**~~ **Done** — ElevenLabs Scribe v2 Realtime, with the count sheet's own
-   items sent as boosted keyterms and the browser engine kept as the floor. Accent handling comes
-   from the vocabulary, not the vendor. What is left: measure it against real Irish site accents on
-   a real sheet, and decide whether the 50-term cap needs a smarter rotation than "current group first".
+   items sent as boosted keyterms, rotated as the walk moves, and the browser engine kept as the
+   floor. Accent handling comes from the vocabulary, not the vendor. What is left is measurement:
+   run the same lines on both engines against real Irish site accents on a real sheet and read the
+   two rates off Data → *What the app heard*. If ElevenLabs is not clearly ahead on the number
+   words and the drum IDs, the keyterm list is the thing to tune, not the vendor.
 8. **Photo against a line.**
 9. **Two people counting the same location at once.**
 10. **A desk dashboard** separate from the phone app, for an owner looking at 150 vans.
