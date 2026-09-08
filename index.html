@@ -99,6 +99,20 @@
   table.vlog .what{width:38%; color:var(--ink-3); text-align:right}
   table.vlog tr.miss td{background:var(--bad-soft)}
   table.vlog tr.miss .what b{color:var(--bad); font-weight:600}
+  #tblCat td.act{white-space:nowrap; width:1%}
+  #tblCat .ed{padding:4px 9px; border-radius:7px; border:1px solid var(--line); background:var(--surface-2); font:600 11.5px/1.6 inherit; cursor:pointer}
+  #tblCat tr.editing>td{background:var(--accent-soft)}
+  .editbox{border:1px solid var(--accent-line); background:var(--accent-soft); border-radius:var(--r); margin:0 15px 13px; padding:0 12px 4px}
+  .edhdr{font:700 10.5px/1 inherit; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-ink); padding:11px 2px 2px}
+  #tblCat tr.editing>td{background:var(--accent-soft)}
+  #tblCat .ed{padding:4px 9px}
+  .itemform{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; padding:12px 2px}
+  .itemform .f{display:flex; flex-direction:column; gap:4px; min-width:0}
+  .itemform label{font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+  .itemform input{font:inherit; font-size:13.5px; padding:7px 9px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink); min-width:0}
+  .itemform .wide{grid-column:1/-1}
+  .itemform .row{grid-column:1/-1; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .itemform .row .sp{margin-right:auto; font-size:12px; color:var(--ink-3)}
   .lochint{margin-left:auto; font-size:10.5px; font-weight:600; letter-spacing:.02em; text-transform:none; color:var(--ink-3)}
   .lochint.bad{color:var(--bad)}
   #jobLocs{margin-bottom:14px}
@@ -862,16 +876,17 @@
     </div>
 
     <div class="panel">
-      <header><h2>Item master</h2><span class="hint">Code · descriptions · unit · pack size</span></header>
+      <header><h2>Item master</h2><span class="hint">edit any field · “Spoken as” goes straight into the voice vocabulary</span></header>
       <div class="catgrid">
-        <div class="field"><label for="nCode">Short code</label><input id="nCode" placeholder="COKE-330"></div>
-        <div class="field"><label for="nShort">Short description</label><input id="nShort" placeholder="Coke 330ml"></div>
-        <div class="field"><label for="nLong">Long description</label><input id="nLong" placeholder="Coca-Cola 330ml glass bottle"></div>
-        <div class="field"><label for="nUnit">Base unit</label><input id="nUnit" placeholder="bottle"></div>
-        <div class="field"><label for="nPack">Pack size</label><input id="nPack" type="number" placeholder="24"></div>
-        <div class="field"><label for="nAlias">Spoken as</label><input id="nAlias" placeholder="coke, cola"></div>
-        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="nAdd">Add item</button></div>
+        <div class="field full"><label for="catSearch">Search</label>
+          <input id="catSearch" placeholder="Code, description, group or spoken-as…" autocomplete="off"></div>
       </div>
+      <div class="bar">
+        <span class="sp" id="catCount"></span>
+        <button class="btn" id="catExport">Export to Excel</button>
+        <button class="btn dark" id="catNew">Add item</button>
+      </div>
+      <div id="itemEdit"></div>
       <div class="scroll"><table id="tblCat"></table></div>
     </div>
 
@@ -1106,9 +1121,50 @@ function load(){
 }
 function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
 
+/* The item master is the built-in catalogue with the customer's own edits laid
+   over it: an override keeps the built-in's position rather than jumping to the
+   end, a deleted built-in leaves a tombstone so it stays deleted, and anything
+   new is appended. */
+function deletedSet(cat){ return new Set(((S.deleted && S.deleted[cat]) || [])); }
+/* "coke, cola" plus "coca cola" is all three, once each */
+function mergeAlias(a, b){
+  const seen=new Set(), out=[];
+  for(const part of [a,b]) String(part||'').split(',').map(x=>x.trim()).filter(Boolean)
+    .forEach(x=>{ const k=x.toLowerCase(); if(!seen.has(k)){ seen.add(k); out.push(x); } });
+  return out.join(', ');
+}
 function items(cat){
-  const own = (S.custom && S.custom[cat]) || [];
-  return ((S.hideBuiltin&&S.hideBuiltin[cat]) ? [] : CATALOGUES[cat].items).concat(own);
+  const own  = (S.custom && S.custom[cat]) || [];
+  const base = (S.hideBuiltin && S.hideBuiltin[cat]) ? [] : CATALOGUES[cat].items;
+  const gone = deletedSet(cat);
+  const ov   = new Map(own.map(i=>[i.code, i]));
+  const seen = new Set();
+  const out  = [];
+  for(const b of base){
+    if(gone.has(b.code)) continue;
+    const use = ov.get(b.code) || b;
+    seen.add(b.code); out.push(use);
+  }
+  for(const o of own) if(!seen.has(o.code) && !gone.has(o.code)) out.push(o);
+  return out;
+}
+/* editing anything writes it into S.custom, built-in or not */
+function upsertItem(cat, rec){
+  S.custom = S.custom || {}; S.custom[cat] = S.custom[cat] || [];
+  const i = S.custom[cat].findIndex(x=>x.code===rec.code);
+  if(i>=0) S.custom[cat][i] = rec; else S.custom[cat].push(rec);
+  if(S.deleted && S.deleted[cat]) S.deleted[cat] = S.deleted[cat].filter(c=>c!==rec.code);
+  save();
+}
+function deleteItem(cat, code){
+  S.custom = S.custom || {};
+  S.custom[cat] = (S.custom[cat]||[]).filter(x=>x.code!==code);
+  const isBuiltIn = !(S.hideBuiltin&&S.hideBuiltin[cat]) && CATALOGUES[cat].items.some(i=>i.code===code);
+  if(isBuiltIn){
+    S.deleted = S.deleted || {}; S.deleted[cat] = S.deleted[cat] || [];
+    if(!S.deleted[cat].includes(code)) S.deleted[cat].push(code);
+  }
+  save();
 }
 function item(cat,code){ return items(cat).find(i=>i.code===code) || {code, short:code, long:code, unit:'each', pack:1}; }
 function orgsFor(cat){ const own=(S.orgs&&S.orgs[cat])||null; return (own&&own.length)?own:CATALOGUES[cat].orgs; }
@@ -1995,12 +2051,24 @@ function spokenFor(r){
   const a = String(r.alias||'').split(',')[0].trim();
   return a || r.desc || r.code;
 }
+/* every "Spoken as" phrase the owner typed, plus the description as a fallback —
+   adding a word on the Data tab has to improve recognition on the next session */
+function spokenAll(r, cat){
+  const out = [];
+  let al = r.alias;
+  if(al==null && cat && r.code){ const it = item(cat, r.code); al = it && it.alias; }
+  String(al||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>out.push(x));
+  const d = r.desc || r.code;
+  if(d) out.push(d);
+  return out;
+}
 /* Fifty slots, spent nearest-first: commands, then the rows around the one being
    read, then the rest of that group, then the group we are about to walk into,
    then the group names, then whatever still fits. On a 385-row sheet the tail
    never gets in — which is why this has to be recomputed as the walk moves. */
 const WINDOW_BACK = 2, WINDOW_FWD = 6;
 function keytermsFor(){
+  const cat = $('fCat') ? $('fCat').value : 'fibre';
   const out=[], seen=new Set();
   const add = t => {
     const v = trimTerm(t);
@@ -2019,18 +2087,18 @@ function keytermsFor(){
   const here = (at>=0 && walk[at]) || null;
   if(here){
     /* the rows either side of the cursor — what is about to be said */
-    for(let i=Math.max(0,at-WINDOW_BACK); i<Math.min(walk.length, at+WINDOW_FWD+1); i++) add(spokenFor(walk[i]));
+    for(let i=Math.max(0,at-WINDOW_BACK); i<Math.min(walk.length, at+WINDOW_FWD+1); i++) spokenAll(walk[i], cat).forEach(add);
     add(bareGroup(here.group));
-    walk.filter(r=>r.group===here.group).forEach(r=>add(spokenFor(r)));
+    walk.filter(r=>r.group===here.group).forEach(r=>spokenAll(r, cat).forEach(add));
     /* the boundary: the next group starts being spoken before a reconnect lands */
     const nextG = (walk.slice(at).find(r=>r.group!==here.group)||{}).group;
     if(nextG){
       add(bareGroup(nextG));
-      walk.filter(r=>r.group===nextG).slice(0,6).forEach(r=>add(spokenFor(r)));
+      walk.filter(r=>r.group===nextG).slice(0,6).forEach(r=>spokenAll(r, cat).forEach(add));
     }
   }
   [...new Set(rows.map(r=>r.group))].forEach(g=>add(bareGroup(g)));
-  rows.forEach(r=>add(spokenFor(r)));
+  rows.forEach(r=>spokenAll(r, cat).forEach(add));
   return out;
 }
 /* changes exactly when the boosted set would materially change */
@@ -3275,14 +3343,53 @@ function renderVar(){
   $('varHint').textContent = matched+' matched exactly · '+diffs+' with a difference · '+uncounted+' not yet counted';
 }
 
+let CATEDIT = null;          /* code being edited, or '' for a new item */
+function catRows(){
+  const cat=$('fCat').value;
+  const q = norm(($('catSearch')&&$('catSearch').value)||'');
+  const all = items(cat);
+  if(!q) return all;
+  return all.filter(it => norm([it.code, it.short, it.long, groupOf(it), it.alias].join(' ')).includes(q));
+}
+function itemFormHtml(it){
+  const f=(k,l,v,ph,extra)=>'<div class="f'+(extra||'')+'"><label for="ie_'+k+'">'+l+'</label>'
+    + '<input id="ie_'+k+'" value="'+esc(v==null?'':String(v))+'" placeholder="'+esc(ph||'')+'" autocomplete="off"></div>';
+  const isNew = !it.code;
+  return '<div class="itemform">'
+    + f('code','Item code', it.code, 'NBI-POL-9M')
+    + f('short','Short description', it.short, '9m creosote pole')
+    + f('group','Product group', it.group||'', '01. Poles')
+    + f('unit','Unit of measure', it.unit, 'each')
+    + f('pack','Pack size', it.pack>1? it.pack:'', '100')
+    + f('packName','Pack name', it.packName||'', 'box')
+    + f('price','Unit value (\u20AC)', it.price==null? '' : it.price, '148.00')
+    + f('long','Long description', it.long===it.short? '' : (it.long||''), 'the full description', ' wide')
+    + f('alias','Spoken as \u2014 comma separated', it.alias||'', 'pole, nine metre pole', ' wide')
+    + '<div class="row"><span class="sp">“Spoken as” words are sent to the voice engine as soon as you save.</span>'
+    + (isNew? '' : '<button class="btn" id="ieDel">Delete</button>')
+    + '<button class="btn" id="ieCancel">Cancel</button>'
+    + '<button class="btn dark" id="ieSave">Save</button></div></div>';
+}
 function renderCat(){
   const cat=$('fCat').value, base=(S.baseline&&S.baseline[cat])||{};
-  let h='<thead><tr><th>Code</th><th>Short description</th><th>Product Group</th><th>Unit</th><th class="r">Unit value</th><th class="r">Pack size</th><th class="r">Expected</th><th>Spoken as</th></tr></thead><tbody>';
-  for(const it of items(cat)){
-    const uv = unitValue(it);
-    const grp = groupOf(it);
-    h += '<tr><td class="mono" style="font-size:12px">'+esc(it.code)+'</td>'
-       + '<td>'+esc(it.short)+'<br><small style="color:var(--ink-3)">'+esc(it.long)+'</small></td>'
+  const rows = catRows();
+  const cols = 9;
+  const ed = $('itemEdit');
+  if(CATEDIT===null){ ed.innerHTML=''; ed.className=''; }
+  else {
+    const it = CATEDIT==='' ? {code:'',short:'',long:'',unit:'each',pack:1} : (items(cat).find(i=>i.code===CATEDIT)||{code:CATEDIT});
+    ed.className = 'editbox';
+    ed.innerHTML = '<div class="edhdr">'+(CATEDIT===''? 'New item' : esc(CATEDIT))+'</div>' + itemFormHtml(it);
+  }
+  /* Edit leads the row: the table is wider than a phone, and a button at the
+     far right cannot be reached without scrolling sideways to find it. */
+  let h='<thead><tr><th></th><th>Code</th><th>Short description</th><th>Product Group</th><th>Unit</th><th class="r">Unit value</th><th class="r">Pack size</th><th class="r">Expected</th><th>Spoken as</th></tr></thead><tbody>';
+  for(const it of rows){
+    const uv = unitValue(it), grp = groupOf(it);
+    h += '<tr'+(CATEDIT===it.code? ' class="editing"':'')+'>'
+       + '<td class="act"><button class="ed" data-edit="'+esc(it.code)+'">'+(CATEDIT===it.code?'Editing':'Edit')+'</button></td>'
+       + '<td class="mono" style="font-size:12px">'+esc(it.code)+'</td>'
+       + '<td>'+esc(it.short)+(it.long && it.long!==it.short ? '<br><small style="color:var(--ink-3)">'+esc(it.long)+'</small>':'')+'</td>'
        + '<td'+(grp===UNASSIGNED? ' style="color:var(--bad)"':'')+'>'+esc(grp)+'</td>'
        + '<td>'+esc(it.unit)+'</td>'
        + '<td class="r">'+(uv==null? '<span style="color:var(--bad)">—</span>' : eur(uv))+'</td>'
@@ -3290,7 +3397,64 @@ function renderCat(){
        + '<td class="r">'+(base[it.code]!=null? fmt(base[it.code]):'—')+'</td>'
        + '<td style="color:var(--ink-3)">'+esc(it.alias||'')+'</td></tr>';
   }
+  if(!rows.length) h += '<tr><td colspan="'+cols+'" style="color:var(--ink-3)">Nothing matches that search.</td></tr>';
   $('tblCat').innerHTML = h+'</tbody>';
+  const all = items(cat).length;
+  const c = $('catCount');
+  if(c) c.textContent = rows.length===all ? all+' items' : rows.length+' of '+all+' items';
+  wireCatEdit();
+}
+function wireCatEdit(){
+  $('tblCat').querySelectorAll('button[data-edit]').forEach(b=>
+    b.onclick = ()=>{ CATEDIT = b.dataset.edit; renderCat(); });
+  const cancel = $('ieCancel');
+  if(cancel) cancel.onclick = ()=>{ CATEDIT=null; renderCat(); };
+  const del = $('ieDel');
+  if(del) del.onclick = ()=>{
+    const cat=$('fCat').value, code=CATEDIT;
+    deleteItem(cat, code);
+    CATEDIT=null; renderCat(); renderMgr(); renderKeyterms();
+  };
+  const sv = $('ieSave');
+  if(sv) sv.onclick = e => withFeedback(e.currentTarget, ()=>saveItemForm(), 'Saved');
+}
+function saveItemForm(){
+  const cat = $('fCat').value;
+  const g = k => ($('ie_'+k) ? $('ie_'+k).value.trim() : '');
+  const code = g('code').toUpperCase();
+  if(!code || !g('short')){ return false; }
+  const was = CATEDIT ? items(cat).find(i=>i.code===CATEDIT) : null;
+  /* renaming a code is a move, not a copy */
+  if(was && was.code!==code) deleteItem(cat, was.code);
+  const pack = parseInt(g('pack'),10);
+  const price = g('price')==='' ? null : parseFloat(g('price').replace(/[^0-9.\-]/g,''));
+  const rec = {
+    code,
+    short: g('short'),
+    long:  g('long') || g('short'),
+    unit:  g('unit') || 'each',
+    pack:  pack>1 ? pack : 1,
+    packName: g('packName') || (pack>1 ? 'case' : ''),
+    alias: g('alias'),
+    group: g('group') || (was && was.group) || '',
+    price: (price==null || isNaN(price)) ? (was && was.price!=null && g('price')!=='' ? was.price : undefined) : price,
+    drum: was ? was.drum : undefined
+  };
+  if(rec.price===undefined) delete rec.price;
+  if(!rec.packName) delete rec.packName;
+  if(rec.drum===undefined) delete rec.drum;
+  /* remember which fields were set by hand, so a later upload cannot undo them */
+  const ed = Object.assign({}, (was && was.edited) || {});
+  ['short','long','unit','pack','packName','alias','group','price'].forEach(k=>{
+    const before = was ? was[k] : undefined;
+    const after  = rec[k];
+    if(String(before==null?'':before) !== String(after==null?'':after)) ed[k] = 1;
+  });
+  rec.edited = ed;
+  upsertItem(cat, rec);
+  CATEDIT = null;
+  renderCat(); renderMgr(); renderKeyterms();
+  return true;
 }
 
 function renderBrands(){
@@ -3550,9 +3714,31 @@ function doImport(replace){
   const {out,baseline,owners}=buildItems(cat);
   if(!out.length) return false;
   S.custom=S.custom||{}; S.baseline=S.baseline||{}; S.orgs=S.orgs||{}; S.hideBuiltin=S.hideBuiltin||{}; S.mapping=S.mapping||{};
-  if(replace){ S.custom[cat]=out; S.hideBuiltin[cat]=true; S.baseline[cat]=baseline; }
+  let merged = 0, kept = 0;
+  if(replace){
+    /* the only thing that throws away hand edits, and it says so on the button */
+    S.custom[cat]=out; S.hideBuiltin[cat]=true; S.baseline[cat]=baseline;
+    if(S.deleted) S.deleted[cat]=[];
+  }
   else {
-    S.custom[cat]=(S.custom[cat]||[]).filter(i=>!out.some(o=>o.code===i.code)).concat(out);
+    /* Merge on code. A field the owner edited by hand wins over the file, and
+       spoken-as words are unioned rather than overwritten — a monthly export
+       must never quietly undo the words that make the voice work. */
+    const now = items(cat);
+    const byCode = new Map(now.map(i=>[i.code,i]));
+    const fresh = out.map(o=>{
+      const old = byCode.get(o.code);
+      if(!old) return o;
+      merged++;
+      const ed = old.edited || {};
+      const rec = Object.assign({}, o);
+      for(const k of Object.keys(ed)) if(ed[k] && old[k]!=null && old[k]!=='') { rec[k]=old[k]; kept++; }
+      rec.alias = mergeAlias(old.alias, o.alias);
+      rec.edited = ed;
+      return rec;
+    });
+    const touched = new Set(fresh.map(o=>o.code));
+    S.custom[cat]=(S.custom[cat]||[]).filter(i=>!touched.has(i.code)).concat(fresh);
     S.baseline[cat]=Object.assign({},S.baseline[cat]||{},baseline);
   }
   if(owners.length) S.orgs[cat]=[...new Set((replace?[]:(S.orgs[cat]||orgsFor(cat))).concat(owners))];
@@ -4745,6 +4931,26 @@ function safeSheetName(v, used){
   let t=n, i=2;
   while(used.has(t)){ t = n.slice(0,26)+'-'+(i++); }
   used.add(t); return t;
+}
+/* the master as it stands, in the shape the importer reads back */
+function itemMasterAoA(cat){
+  const base=(S.baseline&&S.baseline[cat])||{};
+  const aoa=[['Item code','Short description','Long description','Product Group','Unit of measure',
+              'Pack size','Pack name','Unit value','Expected quantity','Spoken as']];
+  for(const it of items(cat)){
+    const uv = unitValue(it);
+    aoa.push([it.code, it.short, it.long||'', groupOf(it)===UNASSIGNED?'':groupOf(it), it.unit,
+              it.pack>1?it.pack:'', it.pack>1?(it.packName||'case'):'', uv==null?'':uv,
+              base[it.code]!=null? base[it.code] : '', it.alias||'']);
+  }
+  return aoa;
+}
+async function exportItemMaster(){
+  const cat=$('fCat').value;
+  const n = items(cat).length;
+  if(!n) return false;
+  await saveWorkbook('trucount-item-master-'+cat+'.xlsx', [{name:'Item master', aoa:itemMasterAoA(cat)}]);
+  return true;
 }
 async function saveWorkbook(filename, sheets){
   if(window.XLSX){
@@ -6168,17 +6374,10 @@ $('orgSave').onclick = e => withFeedback(e.currentTarget, ()=>{
   S.orgs[cat]=$('orgBox').value.split('\n').map(s=>s.trim()).filter(Boolean);
   save(); fillOrgs(); renderOrgBox(); renderBrands();
 }, 'Saved');
-$('nAdd').onclick = e => withFeedback(e.currentTarget, ()=>{
-  const cat=$('fCat').value, code=$('nCode').value.trim().toUpperCase();
-  if(!code) return false;
-  S.custom=S.custom||{}; S.custom[cat]=S.custom[cat]||[];
-  S.custom[cat].push({code, short:$('nShort').value.trim()||code,
-    long:$('nLong').value.trim()||$('nShort').value.trim()||code,
-    unit:($('nUnit').value.trim()||'each'), pack:parseInt($('nPack').value,10)||1,
-    packName:'case', alias:$('nAlias').value.trim().toLowerCase()});
-  save(); renderCat();
-  ['nCode','nShort','nLong','nUnit','nPack','nAlias'].forEach(id=>$(id).value='');
-}, 'Added');
+$('catSearch').oninput = ()=>{ CATEDIT=null; renderCat(); };
+$('catNew').onclick = ()=>{ CATEDIT=''; renderCat();
+  const f=$('ie_code'); if(f){ f.scrollIntoView({block:'center'}); f.focus(); } };
+$('catExport').onclick = e => withFeedback(e.currentTarget, ()=>exportItemMaster(), 'Exported');
 
 $('aRole').value = me().role;
 $('aName').value = me().name || '';

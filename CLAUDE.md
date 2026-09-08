@@ -115,6 +115,20 @@ treat it as a specification of behaviour that must survive a rewrite.
   against two SAP codes produces "Which one — 360 or 500?"; *"twelve fibre"* against UG and OH
   variants produces "Which one — underground or overhead?". Answers can be an ordinal, a
   distinguishing word, or the code. See `distinguishers()`, `askChoices()`, `resolvePick()`.
+- **The item master is editable in the app.** Data → Item master is a table with a search box, an
+  Edit button leading every row (the table is wider than a phone, so a button at the far right could
+  not be reached), Add item, and Export to Excel in the shape the importer reads back. Every field is
+  editable including **Spoken as** — comma-separated phrases that go into the ElevenLabs keyterms on
+  the next listening session, so a word added here improves recognition immediately. `spokenAll()`
+  sends *all* of them, not just the first.
+  - Editing a built-in item writes an override into `S.custom` that keeps the built-in's position in
+    the list rather than jumping to the end; deleting one leaves a tombstone in `S.deleted` so it
+    stays deleted. `upsertItem()` and `deleteItem()` are the only ways in.
+  - **An upload merges; it does not overwrite.** *Add to existing* matches on item code, updates the
+    fields the file carries, and adds new rows — but a field the owner changed by hand is remembered
+    in `it.edited` and wins over the file, and spoken-as words are **unioned** rather than replaced.
+    A monthly supplier export must never quietly undo the words that make the voice work. Only
+    **Replace item master** clears all of that, which is what its label says.
 - **Flexible import.** CSV/XLSX item master where columns arrive in any order under any heading
   (SAP code, material number, invoice code, part number…). It finds the header row wherever it sits
   in the file and guesses every column, then shows the guesses for correction. Same importer
