@@ -16,8 +16,17 @@ module.exports = async function({ browser, H }){
   t('commands are all words a parser acts on', await p.evaluate(()=>
       CMD_TERMS.every(w=> reviewParse(w).cmd!=='none' || parse(w,'fibre').kind!=='unclear')),
       JSON.stringify(await p.evaluate(()=>CMD_TERMS.filter(w=> reviewParse(w).cmd==='none' && parse(w,'fibre').kind==='unclear'))));
-  t('catalogue aliases are used as the spoken form', kt.includes('ninety six fibre'),
-      JSON.stringify(kt.filter(x=>/fibre/i.test(x))));
+  /* the term spent on a row is one of the phrases the catalogue says people use,
+     never the prose printed on the sheet */
+  const spoken96 = await p.evaluate(()=>{
+    const r = reviewRowList().find(x=>x.code==='FIB-96F');
+    return r && {term: trimTerm(spokenFor(r)), desc: r.desc,
+                 aliases: String(r.alias||'').split(',').map(x=>x.trim())};
+  });
+  t('catalogue aliases are used as the spoken form',
+      !!spoken96 && spoken96.aliases.includes(spoken96.term)
+      && spoken96.term!==spoken96.desc && kt.includes(spoken96.term),
+      JSON.stringify(spoken96));
 
   /* ---------- B. the rotation actually reaches the socket ---------- */
   await p.evaluate(()=>saveRole('nbi')); await p.waitForTimeout(400);

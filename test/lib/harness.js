@@ -123,6 +123,12 @@ async function openApp(browser, opts){
     colorScheme: o.colorScheme || 'light',
     acceptDownloads: true
   });
+  /* The page pulls SheetJS, the ElevenLabs client and Google Fonts from CDNs
+     that this sandbox cannot reach. Left alone, Chromium holds each request
+     open until it times out — twelve seconds a page, and the app is served
+     local copies here anyway. Abort them and every suite is deterministic. */
+  await ctx.route(/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)/,
+                  r => r.abort());
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push('PAGEERROR: ' + e.message));

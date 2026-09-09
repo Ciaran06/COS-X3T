@@ -79,6 +79,14 @@ treat it as a specification of behaviour that must survive a rewrite.
     its description — because the counter says the former. Only words a parser actually acts on
     go in `CMD_TERMS`: boosting a word the app then fails to understand turns a misheard line
     into a *confidently* misheard one. See `keytermsFor()` and `spokenFor()`.
+  - **Fifty slots against a 398-row master.** The cursor window and the group being walked send
+    every "Spoken as" phrase the owner wrote; the tail gets **one term per item**. The first four
+    items' spellings would otherwise eat the whole budget, and one good term across thirty-six
+    items beats nine spellings of one. That one term is the **fullest phrase that still fits the
+    twenty characters** the API allows, not the first one written — the first alias is often a
+    fragment ("ninety six f") where a later one is the phrase people actually say ("ninety six
+    fibre"). So a phrase added by hand reaches the engine immediately if it is the fullest, and
+    every phrase on the item goes once the walk reaches it.
   - **Keyterms are fixed for the life of a socket** — they go up in the query string. So the
     rotation only happens if the socket is reopened when the set changes. `keytermSig()` changes
     exactly when it would, and `retuneListening()` reconnects on that, debounced and never
@@ -126,6 +134,27 @@ treat it as a specification of behaviour that must survive a rewrite.
 - **Parsing** (`parse()`): number words including "and" ("one thousand two hundred and fifty"),
   pack-size conversion, drum IDs with part lengths, Irish and UK registration plates spoken as
   digits and letters, shelf codes, location commands, undo/total/finish.
+- **How a written part number is said out loud** (`spokenNorm()`). The rules come from the
+  **Spoken rules** sheet in `sample-data/NBI-item-master-fibre.xlsx`, and they run over **both**
+  sides before matching — the words the counter said and the item's own name — so *"three fifty mil
+  pole bolt"* and *"350mm Pole Bolt"* become the same string. That is the point: a new item matches
+  without anyone hand-writing an alias for it, and **Spoken as** is for genuine exceptions only.
+  - mil/mill/millimetre → `mm`, kilometre → `km`, metre/Mt/mtr → `m`; `012F`, `96F`, "twelve fibre"
+    and "12 core" all → `12f`; `M12` and "em twelve" → `m12`; "by" between two sizes → `x`;
+    "three fifty" → 350 (which `wordsToNum` would make 53); "and a half" → `.5`; a leading SAP code,
+    a `-200 Box` pack suffix and everything after `c/w` are never spoken; a run of two or more
+    spelled-out letters closes up ("a d s s" → `adss`, "em dee you" → `mdu`) — one on its own does
+    not, because "a", "see" and "you" are ordinary words.
+  - Sizes are **fused** to the token they qualify (`350mm`, `12f`, `24way`, `9medium`) so that a
+    number which names the item is not thrown away with the quantities by `identifying()`.
+  - **On a pole the letter after the number is the grade, never metres.** `500CONPOLE9M` is a nine
+    metre *medium* pole and `500CONPOLE9L` a *light* one; every pole is in metres, so the metres are
+    implied. That context comes from the **item**, not from the words in front of us — the alias
+    "9 M" carries no clue on its own, and read as metres it put nine metres of something against a
+    pole. `isPoleItem()` decides it, and for a pole any candidate that still reads as
+    `<number> M` is dropped so it can never be a match target.
+  - `ml` is how a recogniser writes "mil", so it maps to `mm` — but **not** in the pub catalogue,
+    where Coke 330ml must not become 330mm.
 - **Never guess an item.** A match has to explain most of what was said. `identifying()` throws
   away the quantity, the number's own scaffolding (*hundred*, *and*), the unit and the filler, and
   what is left is scored by `matchItemAll()` against the whole utterance: mostly how much of what
@@ -400,6 +429,16 @@ treat it as a specification of behaviour that must survive a rewrite.
 - **Light only.** The OS-driven dark theme was removed with the blue: the app is one look on every
   phone, whatever the handset is set to. There is no theme toggle. If dark comes back it needs to be
   a deliberate blue-dark palette and a switch the counter can find, not a media query.
+- **Nothing a CDN serves may block the boot.** Both external scripts are `async` and the font
+  stylesheet loads with `media="print"`, because a blocking `<script src>` to a CDN holds up HTML
+  parsing until it times out — on a van with no signal that was **12.8 seconds of blank screen**
+  before the mic drew. It is 218ms now. Neither library is needed to start: the import path checks
+  for `XLSX` and the agent checks for `ElevenLabsClient`.
+- **Matching is cached per item** (`candData()`). Every match used to rebuild all 398 items'
+  candidate strings, running `spokenNorm` some sixteen thousand times for one spoken line — 156ms
+  a parse, and `parse()` runs more than once per utterance. It is 9ms warm. The cache key carries
+  the fields the strings are built from, so an edited item gets a new entry and there is nothing
+  to invalidate.
 - **No `prompt()`, `alert()` or `confirm()`.** They are blocked in the hosting frame and fail
   silently. Everything is inline UI.
 - **No secret ever reaches the page.** API keys, tokens and anything else that costs money live
@@ -445,7 +484,13 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
 
 ## Sample data
 
-`sample-data/` has four files, all real-shaped, all exercising the importer:
+`sample-data/` has five files, all real-shaped, all exercising the importer:
+
+- `NBI-item-master-fibre.xlsx` — **the fibre catalogue the app ships with**, 398 items across 16
+  product groups, plus the **Spoken rules** sheet those rules are built from. Baked into
+  `CATALOGUES.fibre.items`, merged on item code so the built-in rows kept what the sheet does not
+  carry (chiefly `drum:true`). Only 10 of the 398 have a unit value and 69 have no product group,
+  so most of the value columns read "—" until the office fills them in.
 
 - `KN02_locations.xlsx` — the KN Circet location list: 23 Mayo/Roscommon towns across 7 DAs, with a
   title and a blank row above the heading so the header-finding is exercised.

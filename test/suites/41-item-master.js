@@ -37,10 +37,27 @@ module.exports = async function({ browser, H }){
      await p.evaluate(()=>items('fibre').findIndex(i=>i.code==='POLE-9'))===await p.evaluate(()=>CATALOGUES.fibre.items.findIndex(i=>i.code==='POLE-9')));
 
   /* ── spoken-as reaches the voice engine ── */
+  /* Fifty slots against a 398-row master: the tail can only carry one term per
+     item, so an edit's FIRST phrase goes up straight away and the rest go when
+     that item is in focus — the cursor window or the group being walked. */
   const kt = await p.evaluate(()=>keytermsFor());
-  t('a new "spoken as" word is in the keyterms at once', kt.includes('stick'), JSON.stringify(kt.filter(x=>/pole|stick/i.test(x))));
-  t('all of its spoken-as words go, not just the first',
-     ['pole','nine metre pole','stick'].every(w=>kt.includes(w)), JSON.stringify(kt.slice(0,26)));
+  t('an edited item\'s spoken-as reaches the keyterms at once',
+     ['pole','nine metre pole','stick'].some(x=>kt.includes(x)),
+     JSON.stringify(kt.filter(x=>/pole|stick/i.test(x))));
+  t('the list still fits inside the API limits with 398 items',
+     kt.length<=50 && kt.every(x=>x.length<=20), 'n='+kt.length);
+  const focused = await p.evaluate(()=>{
+    /* walk the sheet to that item, which is what focus means */
+    S.review = {key:'k', role:'contractor', mode:'all', idx:0, speak:false};
+    REVIEW.active = true;
+    const w = reviewWalk();
+    S.review.idx = w.findIndex(r=>r.code==='POLE-9');
+    const terms = keytermsFor();
+    REVIEW.active = false; S.review = null;
+    return terms;
+  });
+  t('and every phrase goes once that item is the one being walked',
+     ['pole','nine metre pole','stick'].every(w=>focused.includes(w)), JSON.stringify(focused.slice(14,26)));
 
   /* ── add a new item ── */
   await p.click('#catNew'); await p.waitForTimeout(400);
@@ -51,8 +68,13 @@ module.exports = async function({ browser, H }){
   const added = await p.evaluate(()=>{ const it=item('fibre','NBI-TST-1');
     return {code:it.code, pack:it.pack, packName:it.packName, n:items('fibre').length}; });
   t('a new item is added, code upper-cased', added.code==='NBI-TST-1' && added.pack===50 && added.n===n0+1, JSON.stringify(added));
-  t('and it parses straight away', await p.evaluate(()=>{ const r=parse('four boxes of brackets','fibre');
-      return r.kind==='line' && r.it.code==='NBI-TST-1' && r.qty===4; }));
+  /* the master has three real brackets, so this is a genuine tie — what matters
+     is that the item just added is reachable immediately */
+  const newParse = await p.evaluate(()=>{ const r=parse('four boxes of brackets','fibre');
+    return {kind:r.kind, qty:r.qty, codes:(r.options||[]).map(o=>o.it.code), it:r.it?r.it.code:''}; });
+  t('and it is reachable straight away',
+    newParse.qty===4 && (newParse.it==='NBI-TST-1' || newParse.codes.includes('NBI-TST-1')),
+    JSON.stringify(newParse));
 
   /* ── delete ── */
   await p.click('#tblCat button[data-edit="NBI-TST-1"]'); await p.waitForTimeout(300);

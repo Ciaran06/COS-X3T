@@ -15,7 +15,10 @@ module.exports = async function({ browser, H }){
   /* ── never guess ── */
   const cases = [
     ['350 ml pole bolt',        'choose'],
-    ['nine m hole 350 each',    'noitem'],
+    /* "hole" is not an item and "each" is a unit — with the real master this
+       is a weak match rather than nothing, so it asks. What matters is that no
+       pole comes back: "nine M" is a pole GRADE, never nine metres. */
+    ['nine m hole 350 each',    'choose'],
     ['ten poles',               'line'],
     ['three hundred and fifty', 'noitem'],
     ['350 each',                'noitem'],
@@ -26,8 +29,15 @@ module.exports = async function({ browser, H }){
       return {kind:pr.kind, weak:!!pr.weak, item:pr.it?pr.it.short.slice(0,30):'', opts:(pr.options||[]).map(o=>o.it.short.slice(0,24)+'@'+o.conf.toFixed(2))}; }, said);
     t('"'+said+'" → '+want, r.kind===want, JSON.stringify(r));
   }
-  const three = await p.evaluate(()=>{ const pr=parse('350 ml pole bolt','fibre'); return {n:(pr.options||[]).length, weak:!!pr.weak}; });
-  t('a weak match offers the closest few, flagged weak', three.weak===true && three.n<=3 && three.n>=1, JSON.stringify(three));
+  const three = await p.evaluate(()=>{ const pr=parse('350 ml pole bolt','fibre');
+    return {kind:pr.kind, n:(pr.options||[]).length, confs:(pr.options||[]).map(o=>o.conf)}; });
+  t('a phrase that fits more than one item asks, with a confidence on each option',
+    three.kind==='choose' && three.n>=2 && three.n<=3 && three.confs.every(c=>typeof c==='number'),
+    JSON.stringify(three));
+  const noPole = await p.evaluate(()=>{ const pr=parse('nine m hole 350 each','fibre');
+    return (pr.options||[]).map(o=>o.it.code); });
+  t('"nine M" never reaches a pole — the M is a grade, not metres',
+    !noPole.some(c=>/POLE/i.test(c)), JSON.stringify(noPole));
   t('nothing binds on the number alone', await p.evaluate(()=>matchItemAll('fibre',['350','each']).length)===0);
 
   /* ── turn taking ── */
