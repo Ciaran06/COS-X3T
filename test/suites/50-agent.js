@@ -29,9 +29,9 @@ module.exports = async function({ browser, H }){
   await page.evaluate(()=>probeVoice()); await page.waitForTimeout(700);
 
   /* ---- find_item ---- */
-  const find = await page.evaluate(()=>AGENT_TOOLS.find_item({spoken_text:'nine metre poles'}));
+  const find = await page.evaluate(()=>AGENT_TOOLS.find_item({spoken_text:'nine metre medium poles'}));
   t('find_item returns candidates with a confidence',
-    find.found===true && find.candidates[0].code==='POLE-9' && find.candidates[0].confidence>0, JSON.stringify(find).slice(0,140));
+    find.found===true && find.candidates[0].code==='500CONPOLE9M' && find.candidates[0].confidence>0, JSON.stringify(find).slice(0,140));
   t('find_item returns at most three',
     (await page.evaluate(()=>AGENT_TOOLS.find_item({spoken_text:'fibre'}))).candidates.length<=3);
   const none = await page.evaluate(()=>AGENT_TOOLS.find_item({spoken_text:'flibbertigibbet'}));
@@ -41,15 +41,15 @@ module.exports = async function({ browser, H }){
 
   /* ---- record_count ---- */
   await page.evaluate(()=>{ $('setup').classList.add('hidden'); SPOT='Shelf A1'; });
-  const rec = await page.evaluate(()=>AGENT_TOOLS.record_count({item_code:'POLE-9', quantity:12, unit_as_spoken:'each'}));
+  const rec = await page.evaluate(()=>AGENT_TOOLS.record_count({item_code:'500CONPOLE9M', quantity:12, unit_as_spoken:'each'}));
   t('record_count writes a line and returns the readback',
-    rec.recorded===true && rec.short_name==='9m pole' && rec.quantity===12 && !!rec.line_id, JSON.stringify(rec));
-  const conv = await page.evaluate(()=>AGENT_TOOLS.record_count({item_code:'FIB-96F', quantity:3, unit_as_spoken:'drums'}));
+    rec.recorded===true && rec.short_name==='Medium Pole 9.0m' && rec.quantity===12 && !!rec.line_id, JSON.stringify(rec));
+  const conv = await page.evaluate(()=>AGENT_TOOLS.record_count({item_code:'500CABLEAER96F', quantity:3, unit_as_spoken:'drums'}));
   t('the app converts the unit, not the agent', conv.recorded===true && /drum/.test(conv.uom), JSON.stringify(conv));
   t('an unknown item code is refused, not invented',
     (await page.evaluate(()=>AGENT_TOOLS.record_count({item_code:'NOPE', quantity:1, unit_as_spoken:'each'}))).error!=null);
   t('a non-numeric quantity is refused',
-    (await page.evaluate(()=>AGENT_TOOLS.record_count({item_code:'POLE-9', quantity:'lots', unit_as_spoken:'each'}))).error!=null);
+    (await page.evaluate(()=>AGENT_TOOLS.record_count({item_code:'500CONPOLE9M', quantity:'lots', unit_as_spoken:'each'}))).error!=null);
 
   /* ---- the rest ---- */
   const before = await page.evaluate(()=>cur().lines.length);

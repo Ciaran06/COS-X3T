@@ -33,23 +33,23 @@ module.exports = async function({ browser, H }){
 
   /* the typed box is the same input, not a parallel path */
   await page.evaluate(()=>{ $('setup').classList.add('hidden'); window.__msg.length=0; });
-  await page.fill('#typeIn', 'ten poles');
+  await page.fill('#typeIn', 'ten pole steps');
   await page.press('#typeIn', 'Enter');
   await page.waitForTimeout(300);
   const typed = await page.evaluate(()=>({sent:window.__msg.slice(), lines:(cur()&&cur().lines||[]).length, box:$('typeIn').value}));
-  t('typing goes to the agent as a user turn', typed.sent[0]==='ten poles', JSON.stringify(typed.sent));
+  t('typing goes to the agent as a user turn', typed.sent[0]==='ten pole steps', JSON.stringify(typed.sent));
   t('and is not parsed behind its back', typed.lines===0, 'lines=' + typed.lines);
   t('the box clears', typed.box==='', JSON.stringify(typed.box));
 
   const noAgent = await page.evaluate(async ()=>{
     AGENT.on=false; AGENT.conv=null;
-    $('typeIn').value='ten poles'; typeSend();
+    $('typeIn').value='ten pole steps'; typeSend();
     await new Promise(r=>setTimeout(r,400));
     return (cur()&&cur().lines||[]).length;
   });
   t('with no agent, typing still goes straight to the parser', noAgent===1, 'lines=' + noAgent);
   t('typed lines are never counted as something the ear heard',
-    await page.evaluate(()=>(S.vlog||[]).filter(e=>e.kind!=='tool'&&e.kind!=='context'&&e.text==='ten poles').length)===0);
+    await page.evaluate(()=>(S.vlog||[]).filter(e=>e.kind!=='tool'&&e.kind!=='context'&&e.text==='ten pole steps').length)===0);
 
   const ctxLogged = await page.evaluate(()=>S.vlog.filter(e=>e.kind==='context').length);
   t('context updates are logged too', ctxLogged>=3, 'n=' + ctxLogged);

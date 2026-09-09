@@ -981,7 +981,8 @@
       </div></details>
       <details class="hb"><summary>Drums and part reels</summary><div class="body">
         <code class="k">drum A B C D one, eight hundred metres</code> — the drum ID is kept with the length, so part drums stay identifiable.<br>
-        <code class="k">twenty full drums of ninety six fibre</code> multiplies by the standard length on the item.
+        <code class="k">twenty full drums of aerial ninety six fibre</code> multiplies by the standard length on the item.<br>
+        Say <b>aerial</b> or <b>underground</b> with a fibre count — the master carries both, so <code class="k">ninety six fibre</code> on its own asks which.
       </div></details>
       <details class="hb"><summary>Fixing and checking</summary><div class="body">
         <code class="k">undo</code> / <code class="k">scratch that</code> removes the last line · <code class="k">total</code> reads back the running total.
@@ -1117,16 +1118,6 @@ const CATALOGUES = {
     defaultPlace:'van',
     spots:['Shelf A1','Shelf A2','Shelf A3','Bay 1','Bay 2','Roof rack','Floor'],
     items:[
-      {code:'FIB-96F', short:'96F fibre drum', long:'96 fibre ADSS cable, 4km drum', unit:'metre', pack:4000, packName:'drum', price:1.1, group:'03. Fibre - Overhead', alias:'ninety six f, 96 fibre, ninety six fibre, fibre drum, 96f fibre drum, 96 f fibre drum, 96 core fibre drum, ninety six f fibre drum, ninety six core fibre drum', drum:true},
-      {code:'FIB-48F', short:'48F fibre drum', long:'48 fibre ADSS cable, 4km drum', unit:'metre', pack:4000, packName:'drum', price:0.85, group:'03. Fibre - Overhead', alias:'48 fibre, forty eight fibre, fibre drum, 48f fibre drum, 48 f fibre drum, 48 core fibre drum, forty eight f fibre drum, forty eight core fibre drum', drum:true},
-      {code:'FIB-24F', short:'24F fibre drum', long:'24 fibre ADSS cable, 2km drum', unit:'metre', pack:2000, packName:'drum', price:0.62, group:'03. Fibre - Overhead', alias:'24 fibre, twenty four fibre, fibre drum, 24f fibre drum, 24 f fibre drum, 24 core fibre drum, twenty four f fibre drum, twenty four core fibre drum', drum:true},
-      {code:'DUCT-32', short:'32mm duct coil', long:'32mm HDPE sub-duct, 200m coil', unit:'metre', pack:200, packName:'coil', price:0.95, group:'06. Sub Duct', alias:'sub duct, thirty two duct, duct, duct coil, 32mm duct coil, 32 mil duct coil, 32 mill duct coil, 32 millimetre duct coil, thirty two mil duct coil, thirty two mill duct coil'},
-      {code:'POLE-9', short:'9m pole', long:'9 metre creosote distribution pole', unit:'each', pack:1, price:148, group:'01. Poles', alias:'nine metre pole, 9 metre pole, 9m pole, pole, poles'},
-      {code:'HANG-STD', short:'Cable hanger', long:'Standard aerial cable hanger, box of 100', unit:'each', pack:100, packName:'box', price:0.42, group:'02. Poles - Accessories', alias:'hangers, hanger, cable hanger'},
-      {code:'MH-D400', short:'Manhole cover D400', long:'D400 composite manhole cover and frame', unit:'each', pack:1, price:210, group:'10. Covers & Accessories', alias:'manhole, cover, manhole cover, manhole cover d400'},
-      {code:'CONN-KIT', short:'Connection kit', long:'Standard premises connection kit', unit:'each', pack:1, price:38.5, group:'11. Connections', alias:'kits, kit, conn kit, connection kit'},
-      {code:'SCREW-100', short:'Fixing screws', long:'Stainless fixing screws, box of 100', unit:'each', pack:100, packName:'box', price:0.18, group:'02. Poles - Accessories', alias:'fixings, screw, screws, fixing screws'},
-      {code:'CLOS-24', short:'24-way closure', long:'24 way inline splice closure', unit:'each', pack:1, price:96, group:'08. Enclosures', alias:'closures, closure, 24 way closure, twenty four way closure'},
       {code:'500CONPOLE10L', short:'Light Pole 10.0m', long:'Light Pole 10.0m', unit:'each', pack:1, group:'01. Poles', alias:'10 L, 10 el, 10 light, 10 lightweight, 10 light pole, 10 metre light, 10 metre light pole, ten L, ten el, ten light, ten lightweight, ten light pole, ten metre light, ten metre light pole, light pole, light pole 10, light pole ten'},
       {code:'500CONPOLE10M', short:'Medium Pole 10.0m', long:'Medium Pole 10.0m', unit:'each', pack:1, group:'01. Poles', alias:'10 M, 10 em, 10 medium, 10 medium pole, 10 metre medium, 10 metre medium pole, ten M, ten em, ten medium, ten medium pole, ten metre medium, ten metre medium pole, medium pole, medium pole 10, medium pole ten'},
       {code:'500CONPOLE8HL', short:'8.5Mt Light Pole', long:'8.5Mt Light Pole', unit:'each', pack:1, group:'01. Poles', alias:'8 point 5 L, 8 point 5 el, 8 point 5 light, 8 point 5 lightweight, 8 point 5 light pole, 8 point 5 metre light, 8 point 5 metre light pole, eight and a half L, eight and a half el, eight and a half light, eight and a half lightweight, eight and a half light pole, eight and a half metre light, eight and a half metre light pole, eight point five L, eight point five el, eight point five light, eight point five lightweight, eight point five light pole, eight point five metre light, eight point five metre light pole, 8 and a half L, 8 and a half el, 8 and a half light, 8 and a half lightweight, 8 and a half light pole, 8 and a half metre light, 8 and a half metre light pole, light pole, light pole 8 point 5, light pole eight and a half'},
@@ -1147,18 +1138,18 @@ const CATALOGUES = {
       {code:'500POLESAFETYSIGN', short:'Hazard Warning Signs For Poles', long:'Hazard Warning Signs For Poles', unit:'each', pack:50, packName:'case', group:'02. Poles - Accessories', alias:'hazard warning signs for poles'},
       {code:'500POLESTAYSET', short:'Stay Set-20 Box', long:'Stay Set-20 Box', unit:'each', pack:50, packName:'case', group:'02. Poles - Accessories', alias:'stay set'},
       {code:'500POLESTEP', short:'Pole Step-30 Box', long:'Pole Step-30 Box', unit:'each', pack:30, packName:'case', group:'02. Poles - Accessories', alias:'pole step'},
-      {code:'500CABLEAER12F', short:'Aerial Fibre Cable 012F', long:'Aerial Fibre Cable 012F', unit:'km', pack:4, packName:'case', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 012f, aerial fibre cable 12 f, aerial fibre cable 12 core, aerial fibre cable 12 fibre, aerial fibre cable twelve f, aerial fibre cable twelve core, aerial fibre cable twelve fibre'},
-      {code:'500CABLEAER144F', short:'Aerial Fibre Cable 144F', long:'Aerial Fibre Cable 144F', unit:'km', pack:4, packName:'case', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 144f, aerial fibre cable 144 f, aerial fibre cable 144 core, aerial fibre cable 144 fibre, aerial fibre cable one forty four f, aerial fibre cable one forty four core, aerial fibre cable one forty four fibre, aerial fibre cable one hundred and forty four f, aerial fibre cable one hundred and forty four core'},
+      {code:'500CABLEAER12F', short:'Aerial Fibre Cable 012F', long:'Aerial Fibre Cable 012F', unit:'metre', pack:4000, packName:'drum', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 012f, aerial fibre cable 12 f, aerial fibre cable 12 core, aerial fibre cable 12 fibre, aerial fibre cable twelve f, aerial fibre cable twelve core, aerial fibre cable twelve fibre', drum:true},
+      {code:'500CABLEAER144F', short:'Aerial Fibre Cable 144F', long:'Aerial Fibre Cable 144F', unit:'metre', pack:4000, packName:'drum', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 144f, aerial fibre cable 144 f, aerial fibre cable 144 core, aerial fibre cable 144 fibre, aerial fibre cable one forty four f, aerial fibre cable one forty four core, aerial fibre cable one forty four fibre, aerial fibre cable one hundred and forty four f, aerial fibre cable one hundred and forty four core', drum:true},
       {code:'500CABLEAER1F', short:'Aerial Fibre Cable 001F', long:'Aerial Fibre Cable 001F', unit:'km', pack:1, group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 1 f, aerial fibre cable 001f, aerial fibre cable one f, aerial fibre cable 1 core, aerial fibre cable 1 fibre, aerial fibre cable one core, aerial fibre cable one fibre'},
-      {code:'500CABLEAER24F', short:'Aerial Fibre Cable 024F', long:'Aerial Fibre Cable 024F', unit:'km', pack:4, packName:'case', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 024f, aerial fibre cable 24 f, aerial fibre cable 24 core, aerial fibre cable 24 fibre, aerial fibre cable twenty four f, aerial fibre cable twenty four core, aerial fibre cable twenty four fibre'},
-      {code:'500CABLEAER48F', short:'Aerial Fibre Cable 048F', long:'Aerial Fibre Cable 048F', unit:'km', pack:4, packName:'case', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 048f, aerial fibre cable 48 f, aerial fibre cable 48 core, aerial fibre cable 48 fibre, aerial fibre cable forty eight f, aerial fibre cable forty eight core, aerial fibre cable forty eight fibre'},
-      {code:'500CABLEAER96F', short:'Aerial Fibre Cable 096F', long:'Aerial Fibre Cable 096F', unit:'km', pack:4, packName:'case', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 96 f, aerial fibre cable 096f, aerial fibre cable 96 core, aerial fibre cable 96 fibre, aerial fibre cable ninety six f, aerial fibre cable ninety six core, aerial fibre cable ninety six fibre'},
+      {code:'500CABLEAER24F', short:'Aerial Fibre Cable 024F', long:'Aerial Fibre Cable 024F', unit:'metre', pack:4000, packName:'drum', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 024f, aerial fibre cable 24 f, aerial fibre cable 24 core, aerial fibre cable 24 fibre, aerial fibre cable twenty four f, aerial fibre cable twenty four core, aerial fibre cable twenty four fibre', drum:true},
+      {code:'500CABLEAER48F', short:'Aerial Fibre Cable 048F', long:'Aerial Fibre Cable 048F', unit:'metre', pack:4000, packName:'drum', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 048f, aerial fibre cable 48 f, aerial fibre cable 48 core, aerial fibre cable 48 fibre, aerial fibre cable forty eight f, aerial fibre cable forty eight core, aerial fibre cable forty eight fibre', drum:true},
+      {code:'500CABLEAER96F', short:'Aerial Fibre Cable 096F', long:'Aerial Fibre Cable 096F', unit:'metre', pack:4000, packName:'drum', group:'03. Fibre - Overhead', alias:'aerial fibre cable, aerial fibre cable 96 f, aerial fibre cable 096f, aerial fibre cable 96 core, aerial fibre cable 96 fibre, aerial fibre cable ninety six f, aerial fibre cable ninety six core, aerial fibre cable ninety six fibre', drum:true},
       {code:'500CABLE288F', short:'Fibre Cable ADSS - 288F - A1 Low loss', long:'Fibre Cable ADSS - 288F - A1 Low loss', unit:'mtr', pack:4, packName:'case', group:'03. Fibre - Overhead', alias:'fibre cable, fibre cable adss'},
-      {code:'500CABLEUG12FSL', short:'UG Fibre Cable 012F Standard', long:'UG Fibre Cable 012F Standard', unit:'km', pack:4, packName:'case', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 012f standard, ug fibre cable 12 f standard, u g fibre cable 012f standard, u g fibre cable 12 f standard, ug fibre cable 12 core standard, ug fibre cable 12 fibre standard, ug fibre cable twelve f standard, u g fibre cable 12 core standard, u g fibre cable 12 fibre standard'},
-      {code:'500CABLEUG144FSL', short:'UG Fibre Cable 144F Standard', long:'UG Fibre Cable 144F Standard', unit:'km', pack:4, packName:'case', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 144f standard, u g fibre cable 144f standard, ug fibre cable 144 f standard, u g fibre cable 144 f standard, ug fibre cable 144 core standard, u g fibre cable 144 core standard, ug fibre cable 144 fibre standard, u g fibre cable 144 fibre standard, underground fibre cable 144f standard'},
-      {code:'500CABLEUG24FSL', short:'UG Fibre Cable 024F Standard', long:'UG Fibre Cable 024F Standard', unit:'km', pack:4, packName:'case', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 24 f standard, ug fibre cable 024f standard, u g fibre cable 024f standard, u g fibre cable 24 f standard, ug fibre cable 24 core standard, u g fibre cable 24 core standard, ug fibre cable 24 fibre standard, u g fibre cable 24 fibre standard, ug fibre cable twenty four f standard'},
-      {code:'500CABLEUG48FSL', short:'UG Fibre Cable 048F Standard', long:'UG Fibre Cable 048F Standard', unit:'km', pack:4, packName:'case', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 048f standard, ug fibre cable 48 f standard, u g fibre cable 48 f standard, u g fibre cable 048f standard, ug fibre cable 48 core standard, ug fibre cable 48 fibre standard, u g fibre cable 48 core standard, u g fibre cable 48 fibre standard, underground fibre cable 048f standard'},
-      {code:'500CABLEUG96FSL', short:'UG Fibre Cable 096F Standard', long:'UG Fibre Cable 096F Standard', unit:'km', pack:4, packName:'case', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 096f standard, ug fibre cable 96 f standard, u g fibre cable 96 f standard, u g fibre cable 096f standard, ug fibre cable 96 core standard, u g fibre cable 96 core standard, ug fibre cable 96 fibre standard, u g fibre cable 96 fibre standard, ug fibre cable ninety six f standard'},
+      {code:'500CABLEUG12FSL', short:'UG Fibre Cable 012F Standard', long:'UG Fibre Cable 012F Standard', unit:'metre', pack:4000, packName:'drum', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 012f standard, ug fibre cable 12 f standard, u g fibre cable 012f standard, u g fibre cable 12 f standard, ug fibre cable 12 core standard, ug fibre cable 12 fibre standard, ug fibre cable twelve f standard, u g fibre cable 12 core standard, u g fibre cable 12 fibre standard', drum:true},
+      {code:'500CABLEUG144FSL', short:'UG Fibre Cable 144F Standard', long:'UG Fibre Cable 144F Standard', unit:'metre', pack:4000, packName:'drum', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 144f standard, u g fibre cable 144f standard, ug fibre cable 144 f standard, u g fibre cable 144 f standard, ug fibre cable 144 core standard, u g fibre cable 144 core standard, ug fibre cable 144 fibre standard, u g fibre cable 144 fibre standard, underground fibre cable 144f standard', drum:true},
+      {code:'500CABLEUG24FSL', short:'UG Fibre Cable 024F Standard', long:'UG Fibre Cable 024F Standard', unit:'metre', pack:4000, packName:'drum', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 24 f standard, ug fibre cable 024f standard, u g fibre cable 024f standard, u g fibre cable 24 f standard, ug fibre cable 24 core standard, u g fibre cable 24 core standard, ug fibre cable 24 fibre standard, u g fibre cable 24 fibre standard, ug fibre cable twenty four f standard', drum:true},
+      {code:'500CABLEUG48FSL', short:'UG Fibre Cable 048F Standard', long:'UG Fibre Cable 048F Standard', unit:'metre', pack:4000, packName:'drum', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 048f standard, ug fibre cable 48 f standard, u g fibre cable 48 f standard, u g fibre cable 048f standard, ug fibre cable 48 core standard, ug fibre cable 48 fibre standard, u g fibre cable 48 core standard, u g fibre cable 48 fibre standard, underground fibre cable 048f standard', drum:true},
+      {code:'500CABLEUG96FSL', short:'UG Fibre Cable 096F Standard', long:'UG Fibre Cable 096F Standard', unit:'metre', pack:4000, packName:'drum', group:'04. Fibre - Underground', alias:'fibre cable standard, ug fibre cable 096f standard, ug fibre cable 96 f standard, u g fibre cable 96 f standard, u g fibre cable 096f standard, ug fibre cable 96 core standard, u g fibre cable 96 core standard, ug fibre cable 96 fibre standard, u g fibre cable 96 fibre standard, ug fibre cable ninety six f standard', drum:true},
       {code:'500CABLEABRASION10MM', short:'10mm Cable Abrasion Wrap (BLK) 96/144', long:'10mm Cable Abrasion Wrap (BLK) 96/144', unit:'each', pack:10, packName:'case', group:'05. Fibre - Accessories', alias:'cable abrasion wrap, 10mm cable abrasion wrap 96 144, 10 mil cable abrasion wrap 96 144, 10 mill cable abrasion wrap 96 144, 10 millimetre cable abrasion wrap 96 144'},
       {code:'500CABLEABRASION8MM', short:'8mm Cable Abrasion Wrap (BLK) 24/48', long:'8mm Cable Abrasion Wrap (BLK) 24/48', unit:'each', pack:10, packName:'case', group:'05. Fibre - Accessories', alias:'cable abrasion wrap, 8mm cable abrasion wrap 24 48, 8 mil cable abrasion wrap 24 48, 8 mill cable abrasion wrap 24 48, 8 millimetre cable abrasion wrap 24 48'},
       {code:'500CABLEBLACKABR6MM', short:'Cable Abrasion Spiral Wrap(6mm) (Black)', long:'Cable Abrasion Spiral Wrap(6mm) (Black)', unit:'each', pack:20, packName:'case', group:'05. Fibre - Accessories', alias:'cable abrasion spiral wrap'},
@@ -1555,24 +1546,24 @@ function jobName(id){ const j=job(id); return j? j.name : 'Unassigned'; }
 function seedSessions(){
   return [
     {id:'demo-tli-1', cat:'fibre', org:'TLI Group', ctype:'van', container:'12-G-12345', by:'Seán M', job:'j-nbi-me', started:seedTs, finished:seedTs+2.4e6, example:true, lines:[
-      L('fibre','FIB-96F',3,'drum','',null,seedTs),
-      L('fibre','FIB-96F',800,'metre','','ABCD1',seedTs+6e4),
-      L('fibre','FIB-96F',350,'metre','','ABCD7',seedTs+9e4),
-      L('fibre','DUCT-32',6,'coil','',null,seedTs+1.5e5),
-      L('fibre','HANG-STD',4,'box','',null,seedTs+1.8e5),
-      L('fibre','CONN-KIT',22,'each','',null,seedTs+2.4e5),
-      L('fibre','POLE-9',2,'each','',null,seedTs+3e5)]},
+      L('fibre','500CABLEAER96F',3,'drum','',null,seedTs),
+      L('fibre','500CABLEAER96F',800,'metre','','ABCD1',seedTs+6e4),
+      L('fibre','500CABLEAER96F',350,'metre','','ABCD7',seedTs+9e4),
+      L('fibre','504DUCTSUB14101WAY',6,'km','',null,seedTs+1.5e5),
+      L('fibre','500POLESTEP',4,'case','',null,seedTs+1.8e5),
+      L('fibre','3FE49328CB',22,'each','',null,seedTs+2.4e5),
+      L('fibre','500CONPOLE9M',2,'each','',null,seedTs+3e5)]},
     {id:'demo-tli-2', cat:'fibre', org:'TLI Group', ctype:'yard', container:'Back yard', by:'Marie D', job:'j-nbi-me', started:seedTs+2.9e6, finished:seedTs+3.4e6, example:true, lines:[
-      L('fibre','FIB-96F',9,'drum','',null,seedTs+2.9e6),
-      L('fibre','FIB-48F',4,'drum','',null,seedTs+2.95e6),
-      L('fibre','POLE-9',36,'each','',null,seedTs+3.0e6),
-      L('fibre','MH-D400',14,'each','',null,seedTs+3.1e6)]},
+      L('fibre','500CABLEAER96F',9,'drum','',null,seedTs+2.9e6),
+      L('fibre','500CABLEAER48F',4,'drum','',null,seedTs+2.95e6),
+      L('fibre','500CONPOLE9M',36,'each','',null,seedTs+3.0e6),
+      L('fibre','501COVERPYTHOND400',14,'each','',null,seedTs+3.1e6)]},
     {id:'demo-knc-1', cat:'fibre', org:'KN Circet', ctype:'van', container:'202-C-8871', by:'Declan B', job:'j-nbi-me', started:seedTs+3.6e6, finished:seedTs+5.4e6, example:true, lines:[
-      L('fibre','FIB-48F',2,'drum','',null,seedTs+3.6e6),
-      L('fibre','FIB-48F',1250,'metre','','KN0043',seedTs+3.7e6),
-      L('fibre','CONN-KIT',14,'each','',null,seedTs+3.8e6),
-      L('fibre','SCREW-100',3,'box','',null,seedTs+3.9e6),
-      L('fibre','CLOS-24',6,'each','',null,seedTs+4.0e6)]},
+      L('fibre','500CABLEAER48F',2,'drum','',null,seedTs+3.6e6),
+      L('fibre','500CABLEAER48F',1250,'metre','','KN0043',seedTs+3.7e6),
+      L('fibre','3FE49328CB',14,'each','',null,seedTs+3.8e6),
+      L('fibre','500POLECOACHSCREW300',3,'case','',null,seedTs+3.9e6),
+      L('fibre','500ENCLOSURE1H',6,'each','',null,seedTs+4.0e6)]},
     {id:'demo-powers-1', cat:'pub', org:'Powers', ctype:'store-in', container:'Main bar', by:'Pat', job:'j-powers-me', started:seedTs+7.2e6, finished:seedTs+8.1e6, example:true, lines:[
       L('pub','COKE-330',20,'bottle','',null,seedTs+7.2e6),
       L('pub','COKE-330',10,'bottle','',null,seedTs+7.25e6),
@@ -1878,8 +1869,23 @@ function spokenNumbers(str){
     out.push(v==null || isNaN(v) ? run.join(' ') : String(v));
     run=[];
   };
+  /* Two numbers side by side are two numbers. "six nine metre poles" is six of
+     them, nine metres tall — not fifteen of anything, which is what adding the
+     run gave. A unit word can only be followed by a scale word; a tens word can
+     take a unit after it ("twenty four"); and two written digits are always
+     two separate numbers. */
+  const extends_ = t => {
+    if(!run.length) return true;
+    const prev = run[run.length-1];
+    if(t==='and' || prev==='and') return true;
+    if(t in SCALE || prev in SCALE) return true;
+    if(/^\d/.test(prev) || /^\d/.test(t)) return false;
+    if(prev in N10) return (t in N1) && N1[t]>0 && N1[t]<10;
+    return false;                       /* "six nine" is six, then nine */
+  };
   for(const t of toks){
-    if(isNumTok(t) || (run.length && t==='and')) run.push(t);
+    if((isNumTok(t) && extends_(t)) || (run.length && t==='and')) run.push(t);
+    else if(isNumTok(t)){ flush(); run.push(t); }
     else {
       if(run.length && run[run.length-1]==='and'){ run.pop(); flush(); out.push('and'); }
       else flush();
@@ -1940,9 +1946,23 @@ function spokenNorm(text, isPole){
      "nine M" must never be read as nine metres of anything. The size is fused
      to the grade so it survives as one identifying token. */
   if(isPole || /\bpole/.test(s)){
-    s = s.replace(/\b(\d+(?:\.\d+)?)\s+(?:m|em|medium)\b/g, '$1 medium');
-    s = s.replace(/\b(\d+(?:\.\d+)?)\s+(?:l|el|light|lightweight)\b/g, '$1 light');
-    s = s.replace(/\b(\d+(?:\.\d+)?)\s+(?:metre|metres|meter|meters|mt|mtr)\b/g, '$1');
+    s = s.replace(/\blightweight\b/g, 'light');
+    /* If the grade is already spelled out then a trailing "m" is metres, and
+       reading it as MEDIUM turned "Light Pole 10.0m" into a ten-medium pole.
+       Only a bare letter with no grade word beside it is the grade. */
+    if(/\b(medium|light|stout)\b/.test(s)){
+      s = s.replace(/\b(\d+(?:\.\d+)?)\s+(?:m|em|metre|metres|meter|meters|mt|mtr)\b/g, '$1');
+    }else{
+      s = s.replace(/\b(\d+(?:\.\d+)?)\s+(?:m|em)\b/g, '$1 medium');
+      s = s.replace(/\b(\d+(?:\.\d+)?)\s+(?:l|el)\b/g, '$1 light');
+      s = s.replace(/\b(\d+(?:\.\d+)?)\s+(?:metre|metres|meter|meters|mt|mtr)\b/g, '$1');
+    }
+    /* The grade comes before the number as often as after — the sheet says
+       "Medium Pole 9.0m", the counter says "nine metre medium pole". Both are
+       the same pole, so both end up written the same way round. Without this
+       the grade and the height never met and a nine metre medium pole tied
+       with every ten metre one. */
+    s = s.replace(/\b(medium|light|stout)(\s+pole)?\s+(\d+(?:\.\d+)?)\b/g, '$3 $1$2');
     s = s.replace(/\b(\d+(?:\.\d+)?)\s+(medium|light|stout)\b/g, '$1$2');
   }
   s = s.replace(/\b(\d+(?:\.\d+)?)\s+(?:metre|metres|meter|meters|mt|mtr|m)\b/g, '$1m');
@@ -1985,8 +2005,16 @@ function candData(it){
 }
 function candStrings(it){ return candData(it).strings; }
 function buildCandStrings(it, pole){
+  /* norm() eats a decimal point, which turned "8.5Mt Light Pole" into "8 5mt"
+     and then into a 13 metre pole. The candidate keeps its decimals for the
+     same reason the spoken side does. */
+  const flat = x => String(x==null?'':x).toLowerCase()
+      .replace(/(\d)\s*[.,]\s*(\d)/g, '$1\u00b7$2')
+      .replace(/[^a-z0-9\u00b7]+/g, ' ')
+      .replace(/\u00b7/g, '.')
+      .replace(/\s+/g, ' ').trim();
   const base=[it.short,it.long,it.code.replace(/[-_]/g,' ')]
-    .concat((it.alias||'').split(',')).map(s=>norm(s||'')).filter(Boolean);
+    .concat((it.alias||'').split(',')).map(flat).filter(Boolean);
   const out=[];
   for(const c of base){
     for(const v of spokenVariants(c)) if(v && !out.includes(v)) out.push(v);
@@ -2227,8 +2255,16 @@ function parse(text, cat){
       const id = codeFrom(toks.slice(1,start).concat(dropped));
       const tail = toks.slice(uIdx+1).filter(x=>!FILLER.includes(x));
       const found = extractItem(tail, cat, 'metre');
-      const it = (found&&found.it) || items(cat).find(i=>i.drum);
-      if(qty!=null && it) return {kind:'line', it, qty, unit:'metre', drumId:id||null};
+      if(qty!=null && found && found.it)
+        return {kind:'line', it:found.it, qty, unit:'metre', drumId:id||null};
+      /* No cable named after the drum ID. With one drum item in the catalogue
+         that is not a guess; with ten of them it is, so it asks which. */
+      const drums = items(cat).filter(i=>i.drum);
+      if(qty!=null && drums.length===1)
+        return {kind:'line', it:drums[0], qty, unit:'metre', drumId:id||null};
+      if(qty!=null && drums.length>1)
+        return {kind:'choose', options:drums.slice(0,3).map(it=>({it, conf:1/drums.length, hits:0, words:[], coverage:0})),
+                qty, unit:'metre', drumId:id||null, said:t};
     }
   }
 
@@ -7595,7 +7631,7 @@ function fillOrgs(keepPlace){
     PTYPE = CATALOGUES[cat].defaultPlace;
   }
   $('heard').innerHTML = cat==='fibre'
-    ? '<b>“reg number one two G one two three four five”</b> · <b>“three full drums of ninety six fibre”</b> · <b>“eight hundred and fifty metres of forty eight fibre”</b>'
+    ? '<b>“reg number one two G one two three four five”</b> · <b>“three full drums of aerial ninety six fibre”</b> · <b>“six nine metre medium poles”</b>'
     : '<b>“Coke, twenty bottles”</b> · <b>“ten cases of Coke”</b> · <b>“four bottles of Powers”</b>';
   fillJobs(); fillPlaces();
   syncPlaceUI(); applyBrand(); renderSpots(); renderCat(); renderRecent();
@@ -7901,7 +7937,7 @@ $('vTest').onclick = e => withFeedback(e.currentTarget, async ()=>{
 /* The mp3 the proxy actually returns, saved to the phone. It is the only way to
    hear the voice as configured without standing in a yard — and it is a file,
    so it can be sent to somebody else to listen to. */
-const SAMPLE_LINE = 'Six nine metre medium poles. Eight hundred and fifty metres of ninety six fibre, drum A B C D one. Running total for one two G one two three four five: fourteen lines.';
+const SAMPLE_LINE = 'Six nine metre medium poles. Eight hundred and fifty metres of aerial ninety six fibre, drum A B C D one. Running total for one two G one two three four five: fourteen lines.';
 $('vSample').onclick = e => withFeedback(e.currentTarget, async ()=>{
   await saveVoiceCfg();
   const r = await proxyFetch('/tts', {method:'POST', headers:{'content-type':'application/json'},

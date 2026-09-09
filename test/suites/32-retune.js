@@ -19,13 +19,15 @@ module.exports = async function({ browser, H }){
   /* the term spent on a row is one of the phrases the catalogue says people use,
      never the prose printed on the sheet */
   const spoken96 = await p.evaluate(()=>{
-    const r = reviewRowList().find(x=>x.code==='FIB-96F');
+    const r = reviewRowList().find(x=>x.code==='500CABLEAER96F');
     return r && {term: trimTerm(spokenFor(r)), desc: r.desc,
                  aliases: String(r.alias||'').split(',').map(x=>x.trim())};
   });
+  /* the term spent on a row comes from what people say, not from the prose the
+     sheet prints. With 388 rows the tail cannot reach every one of them, so
+     what is asserted is the choice, not that this row won a slot. */
   t('catalogue aliases are used as the spoken form',
-      !!spoken96 && spoken96.aliases.includes(spoken96.term)
-      && spoken96.term!==spoken96.desc && kt.includes(spoken96.term),
+      !!spoken96 && spoken96.aliases.includes(spoken96.term) && spoken96.term!==spoken96.desc,
       JSON.stringify(spoken96));
 
   /* ---------- B. the rotation actually reaches the socket ---------- */
@@ -137,7 +139,7 @@ module.exports = async function({ browser, H }){
   /* ---------- D. the log ---------- */
   await p.evaluate(()=>{ reviewStop(); S.vlog=[]; save(); });
   await p.click('#t-count'); await p.waitForTimeout(300);
-  for(const line of ['six nine metre poles','flibbertigibbet wotsits','two manhole covers','one thousand two hundred and fifty fixing screws']){
+  for(const line of ['six nine metre medium poles','flibbertigibbet wotsits','five sump hole gratings','one thousand two hundred and fifty pole steps']){
     await p.evaluate(l=>onHeardFinal(l), line); await p.waitForTimeout(3000);
   }
   const all = await p.evaluate(()=>S.vlog.map(e=>({eng:e.eng, ok:e.ok, what:e.what, text:e.text, kind:e.kind||'heard', result:e.result||''})));
@@ -152,7 +154,7 @@ module.exports = async function({ browser, H }){
   t('and names the engine that actually spoke it',
      said.length===4 && said.every(x=>x.eng==='el' && x.what==='ElevenLabs voice'),
      JSON.stringify(said.map(x=>x.eng+':'+x.what)));
-  await p.fill('#typeIn','four connection kits'); await p.press('#typeIn','Enter'); await p.waitForTimeout(700);
+  await p.fill('#typeIn','four in home ntus'); await p.press('#typeIn','Enter'); await p.waitForTimeout(700);
   t('typing is not counted as something the ear heard',
      await p.evaluate(()=>S.vlog.filter(e=>e.kind!=='said').length)===4,
      'log grew to '+(await p.evaluate(()=>S.vlog.filter(e=>e.kind!=='said').length)));

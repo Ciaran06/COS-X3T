@@ -5,7 +5,7 @@ module.exports = async function({ browser, H }){
   const R = H.results(); const t = R.t;
   const p = await H.openApp(browser, {sdk:false});
 
-  t('the master is the fibre catalogue', await p.evaluate(()=>items('fibre').length)===398,
+  t('the master is the fibre catalogue', await p.evaluate(()=>items('fibre').length)===388,
     String(await p.evaluate(()=>items('fibre').length)));
 
   /* ---- the rules, one at a time ---- */
@@ -78,7 +78,46 @@ module.exports = async function({ browser, H }){
 
   /* the drum flag survived the merge */
   t('the merge kept what the sheet does not carry — drum items are still drums',
-    await p.evaluate(()=>['FIB-96F','FIB-48F','FIB-24F'].every(c=>item('fibre',c).drum===true)));
+    await p.evaluate(()=>['500CABLEAER96F','500CABLEAER48F','500CABLEAER24F'].every(c=>item('fibre',c).drum===true)));
+
+  /* ---- two numbers side by side are two numbers ---- */
+  /* This is what the demo rows were hiding. "six nine metre poles" was being
+     read as fifteen of something, because a run of number words was always
+     added up. Every one of these is a quantity and then a size. */
+  t('"six nine metre medium poles" is six poles, nine metres tall',
+    await N('six nine metre medium poles')==='6 9medium poles', await N('six nine metre medium poles'));
+  t('a written "8 5" is eight and five, not thirteen', await N('8 5 mt light pole')==='8 5light pole', await N('8 5 mt light pole'));
+  t('but a real number still adds up', await N('one thousand two hundred and fifty')==='1250', await N('one thousand two hundred and fifty'));
+  t('and "twenty four" is still twenty four', await N('twenty four fibre')==='24f', await N('twenty four fibre'));
+
+  /* ---- the pole grade, whichever way round it is said ---- */
+  const pole = async s => await p.evaluate(x=>spokenNorm(x, true), s);
+  t('the sheet says "Medium Pole 9.0m" and the counter says "nine metre medium pole"',
+    await pole('Medium Pole 9.0m') === await pole('nine metre medium pole'),
+    (await pole('Medium Pole 9.0m'))+' vs '+(await pole('nine metre medium pole')));
+  t('a grade already spelled out leaves the metres alone — "Light Pole 10.0m" is not ten medium',
+    /10light/.test(await pole('Light Pole 10.0m')) && !/10medium/.test(await pole('Light Pole 10.0m')),
+    await pole('Light Pole 10.0m'));
+  t('a bare letter with no grade beside it is still the grade', /9medium/.test(await pole('9 M')), await pole('9 M'));
+  t('and the candidate keeps its own decimal — 8.5, never 13',
+    await p.evaluate(()=>candData(item('fibre','500CONPOLE8HL')).toks[0].join(' '))==='8.5light pole',
+    await p.evaluate(()=>candData(item('fibre','500CONPOLE8HL')).toks[0].join(' ')));
+
+  const poles = await p.evaluate(()=>['six nine metre medium poles','four nine metre light poles','twelve ten metre medium poles']
+    .map(s=>{ const r=parse(s,'fibre'); return s+' -> '+(r.it? r.it.code : r.kind); }));
+  t('every grade and height lands on its own SAP code',
+    JSON.stringify(poles)===JSON.stringify(['six nine metre medium poles -> 500CONPOLE9M',
+      'four nine metre light poles -> 500CONPOLE9L','twelve ten metre medium poles -> 500CONPOLE10M']),
+    JSON.stringify(poles));
+  t('and a bare "ten poles" asks, because the master has a dozen of them',
+    await p.evaluate(()=>parse('ten poles','fibre').kind)==='choose');
+
+  /* ---- the demo rows are gone ---- */
+  t('no demo codes are left among the real ones',
+    await p.evaluate(()=>!items('fibre').some(i=>/^(FIB-|DUCT-|POLE-|HANG-|MH-|CONN-|SCREW-|CLOS-)/.test(i.code))),
+    await p.evaluate(()=>items('fibre').filter(i=>/^[A-Z]+-/.test(i.code)).map(i=>i.code).join(',')));
+  t('a drum ID with no cable named after it asks rather than picking one',
+    await p.evaluate(()=>parse('drum a b c d one eight hundred metres','fibre').kind)==='choose');
 
   const out = R.report('spoken rules — a written part number, said out loud', p.errs);
   await p.ctx.close();

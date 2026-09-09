@@ -19,7 +19,7 @@ module.exports = async function({ browser, H }){
   t('chip shows browser by default', /Voice: Browser/.test(chip) && /no proxy set/.test(chip), chip);
 
   /* 2. typed input still works on the browser engine */
-  await pg.fill('#typeIn', 'six poles');
+  await pg.fill('#typeIn', 'six pole steps');
   await pg.press('#typeIn', 'Enter');
   await pg.waitForTimeout(400);
   let cf = await pg.textContent('#cf1');
@@ -74,7 +74,7 @@ module.exports = async function({ browser, H }){
   await pg.fill('#vToken', H.APP_TOKEN);
   await pg.click('#vSave'); await pg.waitForTimeout(1200);
   await pg.click('#t-count'); await pg.waitForTimeout(200);
-  await pg.fill('#typeIn', 'four connection kits');
+  await pg.fill('#typeIn', 'four in home ntus');
   await pg.press('#typeIn', 'Enter');
   await pg.waitForTimeout(2500);
   const rows = await pg.evaluate(() => (cur() && cur().lines || []).length);

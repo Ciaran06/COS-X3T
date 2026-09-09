@@ -9,9 +9,9 @@ module.exports = async function({ browser, H }){
     $('setup').classList.add('hidden');
     SPOT = 'Shelf A1';
     startSession();
-    writeLine(item('fibre','POLE-9'), 12, 'each', null, 'twelve poles');
-    writeLine(item('fibre','SCREW-100'), 400, 'each', null, 'four hundred screws');
-    writeLine(item('fibre','CONN-KIT'), 7, 'each', null, 'seven kits');
+    writeLine(item('fibre','500CONPOLE9M'), 12, 'each', null, 'twelve poles');
+    writeLine(item('fibre','500POLECOACHSCREW300'), 400, 'each', null, 'four hundred coach screws');
+    writeLine(item('fibre','3FE49328CB'), 7, 'each', null, 'seven kits');
     renderTally();
   });
   await p.waitForTimeout(400);
@@ -32,7 +32,7 @@ module.exports = async function({ browser, H }){
   t('and offers Undo in a toast', del.toast===true && /Removed/.test(del.msg) && del.act==='Undo', JSON.stringify(del));
 
   const undo = await p.evaluate(()=>{ restoreLine();
-    return {n:cur().lines.length, back:cur().lines.some(l=>l.code==='SCREW-100'), at:cur().lines.findIndex(l=>l.code==='SCREW-100')}; });
+    return {n:cur().lines.length, back:cur().lines.some(l=>l.code==='500POLECOACHSCREW300'), at:cur().lines.findIndex(l=>l.code==='500POLECOACHSCREW300')}; });
   t('Undo puts it back where it was', undo.n===3 && undo.back && undo.at===1, JSON.stringify(undo));
 
   /* ---- the count history ---- */
@@ -40,10 +40,10 @@ module.exports = async function({ browser, H }){
   t('the removal is logged with who and when',
     hist.length===2 && hist[0].a==='removed' && hist[1].a==='restored' && hist.every(x=>x.who && x.t),
     JSON.stringify(hist));
-  t('and it names what was removed', /Fixing screws 400/.test(hist[0].words||''), hist[0].words);
+  t('and it names what was removed', /Coach Screw 75 mm-200 Box 400/.test(hist[0].words||''), hist[0].words);
   await p.waitForTimeout(300);
   t('the history is on screen under the lines',
-    /Count history/.test(await p.textContent('#tally')) && /Removed Fixing screws/.test(await p.textContent('#tally')));
+    /Count history/.test(await p.textContent('#tally')) && /Removed Coach Screw/.test(await p.textContent('#tally')));
 
   /* ---- the audio clip goes with the line ---- */
   const clip = await p.evaluate(async ()=>{
@@ -89,7 +89,7 @@ module.exports = async function({ browser, H }){
   const askJob = await p.evaluate(()=>{
     $('setup').classList.add('hidden'); SPOT='Shelf A1';
     startSession();
-    writeLine(item('fibre','POLE-9'), 5, 'each', null, 'five poles');
+    writeLine(item('fibre','500CONPOLE9M'), 5, 'each', null, 'five poles');
     const jid = cur().job;
     removeJob(jid);
     return {open:!$('confirmSheet').classList.contains('hidden'), body:$('cfBody').textContent, yes:$('cfYes').textContent, jid};
@@ -105,7 +105,7 @@ module.exports = async function({ browser, H }){
   /* ---- voice and agent removals go the same way ---- */
   const viaVoice = await p.evaluate(async ()=>{
     $('setup').classList.add('hidden'); SPOT='Shelf A1'; startSession();
-    writeLine(item('fibre','POLE-9'), 3, 'each', null, 'three poles');
+    writeLine(item('fibre','500CONPOLE9M'), 3, 'each', null, 'three poles');
     doUndo();
     await new Promise(r=>setTimeout(r,200));
     return {n:cur().lines.length, audit:(cur().audit||[]).map(a=>a.action), toast:!$('toast').classList.contains('hidden')};
@@ -115,7 +115,7 @@ module.exports = async function({ browser, H }){
 
   const viaAgent = await p.evaluate(async ()=>{
     hideToast();
-    writeLine(item('fibre','POLE-9'), 9, 'each', null, 'nine poles');
+    writeLine(item('fibre','500CONPOLE9M'), 9, 'each', null, 'nine poles');
     await AGENT_TOOLS.undo_last();
     return {n:cur().lines.length, audit:(cur().audit||[]).filter(a=>a.action==='removed').length};
   });

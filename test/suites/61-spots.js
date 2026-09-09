@@ -15,7 +15,7 @@ module.exports = async function({ browser, H }){
   /* ---- a line with no spot goes against the location ---- */
   const bare = await p.evaluate(()=>{
     startSession();
-    const l = writeLine(item('fibre','POLE-9'), 12, 'each', null, 'twelve poles');
+    const l = writeLine(item('fibre','500CONPOLE9M'), 12, 'each', null, 'twelve poles');
     return {loc:l.loc, spot:SPOT, lines:cur().lines.length};
   });
   t('a counted line has no storage area on it', (bare.loc===''||bare.loc==null) && bare.lines===1, JSON.stringify(bare));
@@ -32,7 +32,7 @@ module.exports = async function({ browser, H }){
   await p.click('#spotGo'); await p.waitForTimeout(400);
   t('it is named whatever was typed', await p.evaluate(()=>SPOT)==='Bay 3', await p.evaluate(()=>SPOT));
   const after = await p.evaluate(()=>{
-    const l = writeLine(item('fibre','CONN-KIT'), 4, 'each', null, 'four kits');
+    const l = writeLine(item('fibre','3FE49328CB'), 4, 'each', null, 'four kits');
     return {loc:l.loc, chips:[...document.querySelectorAll('#spots .spot')].map(b=>b.textContent.trim())};
   });
   t('lines now carry that area', after.loc==='Bay 3', JSON.stringify(after.loc));
@@ -44,7 +44,7 @@ module.exports = async function({ browser, H }){
 
   const back = await p.evaluate(()=>{
     [...document.querySelectorAll('#spots .spot')].find(b=>/Whole location/.test(b.textContent)).click();
-    const l = writeLine(item('fibre','SCREW-100'), 100, 'each', null, 'hundred screws');
+    const l = writeLine(item('fibre','500POLECOACHSCREW300'), 100, 'each', null, 'hundred screws');
     return {spot:SPOT, loc:l.loc};
   });
   t('Whole location puts you back to no area', back.spot==='' && back.loc==='', JSON.stringify(back));
@@ -66,14 +66,14 @@ module.exports = async function({ browser, H }){
     /* a controlled scope: only the count we are about to make */
     S.sessions = []; S.current = null; SPOT = ''; SPOTADD = false;
     startSession();
-    writeLine(item('fibre','POLE-9'), 5, 'each', null, 'five poles');
+    writeLine(item('fibre','500CONPOLE9M'), 5, 'each', null, 'five poles');
     return csv().split('\n')[0];
   });
   t('with no areas used the export has no area column',
     !/Storage area/.test(csvNone) && /Location,Code/.test(csvNone), csvNone.slice(0,110));
   const csvSome = await p.evaluate(()=>{
     addSpot('Back yard');
-    writeLine(item('fibre','CONN-KIT'), 2, 'each', null, 'two kits');
+    writeLine(item('fibre','3FE49328CB'), 2, 'each', null, 'two kits');
     const rows = csv().split('\n');
     return {head:rows[0], row:rows.find(r=>/Back yard/.test(r))||''};
   });

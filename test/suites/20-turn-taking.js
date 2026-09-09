@@ -19,10 +19,13 @@ module.exports = async function({ browser, H }){
        is a weak match rather than nothing, so it asks. What matters is that no
        pole comes back: "nine M" is a pole GRADE, never nine metres. */
     ['nine m hole 350 each',    'choose'],
-    ['ten poles',               'line'],
+    /* the real master has a dozen poles, so a bare "poles" is a question */
+    ['ten poles',               'choose'],
+    ['six nine metre medium poles','line'],
+    ['ten pole steps',          'line'],
     ['three hundred and fifty', 'noitem'],
     ['350 each',                'noitem'],
-    ['twelve coils of thirty two duct','line'],
+    ['four hundred coach screws','line'],
   ];
   for(const [said,want] of cases){
     const r = await p.evaluate(s=>{ const pr=parse(s,'fibre');
@@ -53,7 +56,7 @@ module.exports = async function({ browser, H }){
     const seen=[];
     const stamp = ()=>seen.push(TURN+(VOICE.busy?'/busy':''));
     stamp();
-    onHeardFinal('ten poles');
+    onHeardFinal('ten pole steps');
     stamp();                                   /* immediately after hearing */
     await new Promise(r=>setTimeout(r,120));
     stamp();                                   /* while reading back */
@@ -69,10 +72,10 @@ module.exports = async function({ browser, H }){
   /* the screenshot bug: its own readback must never be transcribed */
   const echo = await p.evaluate(async ()=>{
     const before=(cur().lines||[]).length;
-    speakThen('9m pole. 350 each.');
+    speakThen('Pole Step-30 Box. 350 each.');
     await new Promise(r=>setTimeout(r,150));
     const earShut = TURN!=='open';
-    onHeardFinal('9m pole 350 each');            /* what the speaker leaks back */
+    onHeardFinal('pole step 30 box 350 each');            /* what the speaker leaks back */
     await new Promise(r=>setTimeout(r,2500));
     return {earShut, added:(cur().lines||[]).length-before};
   });
@@ -82,7 +85,7 @@ module.exports = async function({ browser, H }){
   /* ── "no" undoes ── */
   const undo = await p.evaluate(async ()=>{
     const n0=(cur().lines||[]).length;
-    onHeardFinal('ten poles');
+    onHeardFinal('ten pole steps');
     await new Promise(r=>setTimeout(r,2600));
     const n1=(cur().lines||[]).length, last=LASTLINE;
     onHeardFinal('no no');

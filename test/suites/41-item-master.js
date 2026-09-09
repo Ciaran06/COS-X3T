@@ -20,21 +20,21 @@ module.exports = async function({ browser, H }){
   await p.fill('#catSearch',''); await p.waitForTimeout(300);
 
   /* ── edit an existing (built-in) item ── */
-  await p.click('#tblCat button[data-edit="POLE-9"]'); await p.waitForTimeout(400);
-  t('Edit opens a form on that row', await p.evaluate(()=>!!$('ie_code') && $('ie_code').value==='POLE-9'));
+  await p.click('#tblCat button[data-edit="500CONPOLE9M"]'); await p.waitForTimeout(400);
+  t('Edit opens a form on that row', await p.evaluate(()=>!!$('ie_code') && $('ie_code').value==='500CONPOLE9M'));
   await p.fill('#ie_short','9m creosote pole');
   await p.fill('#ie_alias','pole, nine metre pole, stick');
   await p.fill('#ie_price','152.50');
   await p.fill('#ie_group','01. Poles');
   await p.click('#ieSave'); await p.waitForTimeout(900);
-  const edited = await p.evaluate(()=>{ const it=item('fibre','POLE-9');
+  const edited = await p.evaluate(()=>{ const it=item('fibre','500CONPOLE9M');
     return {short:it.short, alias:it.alias, price:it.price, group:it.group, edited:it.edited,
-            n:items('fibre').length, dupes:items('fibre').filter(x=>x.code==='POLE-9').length}; });
+            n:items('fibre').length, dupes:items('fibre').filter(x=>x.code==='500CONPOLE9M').length}; });
   t('editing a built-in saves without duplicating it', edited.short==='9m creosote pole' && edited.dupes===1 && edited.n===n0, JSON.stringify(edited));
   t('every field on it is editable', edited.price===152.5 && edited.group==='01. Poles' && /stick/.test(edited.alias), JSON.stringify(edited));
   t('the fields changed by hand are remembered', edited.edited && edited.edited.short===1 && edited.edited.alias===1, JSON.stringify(edited.edited));
   t('the edited row keeps its place in the list',
-     await p.evaluate(()=>items('fibre').findIndex(i=>i.code==='POLE-9'))===await p.evaluate(()=>CATALOGUES.fibre.items.findIndex(i=>i.code==='POLE-9')));
+     await p.evaluate(()=>items('fibre').findIndex(i=>i.code==='500CONPOLE9M'))===await p.evaluate(()=>CATALOGUES.fibre.items.findIndex(i=>i.code==='500CONPOLE9M')));
 
   /* ── spoken-as reaches the voice engine ── */
   /* Fifty slots against a 398-row master: the tail can only carry one term per
@@ -51,7 +51,7 @@ module.exports = async function({ browser, H }){
     S.review = {key:'k', role:'contractor', mode:'all', idx:0, speak:false};
     REVIEW.active = true;
     const w = reviewWalk();
-    S.review.idx = w.findIndex(r=>r.code==='POLE-9');
+    S.review.idx = w.findIndex(r=>r.code==='500CONPOLE9M');
     const terms = keytermsFor();
     REVIEW.active = false; S.review = null;
     return terms;
@@ -80,27 +80,27 @@ module.exports = async function({ browser, H }){
   await p.click('#tblCat button[data-edit="NBI-TST-1"]'); await p.waitForTimeout(300);
   await p.click('#ieDel'); await p.waitForTimeout(600);
   t('deleting a custom item removes it', await p.evaluate(()=>items('fibre').length)===n0);
-  await p.click('#tblCat button[data-edit="POLE-9"]'); await p.waitForTimeout(300);
+  await p.click('#tblCat button[data-edit="500CONPOLE9M"]'); await p.waitForTimeout(300);
   await p.click('#ieDel'); await p.waitForTimeout(600);
-  const delBuiltin = await p.evaluate(()=>({n:items('fibre').length, gone:!items('fibre').some(i=>i.code==='POLE-9'), tomb:(S.deleted&&S.deleted.fibre)||[]}));
-  t('deleting a built-in item sticks, with a tombstone', delBuiltin.gone && delBuiltin.n===n0-1 && delBuiltin.tomb.includes('POLE-9'), JSON.stringify(delBuiltin));
+  const delBuiltin = await p.evaluate(()=>({n:items('fibre').length, gone:!items('fibre').some(i=>i.code==='500CONPOLE9M'), tomb:(S.deleted&&S.deleted.fibre)||[]}));
+  t('deleting a built-in item sticks, with a tombstone', delBuiltin.gone && delBuiltin.n===n0-1 && delBuiltin.tomb.includes('500CONPOLE9M'), JSON.stringify(delBuiltin));
   await p.evaluate(()=>{ S.deleted.fibre=[]; save(); renderCat(); }); await p.waitForTimeout(400);
   /* the delete above threw the override away with it, so put the edit back
      before testing what an upload does to a hand-edited row */
-  await p.click('#tblCat button[data-edit="POLE-9"]'); await p.waitForTimeout(300);
+  await p.click('#tblCat button[data-edit="500CONPOLE9M"]'); await p.waitForTimeout(300);
   await p.fill('#ie_short','9m creosote pole');
   await p.fill('#ie_alias','pole, nine metre pole, stick');
   await p.click('#ieSave'); await p.waitForTimeout(800);
   t('the edit is back in place before the merge test',
-     await p.evaluate(()=>item('fibre','POLE-9').short)==='9m creosote pole',
-     await p.evaluate(()=>item('fibre','POLE-9').short));
+     await p.evaluate(()=>item('fibre','500CONPOLE9M').short)==='9m creosote pole',
+     await p.evaluate(()=>item('fibre','500CONPOLE9M').short));
 
   /* ── merge on re-upload ── */
-  const csv = 'Item code,Short description,Unit of measure,Unit value,Product Group\nPOLE-9,SUPPLIER NAME FOR POLE,each,199.00,01. Poles\nNEW-XYZ,Brand new thing,each,5.00,01. Poles\n';
+  const csv = 'Item code,Short description,Unit of measure,Unit value,Product Group\n500CONPOLE9M,SUPPLIER NAME FOR POLE,each,199.00,01. Poles\nNEW-XYZ,Brand new thing,each,5.00,01. Poles\n';
   require('fs').writeFileSync(H.tmp('merge.csv'), csv);
   await p.setInputFiles('#file', H.tmp('merge.csv')); await p.waitForTimeout(1400);
   await p.click('#impAdd'); await p.waitForTimeout(1400);
-  const merged = await p.evaluate(()=>{ const it=item('fibre','POLE-9');
+  const merged = await p.evaluate(()=>{ const it=item('fibre','500CONPOLE9M');
     return {short:it.short, alias:it.alias, price:it.price, newOne:!!items('fibre').find(i=>i.code==='NEW-XYZ'),
             note:$('impNote').textContent}; });
   t('a re-upload adds the new rows', merged.newOne===true, merged.note.slice(0,80));
@@ -110,7 +110,7 @@ module.exports = async function({ browser, H }){
   /* ── Replace all is the only thing that clears edits ── */
   await p.setInputFiles('#file', H.tmp('merge.csv')); await p.waitForTimeout(1400);
   await p.click('#impReplace'); await p.waitForTimeout(1400);
-  const replaced = await p.evaluate(()=>{ const it=item('fibre','POLE-9'); return {short:it.short, alias:it.alias, n:items('fibre').length}; });
+  const replaced = await p.evaluate(()=>{ const it=item('fibre','500CONPOLE9M'); return {short:it.short, alias:it.alias, n:items('fibre').length}; });
   t('Replace all does clear them, as its label says', replaced.short==='SUPPLIER NAME FOR POLE' && !/stick/.test(replaced.alias||''), JSON.stringify(replaced));
 
   /* ── export ── */

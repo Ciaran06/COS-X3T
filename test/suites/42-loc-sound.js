@@ -96,7 +96,7 @@ module.exports = async function({ browser, H }){
     clearPend&&clearPend(); setLoc('Claremorris');
     $('fVan').value='202-C-8871'; PTYPE='van'; if(!cur()) startSession();
     const before = (cur().lines||[]).length;
-    onHeardFinal('two manhole covers');
+    onHeardFinal('ten pole steps');
     await new Promise(r=>setTimeout(r,2500));
     return {added:(cur().lines||[]).length-before, LOC, pend:PEND&&PEND.kind};
   });

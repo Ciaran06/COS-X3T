@@ -6,7 +6,7 @@ Read this first. It is the context you need to work on this codebase.
 
 TruCount is a **voice-driven stocktake app** for field inventory. A counter opens it on a
 phone, taps the mic, and speaks the count — *"ten cases of Coke"*, *"three full drums of
-ninety six fibre"*, *"drum A B C D one, eight hundred metres"*. The app parses it, converts
+aerial ninety six fibre"*, *"drum A B C D one, eight hundred metres"*. The app parses it, converts
 pack sizes, reads the line back aloud, and keeps running totals per spot → per location →
 per customer → per estate.
 
@@ -79,7 +79,7 @@ treat it as a specification of behaviour that must survive a rewrite.
     its description — because the counter says the former. Only words a parser actually acts on
     go in `CMD_TERMS`: boosting a word the app then fails to understand turns a misheard line
     into a *confidently* misheard one. See `keytermsFor()` and `spokenFor()`.
-  - **Fifty slots against a 398-row master.** The cursor window and the group being walked send
+  - **Fifty slots against a 388-row master.** The cursor window and the group being walked send
     every "Spoken as" phrase the owner wrote; the tail gets **one term per item**. The first four
     items' spellings would otherwise eat the whole budget, and one good term across thirty-six
     items beats nine spellings of one. That one term is the **fullest phrase that still fits the
@@ -149,6 +149,22 @@ treat it as a specification of behaviour that must survive a rewrite.
     in `proxy/worker.js`. The turbo model was faster and did not sound like the voice's own library
     preview, which is the point of picking a voice. *Save a sample readback* on the Data tab writes
     the mp3 the proxy really returns to the phone, so the voice can be heard without a yard.
+- **Every item in the fibre catalogue is a real NBI part.** Ten hand-written demo rows (`POLE-9`,
+  `FIB-96F`, `CONN-KIT`…) used to sit among the SAP codes; they were removed, and the seeded example
+  session re-pointed at real codes. They had been masking things: `POLE-9`'s alias caught the word
+  "pole" and won *"nine metre pole"* over the real `500CONPOLE9M`, and their tidy one-word names hid
+  three defects in the matcher (a number run being added up, the pole grade rule eating metres, a
+  candidate losing its decimals) that only showed once the real names were the only names.
+  - **The drum lives on the real cable rows.** The master states aerial and UG fibre cable as a
+    *case of 4 km*, which is a **4000 metre drum** — the same quantity in the unit a counter speaks.
+    Those ten rows carry `drum:true` and `packName:'drum'`. It is the one judgement call in the cut
+    and it is one field per row to revert.
+  - **A drum ID with no cable named after it now asks.** `"drum ABCD1, eight hundred metres"` used
+    to fall back to the first item with `drum:true`; with one drum item that was fair, with ten it
+    is a guess, so it asks which.
+  - **The real master is genuinely more ambiguous, and that is not a regression.** *"ten poles"*
+    against a dozen poles, *"ninety six fibre"* against the aerial and the underground one — both
+    ask. Say the grade and the height, or *aerial* / *underground*, and they land.
 - **Parsing** (`parse()`): number words including "and" ("one thousand two hundred and fifty"),
   pack-size conversion, drum IDs with part lengths, Irish and UK registration plates spoken as
   digits and letters, shelf codes, location commands, undo/total/finish.
@@ -171,6 +187,20 @@ treat it as a specification of behaviour that must survive a rewrite.
     "9 M" carries no clue on its own, and read as metres it put nine metres of something against a
     pole. `isPoleItem()` decides it, and for a pole any candidate that still reads as
     `<number> M` is dropped so it can never be a match target.
+    - **But only when there is no grade word beside it.** The sheet's own "Light Pole 10.0m" ends
+      in a metres `m`, and reading that as MEDIUM made a ten metre light pole into a ten-medium
+      one. If a grade is already spelled out, a trailing `m` is metres.
+    - **The grade comes before the number as often as after** — "Medium Pole 9.0m" on the sheet,
+      "nine metre medium pole" from the counter. Both are rewritten the same way round (`9medium
+      pole`), and without that the grade and the height never met: every nine metre pole tied with
+      every ten metre one.
+  - **Two numbers side by side are two numbers.** A run of number words used to be added up, so
+    *"six nine metre poles"* was fifteen of something and the sheet's "8.5" was thirteen. A unit
+    word can only be followed by a scale word, a tens word can take a unit after it ("twenty
+    four"), and two written digits are always two numbers. See `spokenNumbers()`.
+  - **A candidate keeps its own decimals.** `norm()` eats a decimal point, which turned "8.5Mt
+    Light Pole" into "8 5mt" before the rules ever saw it. `buildCandStrings()` uses the same
+    decimal-preserving strip the spoken side does.
   - `ml` is how a recogniser writes "mil", so it maps to `mm` — but **not** in the pub catalogue,
     where Coke 330ml must not become 330mm.
 - **Never guess an item.** A match has to explain most of what was said. `identifying()` throws
@@ -472,7 +502,7 @@ treat it as a specification of behaviour that must survive a rewrite.
   parsing until it times out — on a van with no signal that was **12.8 seconds of blank screen**
   before the mic drew. It is 218ms now. Neither library is needed to start: the import path checks
   for `XLSX` and the agent checks for `ElevenLabsClient`.
-- **Matching is cached per item** (`candData()`). Every match used to rebuild all 398 items'
+- **Matching is cached per item** (`candData()`). Every match used to rebuild all 388 items'
   candidate strings, running `spokenNorm` some sixteen thousand times for one spoken line — 156ms
   a parse, and `parse()` runs more than once per utterance. It is 9ms warm. The cache key carries
   the fields the strings are built from, so an edited item gets a new entry and there is nothing
@@ -524,11 +554,12 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
 
 `sample-data/` has five files, all real-shaped, all exercising the importer:
 
-- `NBI-item-master-fibre.xlsx` — **the fibre catalogue the app ships with**, 398 items across 16
-  product groups, plus the **Spoken rules** sheet those rules are built from. Baked into
-  `CATALOGUES.fibre.items`, merged on item code so the built-in rows kept what the sheet does not
-  carry (chiefly `drum:true`). Only 10 of the 398 have a unit value and 69 have no product group,
-  so most of the value columns read "—" until the office fills them in.
+- `NBI-item-master-fibre.xlsx` — **the fibre catalogue the app ships with**, plus the **Spoken
+  rules** sheet those rules are built from. Baked into `CATALOGUES.fibre.items` as **388 rows,
+  every one of them a real NBI part**, across 16 product groups. **No item carries a unit value**
+  and 69 have no product group, so the value columns read "—" and the estate rollup shows no money
+  until the office fills the *Unit value* column in — which the item master editor and the importer
+  both take. That is the honest position: the master we were given does not price anything.
 
 - `KN02_locations.xlsx` — the KN Circet location list: 25 Mayo/Roscommon/Sligo towns across 7 DAs,
   with a title and a blank row above the heading so the header-finding is exercised, and a *Spoken
