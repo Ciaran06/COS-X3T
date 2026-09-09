@@ -101,6 +101,19 @@ unreachable it falls back to the browser engine on its own and the chip says
 | `GET /stt-token` | Each time listening starts | nothing |
 | `POST /tts` | Every readback | the sentence to speak |
 
+### The readback voice
+
+`/tts` speaks with `eleven_multilingual_v2` at **stability 0.5, similarity 0.8**
+— quality rather than latency, chosen so the readback sounds like the voice's
+own library preview. It is slower than the turbo model by a fraction of a
+second per line, deliberately. Both are at the top of `worker.js`; `/health`
+reports them, and the app prints what it is told on **Data → Voice engine**, so
+you can see whether a deploy actually landed.
+
+**After changing them you must redeploy the Worker.** The app cannot set the
+model — it is a server-side choice on purpose, so a phone cannot spend your
+credit on a more expensive one.
+
 Audio from the microphone goes **straight from the phone to ElevenLabs** over a
 WebSocket, using the single-use token. It does not pass through the Worker, so
 the Worker stays inside Cloudflare's free request allowance easily.
@@ -121,4 +134,6 @@ the Worker stays inside Cloudflare's free request allowance easily.
 | Chip says **Voice: Browser — proxy rejected the app token** | `APP_TOKEN` in the app does not match the Worker's secret. |
 | `/health` shows `key: false` | The `ELEVENLABS_API_KEY` secret is missing. |
 | Listening works, readback is silent | `/tts` is failing. Check the Worker's **Logs** tab in the Cloudflare dashboard. |
+| Readbacks sound like the phone's own voice | The chip will be amber and say why. *the phone has not allowed audio yet* means tap the mic once — the first tap unlocks playback. Data → *What the app heard* names the engine that spoke every readback, so you can see it change. |
+| The voice does not sound like the ElevenLabs preview | Check **Data → Voice engine** says `eleven_multilingual_v2`. If it says something else, the deployed Worker is an older copy. |
 | Everything works, then stops after a while | The single-use token expired (15 minutes). The app mints a fresh one each time listening starts; stop and start the mic. |

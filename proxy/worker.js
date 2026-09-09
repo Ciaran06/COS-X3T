@@ -21,7 +21,12 @@
  */
 
 const DEFAULT_VOICE = 'IQjnnInWsKbdAesop75D';
-const TTS_MODEL = 'eleven_turbo_v2_5';   /* low latency, good enough for readbacks */
+/* Quality over latency, deliberately. The turbo model was a good deal faster
+   and did not sound like the voice's own library preview, which is the whole
+   point of choosing a voice. Stability and similarity are the library defaults
+   for this voice, set here rather than left to the API's. */
+const TTS_MODEL = 'eleven_multilingual_v2';
+const TTS_SETTINGS = { stability: 0.5, similarity_boost: 0.8 };
 const MAX_TTS_CHARS = 800;
 
 function cors(env) {
@@ -58,6 +63,11 @@ export default {
         guarded: !!env.APP_TOKEN,
         authed: authed(req, env),
         voice: env.VOICE_ID || DEFAULT_VOICE,
+        /* so the app can show which model is really deployed — "I switched the
+           model" and "the model I switched to is the one answering" are two
+           different claims */
+        model: TTS_MODEL,
+        settings: TTS_SETTINGS,
       }, env);
     }
 
@@ -115,7 +125,7 @@ export default {
           body: JSON.stringify({
             text,
             model_id: body.model_id || TTS_MODEL,
-            voice_settings: { stability: 0.4, similarity_boost: 0.75, speed: 1.05 },
+            voice_settings: TTS_SETTINGS,
           }),
         }
       );

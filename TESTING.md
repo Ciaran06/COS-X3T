@@ -69,13 +69,16 @@ either way — counting them would flatter the recognition rate.
 | --- | --- |
 | `10-theme` | blue and white, contrast on the bar, one line reshades everything, contractor colours untouched |
 | `20-turn-taking` | one utterance one line, the ear shut while speaking, "no" undoes, pause, never guessing an item |
+| `22-spoken-rules` | a written part number, said out loud — and a pole's grade is never metres |
 | `30-engine` | Agent / Scribe / Browser tiers, and each way a fallback can happen |
 | `31-keyterms` | the boosted vocabulary rotates with the walk and stays within 50 × 20 |
-| `32-retune` | the socket reopens when the vocabulary changes and not otherwise |
+| `32-retune` | the socket reopens when the vocabulary changes and not otherwise; which engine spoke every readback |
 | `40-location` | the location list is closed — typed, spoken, or near-missed |
 | `41-item-master` | editing, deleting, merging an upload without losing hand edits, export |
 | `50-agent` | the tools are the only way the agent can touch data |
 | `51-agent-context` | what the app tells the agent that it could not have heard |
+| `60-delete` | every line can be removed, undone for five seconds, and the removal is in the record |
+| `61-spots` | storage areas are optional, off by default, and never invented |
 
 ## Writing another one
 

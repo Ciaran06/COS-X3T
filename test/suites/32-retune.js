@@ -115,11 +115,13 @@ module.exports = async function({ browser, H }){
     out.busyDuring = VOICE.busy;
     onHeardFinal('four hundred and fifty');      /* leaked out of the speaker */
     await new Promise(r=>setTimeout(r,2500));
-    out.logged = S.vlog.length - before;
+    out.logged = S.vlog.slice(before).filter(e=>e.kind!=='said').length;
+    out.said   = S.vlog.slice(before).filter(e=>e.kind==='said').length;
     return out;
   });
   t('the ear is shut for the whole readback', barge.earShut===true && barge.busyDuring===true, JSON.stringify(barge));
   t('anything leaking in mid-readback is dropped, not recorded', barge.logged===0, JSON.stringify(barge));
+  t('the readback itself is logged, as the app talking', barge.said===1, JSON.stringify(barge));
 
   /* tapping the mic is how you interrupt now */
   const tap = await p.evaluate(async ()=>{
@@ -138,23 +140,77 @@ module.exports = async function({ browser, H }){
   for(const line of ['six nine metre poles','flibbertigibbet wotsits','two manhole covers','one thousand two hundred and fifty fixing screws']){
     await p.evaluate(l=>onHeardFinal(l), line); await p.waitForTimeout(3000);
   }
-  const log = await p.evaluate(()=>S.vlog.map(e=>({eng:e.eng, ok:e.ok, what:e.what, text:e.text})));
+  const all = await p.evaluate(()=>S.vlog.map(e=>({eng:e.eng, ok:e.ok, what:e.what, text:e.text, kind:e.kind||'heard', result:e.result||''})));
+  const log  = all.filter(e=>e.kind!=='said');
+  const said = all.filter(e=>e.kind==='said');
   t('every spoken line is logged', log.length===4, JSON.stringify(log));
   t('good lines are marked understood', log.filter(x=>x.ok).length===3, JSON.stringify(log.map(x=>x.ok+':'+x.what)));
   t('the nonsense line is marked a miss', log.some(x=>!x.ok && /flibberti/.test(x.text)), JSON.stringify(log));
   t('the engine is recorded per line', log.length===4 && log.every(x=>x.eng==='el'), JSON.stringify(log.map(x=>x.eng)));
+  /* the whole point of the readback rows: which engine actually made the sound */
+  t('every readback is logged too', said.length===4, JSON.stringify(said.map(x=>x.text)));
+  t('and names the engine that actually spoke it',
+     said.length===4 && said.every(x=>x.eng==='el' && x.what==='ElevenLabs voice'),
+     JSON.stringify(said.map(x=>x.eng+':'+x.what)));
   await p.fill('#typeIn','four connection kits'); await p.press('#typeIn','Enter'); await p.waitForTimeout(700);
-  t('typing is not counted as something the ear heard', await p.evaluate(()=>S.vlog.length)===4,
-     'log grew to '+(await p.evaluate(()=>S.vlog.length)));
+  t('typing is not counted as something the ear heard',
+     await p.evaluate(()=>S.vlog.filter(e=>e.kind!=='said').length)===4,
+     'log grew to '+(await p.evaluate(()=>S.vlog.filter(e=>e.kind!=='said').length)));
   const st = await p.evaluate(()=>vlogStats());
   t('the hit rate is computed', st.el.n===4 && st.el.ok===3, JSON.stringify(st));
+  t('readbacks are counted apart from the hit rate', st.said.el>=4 && st.said.br===0, JSON.stringify(st.said));
   await p.click('#t-cat'); await p.waitForTimeout(400);
   const box = await p.textContent('#vlogBox');
   t('the log renders with the rate', /Scribe 75% of 4/.test(box), box.slice(0,90));
+  t('and says how many readbacks were the real voice', /Readbacks\s*\d+ ElevenLabs/.test(box.replace(/\s+/g,' ')), box.slice(0,160));
   const csv = await p.evaluate(()=>vlogCsv());
+  const rows = await p.evaluate(()=>S.vlog.length);
   t('the CSV exports with headers and rows',
-     /^when,engine,event,mode,text,understood,result,tool result/.test(csv) && csv.split('\n').length===5,
+     /^when,engine,event,mode,text,understood,result,tool result/.test(csv) && csv.split('\n').length===rows+1,
      csv.split('\n')[0]);
+  t('a readback is a "said" row in the CSV', /,said,/.test(csv), (csv.split('\n')[2]||'').slice(0,90));
+
+  /* ---------- E. a blocked phone falls back loudly, and comes back ---------- */
+  const blocked = await p.evaluate(async ()=>{
+    const el = ttsEl();
+    const real = el.play.bind(el);
+    el.play = ()=>{ const e = new Error('blocked'); e.name = 'NotAllowedError'; return Promise.reject(e); };
+    S.vlog = [];
+    await new Promise(r=>speakThen('Nine metre pole. Six each.', ()=>r()));
+    const row = S.vlog.filter(e=>e.kind==='said').pop() || {};
+    const chip = $('engChip2');
+    const out = {spoke:row.eng, why:row.result, what:row.what,
+                 amber:/warn/.test(chip.className), chip:chip.textContent,
+                 stillEleven: VOICE.tts==='eleven', note: VOICE.note};
+    /* the tap that fixes it */
+    el.play = real; audioPrimed = false;
+    primeAudio();
+    await new Promise(r=>setTimeout(r,300));
+    out.greenAgain = !/warn/.test($('engChip2').className);
+    out.backOnEleven = VOICE.tts==='eleven';
+    return out;
+  });
+  t('a blocked phone still says the line, in the browser voice', blocked.spoke==='br' && blocked.what==='browser voice', JSON.stringify(blocked));
+  t('and the row says why', /blocked/.test(blocked.why||''), JSON.stringify(blocked));
+  t('and the chip goes amber and says what to do', blocked.amber===true && /tap the mic/.test(blocked.note||''), JSON.stringify(blocked));
+  t('being blocked does not demote the voice for the session', blocked.stillEleven===true, JSON.stringify(blocked));
+  t('one tap puts it back on ElevenLabs', blocked.greenAgain===true && blocked.backOnEleven===true, JSON.stringify(blocked));
+
+  /* the cause, asserted: one element for the whole app. A fresh Audio per
+     readback is the thing iOS refuses however many times the page was tapped. */
+  const oneEl = await p.evaluate(async ()=>{
+    const a = ttsEl();
+    await new Promise(r=>speakThen('One.', ()=>r()));
+    const b = ttsAudio;
+    await new Promise(r=>speakThen('Two.', ()=>r()));
+    return {same: a===b && b===ttsAudio, primed: audioPrimed};
+  });
+  t('every readback goes through the one element the tap unlocked', oneEl.same===true && oneEl.primed===true, JSON.stringify(oneEl));
+
+  /* the app shows the model the Worker is really running, not the one we hope */
+  const spec = await p.evaluate(()=>{ voiceNote(); return $('vNote').textContent; });
+  t('the deployed model is shown on the Data tab',
+     /eleven_multilingual_v2/.test(spec) && /stability 0\.5/.test(spec) && /similarity 0\.8/.test(spec), spec);
 
   console.log('\nsockets opened:', await p.evaluate(()=>window.__sock.length));
   console.log('terms while in "'+s2.group+'":', JSON.stringify(terms2.slice(0,16)));

@@ -70,7 +70,9 @@ function serveProxy(state){
     if(req.method==='OPTIONS'){ res.writeHead(204, cors); return res.end(); }
     const j = (o, st)=>{ res.writeHead(st||200, {...cors,'content-type':'application/json'}); res.end(JSON.stringify(o)); };
     const authed = !state.guarded || req.headers['x-app-token']===APP_TOKEN;
-    if(u.pathname==='/health') return j({ok:true, key:state.key, guarded:state.guarded, authed, voice:'IQjnnInWsKbdAesop75D'});
+    if(u.pathname==='/health') return j({ok:true, key:state.key, guarded:state.guarded, authed,
+      voice:'IQjnnInWsKbdAesop75D', model:'eleven_multilingual_v2',
+      settings:{stability:0.5, similarity_boost:0.8}});
     if(!authed) return j({error:'unauthorised'}, 401);
     if(u.pathname==='/stt-token') return j({token:'single-use-test'});
     if(u.pathname==='/agent-token')

@@ -116,21 +116,39 @@ treat it as a specification of behaviour that must survive a rewrite.
   - **Pause is a real control.** A thumb-sized button beside the mic, and the spoken word does the
     same thing. While paused the microphone is shut and `onHeardFinal()` drops everything: nothing
     is recorded until it is tapped again.
-  - **Audio has to be unlocked by a tap.** iOS refuses audio a page starts by itself, which sends
-    every ElevenLabs readback to the browser voice. `primeAudio()` plays a silent clip inside the
-    tap that starts listening. Keep it on every entry point.
+  - **One audio element, unlocked by the first tap.** iOS grants playback to the *element*, not to
+    the page: an `<audio>` whose `play()` ran inside a tap can be handed a new `src` and played by
+    the app later; one built after the tap is refused however many times the page was tapped.
+    Every readback used to build a fresh `Audio`, so priming bought nothing, the first readback
+    outside a gesture was refused, and the session was demoted to the browser voice for good —
+    while *Test connection* still sounded right, because it speaks from inside the click that
+    probes it. `ttsEl()` is the single element; `primeAudio()` unlocks it with a silent WAV on the
+    tap. Keep it on every entry point, and **never construct an `Audio` for a readback**.
+  - **A fallback is loud, and it is not permanent.** A readback that cannot use the ElevenLabs
+    voice is still *said* — in the browser voice — the chip goes amber with the reason, and the
+    row in the log names the engine that actually made the sound. Being blocked by the phone does
+    not demote the session: one tap fixes it, so the next readback tries ElevenLabs again and
+    `voiceRecovered()` puts the chip back to green. A proxy that keeps failing is different, and
+    settles on the browser after three goes. See `speakFail()`.
   - **What the app heard.** Every final transcript is logged to `S.vlog` with the engine that
-    heard it, **the engine that spoke the readback** (`LASTSPOKE` — the two are not always the
-    same, and only the second one tells you why it sounds robotic), and whether the parser could
-    use it, classified by re-running the pure parser (`outcomeOf()`). Data → *What the app heard*
-    shows the hit rate per engine and exports CSV. A field trial has to produce a number, not a
-    feeling. Typed input is never logged — it is not something the ear produced, and counting it
-    would flatter the rate.
-  - **The chip never flatters.** Green only when ElevenLabs is doing both jobs and nothing has
-    fallen back this session; **amber** the moment the voice drops to the browser while the ear
-    stays on ElevenLabs, with the reason on the chip. `VOICE.degraded` latches until the next
-    successful probe. Data → *Voice engine* also lists the keyterms actually sent with the last
-    session, so "are they really going up?" is answerable on the phone.
+    heard it and whether the parser could use it, classified by re-running the pure parser
+    (`outcomeOf()`). **Every readback is logged too**, as a `kind:'said'` row carrying the engine
+    that *actually* made the sound — set after `play()` resolves, never before, because the whole
+    question is which voice came out of the speaker. The two are counted apart, so readbacks
+    cannot flatter or spoil the hit rate. Data → *What the app heard* shows the rate per engine,
+    the readback tally, and exports CSV. A field trial has to produce a number, not a feeling.
+    Typed input is never logged as heard — it is not something the ear produced.
+  - **The chip never flatters.** Green only when the tier you chose is doing every part of the job:
+    **amber** the moment anything has fallen back — a tier below the one asked for, a readback that
+    came out of the browser voice, or a phone that has not allowed audio yet — with the reason on
+    the chip. `VOICE.degraded` latches until the next successful probe or readback. Data → *Voice
+    engine* also lists the keyterms actually sent with the last session, and the **model, voice and
+    settings the deployed Worker reports**, so "did the model change land?" is answerable on the
+    phone rather than by reading the Worker source.
+  - **Readbacks are quality, not speed** — `eleven_multilingual_v2`, stability 0.5, similarity 0.8,
+    in `proxy/worker.js`. The turbo model was faster and did not sound like the voice's own library
+    preview, which is the point of picking a voice. *Save a sample readback* on the Data tab writes
+    the mp3 the proxy really returns to the phone, so the voice can be heard without a yard.
 - **Parsing** (`parse()`): number words including "and" ("one thousand two hundred and fifty"),
   pack-size conversion, drum IDs with part lengths, Irish and UK registration plates spoken as
   digits and letters, shelf codes, location commands, undo/total/finish.

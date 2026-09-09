@@ -100,6 +100,10 @@
   table.vlog tr.miss td{background:var(--bad-soft)}
   table.vlog tr.toolrow td{background:var(--sunk); font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:11.5px}
   table.vlog tr.miss .what b{color:var(--bad); font-weight:600}
+  /* the app talking, not the counter — set back so the two read apart at a glance */
+  table.vlog tr.said td{background:var(--sunk); color:var(--ink-3)}
+  table.vlog tr.said td i{color:var(--ink-3); font-style:normal; opacity:.65}
+  .vstat span.bad b, .vstat span.bad{color:var(--bad)}
   #tblCat td.act{white-space:nowrap; width:1%}
   #tblCat .ed{padding:4px 9px; border-radius:7px; border:1px solid var(--line); background:var(--surface-2); font:600 11.5px/1.6 inherit; cursor:pointer}
   #tblCat tr.editing>td{background:var(--accent-soft)}
@@ -821,6 +825,7 @@
       <div class="bar">
         <span class="sp" id="vNote">The API key is never held in this page. It lives in the proxy — see proxy/README.md for the ten-minute setup.</span>
         <button class="btn" id="vTest">Test connection</button>
+        <button class="btn" id="vSample">Save a sample readback</button>
         <button class="btn dark" id="vSave">Save</button>
       </div>
     </div>
@@ -2626,6 +2631,9 @@ const CMD_TERMS = ['yes','next','skip','back','stop','pause','zero','nil','none'
                    'undo','total','finish','correct','scratch that'];
 
 let VOICE = {stt:'browser', tts:'browser', probed:false, note:'no proxy set', busy:false};
+/* declared up here with VOICE because the engine chip reads them, and the chip
+   draws before the speaking section further down has run */
+let ttsAudio=null, speakFin=null, audioPrimed=false, audioBlocked=false, ttsFails=0;
 function voiceCfg(){ S.voice = S.voice || {proxy:'', token:'', prefer:'auto'}; return S.voice; }
 function proxyBase(){ return String(voiceCfg().proxy||'').replace(/\/+$/,''); }
 function proxyFetch(path, opts){
@@ -2650,9 +2658,13 @@ function renderEngineChip(){
   const el = VOICE.stt === 'eleven';
   const wanted = (voiceCfg().prefer==='browser') ? 'browser' : (agentId() ? 'agent' : proxyBase() ? 'eleven' : 'browser');
   const now = agent ? 'agent' : el ? 'eleven' : 'browser';
-  const amber = (now !== wanted) || VOICE.degraded || (el && VOICE.tts !== 'eleven');
-  const who = 'Voice: ' + (agent ? 'Agent'
-    : el ? (VOICE.tts==='eleven' ? 'Scribe' : 'Scribe ear, browser voice')
+  /* Amber the moment ANYTHING has fallen back — a tier below the one asked for,
+     a readback that came out of the browser voice, or a phone that has not let
+     us play audio yet. Green means every part of it is the thing you chose. */
+  const voiceFell = (agent||el) && (VOICE.tts !== (agent?'agent':'eleven') || audioBlocked);
+  const amber = (now !== wanted) || VOICE.degraded || voiceFell;
+  const who = 'Voice: ' + (agent ? (voiceFell ? 'Agent ear, browser voice' : 'Agent')
+    : el ? (voiceFell ? 'Scribe ear, browser voice' : 'Scribe')
     : 'Browser');
   ['engChip','engChip2'].forEach(id=>{
     const b = $(id); if(!b) return;
@@ -2672,7 +2684,11 @@ async function probeVoice(quiet){
     const d = await r.json();
     if(!d.key){ setEngine('browser','browser','proxy has no API key'); VOICE.probed=true; return VOICE; }
     if(d.authed === false){ setEngine('browser','browser','proxy rejected the app token'); VOICE.probed=true; return VOICE; }
-    VOICE.degraded = false;
+    /* which voice and which model the deployed Worker is really using — the app
+       cannot set them, so it should at least be able to show them */
+    VOICE.model = d.model || ''; VOICE.voiceId = d.voice || '';
+    VOICE.settings = d.settings || null;
+    VOICE.degraded = false; ttsFails = 0;
     if(agentId()){
       if(!(window.ElevenLabsClient && ElevenLabsClient.Conversation)){
         setEngine('eleven','eleven','agent SDK did not load — on Scribe');
@@ -2818,6 +2834,19 @@ function logHeard(text){
   save();
   renderVlog();
 }
+/* Every readback, with the engine that ACTUALLY made the sound rather than the
+   one we hoped would. "It sounds like the browser voice" then stops being an
+   argument and becomes a line you can read off the phone. */
+function logSaid(text, eng, why){
+  if(!text) return;
+  const e = (eng==='el') ? 'el' : (eng==='ag') ? 'ag' : 'br';
+  const L = vlog();
+  L.push({t:Date.now(), eng:e, kind:'said', text:String(text).slice(0,180), ok:(e!=='br'),
+          what:(e==='el' ? 'ElevenLabs voice' : e==='ag' ? 'Agent voice' : 'browser voice'),
+          result: why || '', mode:REVIEW.active?'review':'count', spoke:e});
+  while(L.length>VLOG_MAX) L.shift();
+  save(); renderVlog();
+}
 function renderKeyterms(){
   const box = $('ktBox'); if(!box) return;
   const sent = VOICE.terms;
@@ -2833,8 +2862,13 @@ function renderKeyterms(){
     + '</div>';
 }
 function vlogStats(){
-  const L = vlog(), out = {ag:{n:0,ok:0}, el:{n:0,ok:0}, br:{n:0,ok:0}};
-  L.forEach(e=>{ const b=out[e.eng]; if(!b) return; b.n++; if(e.ok) b.ok++; });
+  /* readbacks are the app talking, not the ear working — they are counted on
+     their own so they cannot flatter or spoil the hit rate */
+  const L = vlog(), out = {ag:{n:0,ok:0}, el:{n:0,ok:0}, br:{n:0,ok:0}, said:{el:0, br:0, ag:0}};
+  L.forEach(e=>{
+    if(e.kind==='said'){ if(out.said[e.eng]!=null) out.said[e.eng]++; return; }
+    const b=out[e.eng]; if(!b) return; b.n++; if(e.ok) b.ok++;
+  });
   return out;
 }
 function pct(a,b){ return b ? Math.round(a/b*100)+'%' : '—'; }
@@ -2844,14 +2878,23 @@ function renderVlog(){
   renderKeyterms();
   const box = $('vlogBox'); if(!box) return;
   const L = vlog().slice(-25).reverse(), st = vlogStats();
+  const saidN = st.said.el + st.said.br + st.said.ag;
   const head = '<div class="vstat"><span><b>Agent</b> '+st.ag.n+' events</span>'
     + '<span><b>Scribe</b> '+pct(st.el.ok,st.el.n)+' of '+st.el.n+'</span>'
-    + '<span><b>Browser</b> '+pct(st.br.ok,st.br.n)+' of '+st.br.n+'</span></div>';
+    + '<span><b>Browser</b> '+pct(st.br.ok,st.br.n)+' of '+st.br.n+'</span>'
+    + '<span class="'+(saidN && st.said.br ? 'bad' : '')+'"><b>Readbacks</b> '
+      + (saidN ? st.said.el+' ElevenLabs \u00b7 '+st.said.br+' browser'
+               + (st.said.ag? ' \u00b7 '+st.said.ag+' agent' : '')
+               : '\u2014')+'</span></div>';
   if(!L.length){ box.innerHTML = head + '<p class="note">Nothing heard yet. Speak a few lines, then come back — each one lands here with the engine that heard it.</p>'; return; }
   box.innerHTML = head + '<div class="scroll"><table class="vlog"><tbody>' + L.map(e=>
-      '<tr class="'+(e.ok?'':'miss')+'"><td class="eng">'+(e.eng==='el'?'EL':'Br')
-      + (e.spoke? '<br><span class="sp2">'+(e.spoke==='el'?'\u25b8EL':'\u25b8Br')+'</span>' : '')+'</td>'
-    + '<td>'+esc(e.text)+'</td>'
+      '<tr class="'+(e.ok?'':'miss')+(e.kind==='said'?' said':'')+'"><td class="eng">'
+      + (e.kind==='said'
+          ? '\u25b8'+(e.eng==='el'?'EL':e.eng==='ag'?'Ag':'Br')
+          : (e.eng==='el'?'EL':e.eng==='ag'?'Ag':'Br')
+            + (e.spoke? '<br><span class="sp2">'+(e.spoke==='el'?'\u25b8EL':'\u25b8Br')+'</span>' : ''))
+      + '</td>'
+    + '<td>'+(e.kind==='said'?'<i>said</i> ':'')+esc(e.text)+'</td>'
     + '<td class="what">'+(e.ok? esc(e.what) : '<b>'+esc(e.what)+'</b>')
       + (e.result? '<br><small>'+esc(e.result)+'</small>' : '')
       + '<br><small style="opacity:.6">'+new Date(e.t).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'</small>'
@@ -3389,19 +3432,39 @@ function voiceFellBack(why){
 }
 
 /* ---------- speaking ---------- */
-let ttsAudio=null, speakFin=null, audioPrimed=false;
-/* iOS refuses audio a page starts by itself; a silent play inside the tap that
-   starts listening buys the right to speak for the rest of the session. Without
-   this the ElevenLabs mp3 is refused and every readback falls to the browser
-   voice — which is exactly what "it still sounds robotic" means. */
+/* 0.05 seconds of silence. It is a real, complete WAV rather than a snipped mp3
+   because a data URI the phone cannot decode never unlocks anything — the play
+   rejects, and the unlock is silently lost. */
+const SILENT_WAV = 'data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+/* iOS grants playback to the ELEMENT, not to the page. An <audio> whose play()
+   ran inside a tap can be handed a new src and played on its own later; one
+   built after the tap is refused however many times the page was tapped.
+   Every readback used to build a fresh Audio, so priming bought nothing and the
+   first readback outside a gesture was refused — which demoted the session to
+   the browser voice for good, while "Test connection" still sounded right
+   because it speaks from inside the click that probes. So: one element for the
+   whole app, unlocked by the first tap, reused for every line. */
+function ttsEl(){
+  if(!ttsAudio){
+    ttsAudio = new Audio();
+    ttsAudio.preload = 'auto';
+    try{ ttsAudio.setAttribute('playsinline',''); }catch(e){}
+  }
+  return ttsAudio;
+}
 function primeAudio(){
+  const a = ttsEl();
   if(audioPrimed) return;
   try{
-    const a = new Audio('data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA');
-    a.volume = 0;
+    a.src = SILENT_WAV;
+    const won = ()=>{
+      try{ a.pause(); a.currentTime = 0; }catch(e){}
+      audioPrimed = true;
+      if(audioBlocked){ audioBlocked = false; ttsFails = 0; voiceRecovered(''); }
+    };
     const pr = a.play();
-    if(pr && pr.then) pr.then(()=>{ audioPrimed = true; }).catch(()=>{});
-    else audioPrimed = true;
+    if(pr && pr.then) pr.then(won).catch(()=>{ audioPrimed = false; });
+    else won();
   }catch(e){}
 }
 /* whoever is speaking parks its finisher here, so stopping settles the
@@ -3409,7 +3472,7 @@ function primeAudio(){
 function stopSpeaking(){
   const f = speakFin; speakFin = null;
   try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
-  if(ttsAudio){ try{ ttsAudio.pause(); }catch(e){} ttsAudio=null; }
+  if(ttsAudio){ try{ ttsAudio.pause(); }catch(e){} }
   if(f) f();
 }
 function browserSpeak(text, cb){
@@ -3431,27 +3494,59 @@ function browserSpeak(text, cb){
   }catch(e){ if(cb) cb(); }
 }
 async function elevenSpeak(text, cb){
-  LASTSPOKE = 'el';
   const r = await proxyFetch('/tts', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({text})});
   if(!r.ok) throw new Error('tts '+r.status);
   const url = URL.createObjectURL(await r.blob());
   stopSpeaking();
-  const a = new Audio(url);
-  ttsAudio = a;
+  const a = ttsEl();
   let done=false;
   const fin = ()=>{ if(done) return; done=true; clearTimeout(wd); if(speakFin===fin) speakFin=null; URL.revokeObjectURL(url); if(cb) cb(); };
   const wd = setTimeout(fin, Math.min(20000, 3000 + text.length*90));
   speakFin = fin;
   a.onended = fin; a.onerror = fin;
+  a.src = url;
+  try{ a.currentTime = 0; }catch(e){}
   /* A readback cut off by the next one is normal — a fast walk does it on every
-     row. Only an outright refusal to play means the engine is no good to us;
-     anything else finishes quietly and we stay on ElevenLabs. */
+     row — and it made a sound, so it is not a failure. Anything else did not
+     come out of the speaker, so the line has to be said another way. */
   try{
     await a.play();
   }catch(e){
-    if(e && e.name === 'NotAllowedError') throw e;
-    fin();
+    /* the next readback took the element off this one — ElevenLabs still owned
+       the line, so it is logged as such rather than as a browser fallback */
+    if(e && e.name === 'AbortError'){ LASTSPOKE = 'el'; fin(); return; }
+    throw e;
   }
+  LASTSPOKE = 'el';           /* set only once it is genuinely playing */
+  if(VOICE.degraded) voiceRecovered('');
+}
+/* The voice came back — a blocked phone was tapped, or a proxy that was failing
+   answered. Say so rather than wearing amber for the rest of the session. */
+function voiceRecovered(note){
+  if(VOICE.stt !== 'eleven' && VOICE.stt !== 'agent') return;
+  if(!proxyBase() || voiceCfg().prefer === 'browser') return;
+  VOICE.degraded = false; ttsFails = 0;
+  setEngine(VOICE.stt, VOICE.stt === 'agent' ? 'agent' : 'eleven', note || '');
+}
+/* A readback that could not use the ElevenLabs voice is never silent, and never
+   silent about it: the line is still said, the chip goes amber with the reason,
+   and the row in "What the app heard" names the engine that actually spoke.
+   Being blocked is not a reason to give up for the session — one tap fixes it,
+   so the next readback tries ElevenLabs again. A proxy that keeps failing is a
+   different thing, and after three goes it does settle on the browser. */
+function speakFail(e){
+  const blocked = !!(e && e.name === 'NotAllowedError');
+  VOICE.degraded = true;
+  if(blocked){
+    audioPrimed = false; audioBlocked = true;
+    setEngine(VOICE.stt, VOICE.tts, 'the phone has not allowed audio yet — tap the mic once');
+    return 'audio blocked by the phone';
+  }
+  ttsFails++;
+  const why = 'the readback call failed (' + String((e && e.message) || e).slice(0,60) + ')';
+  if(ttsFails >= 3) setEngine(VOICE.stt, 'browser', 'the readback call keeps failing — on the browser voice');
+  else setEngine(VOICE.stt, VOICE.tts, 'a readback call failed — trying ElevenLabs again');
+  return why;
 }
 /* what we are saying right now, so we can recognise it coming back at us
    and so it can be cut short */
@@ -3475,25 +3570,21 @@ function speakThen(text, cb){
   setTurn('speaking');
   const me = {text:String(text), cut:false};
   SPEAK = me;
-  let fired = false;
+  let fired = false, why = '';
   const done = ()=>{
     if(fired) return; fired = true;
     const cut = me.cut;
     if(SPEAK === me) SPEAK = {text:'', cut:false};
     VOICE.busy = false;
     if(TURN==='speaking') setTurn('shut');
+    logSaid(me.text, LASTSPOKE, why);   /* which engine actually made the sound */
     if(cb) cb(cut);
     reopenSoon(cut ? 120 : 350);        /* a beat, then the ear opens again */
   };
   if(VOICE.tts === 'eleven'){
     elevenSpeak(text, done).catch(e=>{
       /* the ear may be perfectly fine — only the voice failed. Say which. */
-      VOICE.degraded = true;
-      VOICE.tts = 'browser';
-      const why = (e && e.name==='NotAllowedError')
-        ? 'the phone blocked audio playback — tap the mic once to allow it'
-        : 'the readback call failed, using the browser voice';
-      setEngine(VOICE.stt, 'browser', why);
+      why = speakFail(e);
       browserSpeak(text, done);
     });
     return;
@@ -7577,9 +7668,15 @@ function saveVoiceCfg(){
 }
 function voiceNote(){
   const n = $('vNote'); if(!n) return;
-  n.textContent = VOICE.stt==='eleven'
+  const spec = VOICE.model
+    ? ' Readbacks: ' + VOICE.model
+      + (VOICE.voiceId ? ', voice ' + VOICE.voiceId : '')
+      + (VOICE.settings ? ' (stability ' + VOICE.settings.stability
+          + ', similarity ' + VOICE.settings.similarity_boost + ')' : '') + '.'
+    : '';
+  n.textContent = (VOICE.stt==='eleven'
     ? 'ElevenLabs is answering' + (VOICE.note ? ' — ' + VOICE.note : '.')
-    : 'On the browser engine' + (VOICE.note ? ' — ' + VOICE.note + '.' : '.');
+    : 'On the browser engine' + (VOICE.note ? ' — ' + VOICE.note + '.' : '.')) + spec;
 }
 $('vSave').onclick = e => withFeedback(e.currentTarget, async ()=>{ await saveVoiceCfg(); voiceNote(); }, 'Saved');
 $('vTest').onclick = e => withFeedback(e.currentTarget, async ()=>{
@@ -7589,6 +7686,19 @@ $('vTest').onclick = e => withFeedback(e.currentTarget, async ()=>{
   if(VOICE.stt !== 'eleven') throw new Error(VOICE.note || 'not connected');
   speak('Voice engine connected.');
 }, 'Connected');
+/* The mp3 the proxy actually returns, saved to the phone. It is the only way to
+   hear the voice as configured without standing in a yard — and it is a file,
+   so it can be sent to somebody else to listen to. */
+const SAMPLE_LINE = 'Six nine metre medium poles. Eight hundred and fifty metres of ninety six fibre, drum A B C D one. Running total for one two G one two three four five: fourteen lines.';
+$('vSample').onclick = e => withFeedback(e.currentTarget, async ()=>{
+  await saveVoiceCfg();
+  const r = await proxyFetch('/tts', {method:'POST', headers:{'content-type':'application/json'},
+                                      body:JSON.stringify({text:SAMPLE_LINE})});
+  if(!r.ok) throw new Error('the proxy returned ' + r.status);
+  const buf = await r.arrayBuffer();
+  if(!buf.byteLength) throw new Error('the proxy returned nothing');
+  return saveFile('trucount-readback-sample.mp3', new Uint8Array(buf));
+}, 'Saved');
 ['engChip','engChip2'].forEach(id=>{ const b=$(id); if(b) b.onclick = ()=>{ showTab('cat'); const p=$('voicePanel'); if(p) p.scrollIntoView({behavior:'smooth', block:'start'}); }; });
 $('vlogClear').onclick = e => withFeedback(e.currentTarget, ()=>{ S.vlog=[]; save(); renderVlog(); }, 'Cleared');
 $('vlogExport').onclick = e => withFeedback(e.currentTarget, ()=>{
