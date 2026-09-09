@@ -5,7 +5,7 @@
 module.exports = async function({ browser, H }){
   const R = H.results(); const t = R.t;
   const sample = n => require('path').join(H.ROOT, 'sample-data', n);
-  const p = await H.openApp(browser, {sdk:false});
+  const p = await H.openApp(browser, {});
 
   await p.evaluate(()=>saveRole('nbi')); await p.waitForTimeout(500);
   await p.click('#t-cat'); await p.waitForTimeout(400);

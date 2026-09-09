@@ -32,15 +32,33 @@ treat it as a specification of behaviour that must survive a rewrite.
 
 ### What works today
 
-- **Three engines, in tiers: Agent, then Scribe, then the browser.** The chip names the one
+- **Three engines, in tiers: Vapi, then Scribe, then the browser.** The chip names the one
   actually running and goes amber the moment it is below the tier the settings ask for.
-  - **ElevenLabs Agents is the top tier and owns the conversation.** Turn taking, interruptions,
-    stop words and barge-in are the agent's job, not ours — the hand-built half-duplex machine
-    below it is what runs when there is no agent. The SDK is loaded as the `@elevenlabs/client`
-    IIFE build (global `ElevenLabsClient`), which is the only form a page with no build step can
-    use. The Worker mints a short-lived conversation token from `/agent-token`; the key never
-    reaches the browser. Set the agent up with `agent/README.md`; its system prompt is versioned
-    at `agent/system-prompt.md` and must be kept in step with the dashboard.
+  - **Vapi is the top tier and owns the conversation.** Turn taking, interruptions, stop words
+    and barge-in are Vapi's job, not ours — the hand-built half-duplex machine below it is what
+    runs when Vapi is not there. The SDK ships no UMD build, so it is loaded as jsDelivr's ES
+    module bundle from a `<script type="module">`, which is deferred by definition and cannot
+    block the boot; the bundle's default export is a CommonJS namespace, hence the `.default`
+    unwrap. Set the assistant up with `agent/README.md`; its system prompt is versioned at
+    `agent/system-prompt.md` and must be kept in step with the dashboard.
+    - **The public key is in `index.html`, deliberately.** Vapi's public key is publishable by
+      design: it identifies the account to Vapi's own servers and can do nothing but start a web
+      call against an assistant this account owns. So the agent tier needs **nothing of ours** —
+      no Worker, no token round trip — and works before the proxy is even deployed. The rule that
+      a *secret* key never reaches the page is untouched: the ElevenLabs key is still only in the
+      Worker, for the Scribe fallback underneath.
+    - **Client-side tools are one way.** Vapi hands the browser the tool call and gives it no
+      channel to return a value on. So every tool's result is injected straight back as a system
+      message — `Result of find_item: {…}` — and Vapi is asked to let the model respond to it.
+      That is what makes `find_item` worth having, and it is why every tool in the dashboard must
+      be declared **async**: a synchronous one leaves the model waiting for a result the transport
+      cannot deliver. `pause` is the single exception that goes in without asking for a response,
+      because being told "paused" and then talking about it is the opposite of pausing.
+    - **Pre-connect.** Joining a Vapi call takes a second or two, and doing that on the mic tap is
+      a second or two of the counter standing there. Opening the Count tab connects the call with
+      the microphone muted and the first-message mode overridden to *wait for the user*; the tap
+      only unmutes. A connected call is billed by the minute whether anyone speaks into it or not,
+      so an unused one is dropped after `VAPI_WARM_IDLE_MS`. See `warmAgent()`.
   - **The tools are the only way the agent can touch data.** `AGENT_TOOLS` — `find_item`,
     `record_count`, `undo_last`, `set_location`, `read_total`, `pause`, `resume`, and in review
     `next_line`, `confirm_line`, `correct_line`, `jump_to`. The agent never matches an item, never
@@ -48,8 +66,8 @@ treat it as a specification of behaviour that must survive a rewrite.
     candidates with a confidence, `record_count` refuses an unknown code or a non-numeric quantity,
     and the unit conversion happens here. Every tool goes through `tool()`, which logs the call,
     its arguments and its result with a timestamp into *What the app heard*.
-  - **The agent is told what it could not have heard.** `agentContext()` wraps the SDK's
-    contextual update: which contractor and location the count is under when the session opens,
+  - **The agent is told what it could not have heard.** `agentContext()` injects a silent system
+    message: which contractor and location the count is under when the session opens,
     that a review has started or stopped, that the location changed. It is context, not a turn —
     the agent does not answer it. `agentSay()` pushes text in as a user turn, which is how the
     typed box drives the real tools in an automated run rather than a parallel path.
@@ -66,11 +84,14 @@ treat it as a specification of behaviour that must survive a rewrite.
   chip under the mic always names the running engine and, when it is the browser, why. Either way
   it is hands-free continuous — tap once, keep talking — and the browser path keeps working with no
   signal at all, which is most of the estate these customers care about.
-  - **The API key is never in `index.html`.** It lives in a Cloudflare Worker (`proxy/worker.js`)
-    that exposes three routes: `/health`, `/stt-token` (mints a 15-minute single-use token so the
-    phone opens the Scribe socket itself — audio never round-trips the Worker) and `/tts`.
-    `proxy/README.md` is the ten-minute setup. Configure it in **Data → Voice engine**; the config
-    lives in `S.voice` as `{proxy, token, prefer}`.
+  - **The ElevenLabs API key is never in `index.html`.** It lives in a Cloudflare Worker
+    (`proxy/worker.js`) that exposes three routes: `/health`, `/stt-token` (mints a 15-minute
+    single-use token so the phone opens the Scribe socket itself — audio never round-trips the
+    Worker) and `/tts`. `proxy/README.md` is the ten-minute setup. Configure it in
+    **Data → Voice engine**; the config lives in `S.voice` as `{proxy, token, prefer, agentId}`.
+    Since Vapi took the top tier this Worker is **the fallback's plumbing only** — the app probes
+    it quietly (`probeScribe()`) so the chip knows whether there is a fallback to fall to, and
+    never lets a proxy failure demote a working Vapi call.
   - **Keyterms.** Every listening session sends a boosted vocabulary, spent nearest-first
     across the **50 terms of 20 characters** the realtime API allows: the command words, then
     the rows either side of the one being read, then the rest of that group, then the group the

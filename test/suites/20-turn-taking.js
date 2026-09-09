@@ -6,7 +6,9 @@ module.exports = async function({ browser, H }){
   const PROXY = 'http://127.0.0.1:' + H.PROXY_PORT;
   const sample = n => require('path').join(H.ROOT, 'sample-data', n);
   const shot   = n => require('path').join(__dirname, '..', 'screenshots', n);
-  const p = await H.openApp(browser);
+  /* This suite is about the Scribe tier — the ear and voice pair we drive
+     ourselves — so it opens without the Vapi stub and the app falls to it. */
+  const p = await H.openApp(browser, {vapi:false});
   const errs = p.errs;
   await p.evaluate(m=>{ S.custom=S.custom||{}; S.custom.fibre=S.custom.fibre||[];
     S.custom.fibre.push({code:m.code, short:m.short, long:m.short, unit:'Each', pack:1, alias:''}); save(); }, MDU);

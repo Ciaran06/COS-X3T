@@ -6,7 +6,9 @@ module.exports = async function({ browser, H }){
   const PROXY = 'http://127.0.0.1:' + H.PROXY_PORT;
   const sample = n => require('path').join(H.ROOT, 'sample-data', n);
   const shot   = n => require('path').join(__dirname, '..', 'screenshots', n);
-  const p = await H.openApp(browser);
+  /* This suite is about the Scribe tier — the ear and voice pair we drive
+     ourselves — so it opens without the Vapi stub and the app falls to it. */
+  const p = await H.openApp(browser, {vapi:false});
   const errs = p.errs;
   await H.useProxy(p);
   t('on ElevenLabs', await p.evaluate(()=>VOICE.stt)==='eleven');

@@ -76,7 +76,7 @@ either way — counting them would flatter the recognition rate.
 | `40-location` | the location list is closed — typed, spoken, or near-missed |
 | `41-item-master` | editing, deleting, merging an upload without losing hand edits, export |
 | `42-loc-sound` | place names matched by sound — Claire Morris, Tober Curry, Doo Leg, Nock |
-| `50-agent` | the tools are the only way the agent can touch data |
+| `50-agent` | the Vapi tier, and the tools as the only way it can touch data |
 | `51-agent-context` | what the app tells the agent that it could not have heard |
 | `60-delete` | every line can be removed, undone for five seconds, and the removal is in the record |
 | `61-spots` | storage areas are optional, off by default, and never invented |

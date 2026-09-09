@@ -825,7 +825,8 @@
       <div class="catgrid">
         <div class="field full"><label for="vProxy">Proxy URL</label><input id="vProxy" placeholder="https://trucount-voice.your-name.workers.dev" autocomplete="off" spellcheck="false"></div>
         <div class="field"><label for="vToken">App token</label><input id="vToken" placeholder="the APP_TOKEN secret, if you set one" autocomplete="off" spellcheck="false"></div>
-        <div class="field"><label for="vPrefer">Engine</label><select id="vPrefer"><option value="auto">ElevenLabs when it is reachable</option><option value="browser">Browser only</option></select></div>
+        <div class="field"><label for="vAgent">Vapi assistant ID</label><input id="vAgent" placeholder="aefc0a29-…" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="vPrefer">Engine</label><select id="vPrefer"><option value="auto">Vapi when it is reachable</option><option value="scribe">Scribe only (the fallback)</option><option value="browser">Browser only</option></select></div>
       </div>
       <div class="bar">
         <span class="sp" id="vNote">The API key is never held in this page. It lives in the proxy — see proxy/README.md for the ten-minute setup.</span>
@@ -995,12 +996,22 @@
 <!-- async, both of them: a blocking <script src> to a CDN holds up HTML parsing
      until it times out, which on a van with no signal is ten seconds of blank
      screen before the mic even draws. Neither library is needed to boot — the
-     import path checks for XLSX and the agent checks for ElevenLabsClient. -->
+     import path checks for XLSX and the agent checks for window.Vapi. -->
 <script async src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<!-- ElevenLabs Agents. The IIFE build is the one a page with no build step can
-     use: it defines window.ElevenLabsClient. If it does not load, the app falls
-     back to Scribe and then to the browser engine on its own. -->
-<script async src="https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.25.0/dist/lib.iife.js"></script>
+<!-- Vapi holds the conversation. The package ships no UMD build, so this is
+     jsDelivr's ES-module bundle, which pulls its own dependency in with it. A
+     module script is deferred by definition, so it cannot block the boot. The
+     bundle's default export is the CommonJS namespace, hence the .default. -->
+<script type="module">
+  try{
+    const M = await import('https://cdn.jsdelivr.net/npm/@vapi-ai/web@2.7.0/+esm');
+    const C = M && (M.default && M.default.default ? M.default.default : M.default);
+    if(typeof C === 'function') window.Vapi = C;
+  }catch(e){ /* offline, or the CDN is blocked — the app falls back on its own */ }
+  window.Vapi = window.Vapi || null;
+  window.__vapiLoaded = true;
+  window.dispatchEvent(new Event('vapi-ready'));
+</script>
 <script>
 /* ============================================================
    TruCount — voice stocktake
@@ -2802,14 +2813,16 @@ function renderEngineChip(){
      running below it, with the reason on the chip. */
   const agent = VOICE.stt === 'agent';
   const el = VOICE.stt === 'eleven';
-  const wanted = (voiceCfg().prefer==='browser') ? 'browser' : (agentId() ? 'agent' : proxyBase() ? 'eleven' : 'browser');
+  const wanted = (voiceCfg().prefer==='browser') ? 'browser'
+               : (voiceCfg().prefer==='scribe') ? (proxyBase()? 'eleven' : 'browser')
+               : agentReady() ? 'agent' : proxyBase() ? 'eleven' : 'browser';
   const now = agent ? 'agent' : el ? 'eleven' : 'browser';
   /* Amber the moment ANYTHING has fallen back — a tier below the one asked for,
      a readback that came out of the browser voice, or a phone that has not let
      us play audio yet. Green means every part of it is the thing you chose. */
   const voiceFell = (agent||el) && (VOICE.tts !== (agent?'agent':'eleven') || audioBlocked);
   const amber = (now !== wanted) || VOICE.degraded || voiceFell;
-  const who = 'Voice: ' + (agent ? (voiceFell ? 'Agent ear, browser voice' : 'Agent')
+  const who = 'Voice: ' + (agent ? 'Vapi'
     : el ? (voiceFell ? 'Scribe ear, browser voice' : 'Scribe')
     : 'Browser');
   ['engChip','engChip2'].forEach(id=>{
@@ -2822,7 +2835,21 @@ function renderEngineChip(){
 }
 async function probeVoice(quiet){
   if(voiceCfg().prefer === 'browser'){ setEngine('browser','browser','set to browser'); VOICE.probed=true; return VOICE; }
-  if(!proxyBase()){ setEngine('browser','browser','no proxy set'); VOICE.probed=true; return VOICE; }
+  /* Vapi is the tier. It needs nothing of ours — no proxy, no key of ours in
+     flight — so it is checked before anything else, and the Cloudflare proxy
+     is only ever consulted for the Scribe fallback underneath it. */
+  if(voiceCfg().prefer !== 'scribe'){
+    if(agentReady()){
+      VOICE.degraded = false; ttsFails = 0;
+      setEngine('agent','agent','');
+      VOICE.probed = true;
+      probeScribe();                    /* quietly, so the fallback is known-good */
+      return VOICE;
+    }
+    if(!window.__vapiLoaded){ setEngine('browser','browser','loading Vapi…'); VOICE.probed=true; probeScribe(); return VOICE; }
+    if(!window.Vapi){ setEngine('browser','browser','the Vapi SDK did not load'); }
+  }
+  if(!proxyBase()){ setEngine('browser','browser', voiceCfg().prefer==='scribe' ? 'no proxy set' : (window.Vapi? 'no assistant id' : 'the Vapi SDK did not load')); VOICE.probed=true; return VOICE; }
   try{
     const r = await proxyFetch('/health');
     if(r.status===401){ setEngine('browser','browser','proxy rejected the app token'); VOICE.probed=true; return VOICE; }
@@ -2835,22 +2862,30 @@ async function probeVoice(quiet){
     VOICE.model = d.model || ''; VOICE.voiceId = d.voice || '';
     VOICE.settings = d.settings || null;
     VOICE.degraded = false; ttsFails = 0;
-    if(agentId()){
-      if(!(window.ElevenLabsClient && ElevenLabsClient.Conversation)){
-        setEngine('eleven','eleven','agent SDK did not load — on Scribe');
-      } else {
-        const t = await proxyFetch('/agent-token?agent_id='+encodeURIComponent(agentId()));
-        if(t.ok) setEngine('agent','agent', d.guarded ? '' : 'proxy is unguarded — set APP_TOKEN');
-        else setEngine('eleven','eleven','agent id was refused — on Scribe');
-      }
-      VOICE.probed = true; return VOICE;
-    }
+    VOICE.scribeOk = true;
     setEngine('eleven','eleven', d.guarded ? '' : 'proxy is unguarded — set APP_TOKEN');
   }catch(e){
     setEngine('browser','browser','proxy unreachable');
   }
   VOICE.probed = true;
   return VOICE;
+}
+
+/* Is the Scribe fallback there if Vapi drops? Asked quietly, so the answer is
+   known before it is needed, and never used to demote a working Vapi call. */
+async function probeScribe(){
+  VOICE.scribeOk = false;
+  if(!proxyBase()) return false;
+  try{
+    const r = await proxyFetch('/health');
+    if(!r.ok) return false;
+    const d = await r.json();
+    VOICE.scribeOk = !!(d.key && d.authed !== false);
+    VOICE.model = d.model || VOICE.model || ''; VOICE.voiceId = d.voice || VOICE.voiceId || '';
+    VOICE.settings = d.settings || VOICE.settings || null;
+    renderEngineChip();
+    return VOICE.scribeOk;
+  }catch(e){ return false; }
 }
 
 /* ---------- keyterms ---------- */
@@ -3059,17 +3094,33 @@ function vlogCsv(){
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   ElevenLabs Agents.
+   Vapi.
 
-   The agent owns the conversation — turn taking, interruptions and stop words
-   are its job, not ours. TruCount is the set of tools it calls, and the tools
-   are the only way it can touch data: it can neither invent an item nor write
-   a number we did not convert. When the agent is running, nothing else in the
+   Vapi owns the conversation — turn taking, interruptions and stop words are
+   its job, not ours. TruCount is the set of tools it calls, and the tools are
+   the only way it can touch data: it can neither invent an item nor write a
+   number we did not convert. When the agent is running, nothing else in the
    app speaks or opens a microphone.
+
+   The public key is publishable by design — it identifies the account to
+   Vapi's own servers and can do nothing but start a web call against an
+   assistant this account owns — so unlike the ElevenLabs key it lives here in
+   the page. Nothing else moved: the Cloudflare proxy still holds the secret
+   ElevenLabs key for the Scribe fallback.
    ══════════════════════════════════════════════════════════════════════ */
-let AGENT = {on:false, conv:null, mode:'', starting:false};
-function agentId(){ return String(voiceCfg().agentId||'').trim(); }
-function agentReady(){ return !!(window.ElevenLabsClient && ElevenLabsClient.Conversation) && !!agentId() && !!proxyBase(); }
+const VAPI_PUBLIC_KEY  = 'f9d033a9-3631-4e7a-95ce-0823f3c9f378';
+const VAPI_ASSISTANT_ID = 'aefc0a29-6dc2-41ec-be44-254316db923c';
+/* how long a pre-connected call is allowed to sit unused before it is dropped.
+   The call is billed by the minute from the moment it connects, so warming it
+   for a tap that never comes has to cost something bounded. */
+const VAPI_WARM_IDLE_MS = 120000;
+let AGENT = {on:false, conv:null, mode:'', starting:false, warm:false, warmT:null, callId:''};
+function vapiKey(){ return String(voiceCfg().vapiKey || VAPI_PUBLIC_KEY).trim(); }
+function agentId(){ return String(voiceCfg().agentId || VAPI_ASSISTANT_ID).trim(); }
+/* Vapi needs no proxy of ours — the call goes straight from the phone to Vapi
+   with the public key. That is why the agent tier can be up before the
+   Cloudflare Worker is even deployed. */
+function agentReady(){ return !!window.Vapi && !!vapiKey() && !!agentId(); }
 
 /* every utterance and every tool call, with a timestamp, in "What the app heard" */
 function agentLog(kind, text, extra){
@@ -3207,67 +3258,178 @@ function chime(){
   }catch(e){}
 }
 
+/* ---------- the wire ----------
+   Vapi's client-side tools are ONE WAY: the SDK hands us the call and there is
+   no channel to return a value on. The documented way to put something in
+   front of the model mid-call is an injected message, so every tool's return
+   value goes back as a system message. That is what makes find_item useful —
+   it answers with short names for the model to read back — and it is why the
+   assistant's tools must be declared async, or the model sits waiting for a
+   result the transport cannot deliver. */
+function vapiSend(msg){
+  if(!AGENT.conv) return false;
+  try{ AGENT.conv.send(msg); return true; }catch(e){ return false; }
+}
+/* Which tools the model should speak after. Pausing is the one thing it must
+   do silently — being told "paused" and then talking about it is the opposite
+   of pausing. */
+const TOOL_REPLIES = {pause:false};
+function toolReply(name, out){
+  vapiSend({type:'add-message',
+            message:{role:'system', content:'Result of '+name+': '+JSON.stringify(out)},
+            triggerResponseEnabled: TOOL_REPLIES[name] !== false});
+}
+async function runToolCall(tc){
+  const fn = tc && tc.function;
+  const name = String((fn && fn.name) || '');
+  let args = {};
+  try{
+    const a = fn && fn.arguments;
+    args = (typeof a === 'string') ? JSON.parse(a || '{}') : (a || {});
+  }catch(e){ args = {}; }
+  const handler = AGENT_TOOLS[name];
+  if(!handler){
+    agentLog('tool', name+' — no such tool', {tool:name, ok:false, kind:'tool'});
+    toolReply(name, {error:'no such tool'});
+    return {error:'no such tool'};
+  }
+  const out = await handler(args);        /* tool() already logs it */
+  toolReply(name, out);
+  return out;
+}
+function onVapiMessage(m){
+  if(!m) return;
+  if(m.type === 'tool-calls'){
+    (m.toolCallList || []).forEach(tc=>{ runToolCall(tc); });
+    return;
+  }
+  if(m.type === 'transcript'){
+    const said = String(m.transcript || '');
+    if(!said) return;
+    if(m.role === 'user'){
+      $('heard').innerHTML = '<b>'+esc(said)+'</b>';
+      if(m.transcriptType === 'final') agentLog('heard', said);
+    }else if(m.transcriptType === 'final'){
+      agentLog('said', said);
+    }
+    return;
+  }
+  if(m.type === 'speech-update' && m.status){
+    AGENT.mode = (m.role === 'assistant' && m.status === 'started') ? 'speaking' : '';
+    setTurn(AGENT.mode === 'speaking' ? 'speaking' : 'open'); paintMic();
+  }
+}
+function vapiClient(){
+  if(AGENT.conv) return AGENT.conv;
+  if(!window.Vapi) return null;
+  const v = new window.Vapi(vapiKey());
+  v.on('call-start', ()=>{
+    AGENT.on = true; AGENT.callId = '';
+    agentLog('session', AGENT.warm ? 'Connected, waiting for the tap.' : 'Session started.');
+    if(!AGENT.warm){ setTurn('open'); paintMic(); sendAgentContext(); }
+  });
+  v.on('call-end', ()=>{
+    agentLog('session','Session ended.');
+    AGENT.on=false; AGENT.conv=null; AGENT.warm=false; AGENT.mode='';
+    clearTimeout(AGENT.warmT);
+    setTurn('shut'); paintMic();
+  });
+  v.on('message', onVapiMessage);
+  v.on('speech-start', ()=>{ AGENT.mode='speaking'; setTurn('speaking'); paintMic(); });
+  v.on('speech-end',   ()=>{ AGENT.mode=''; setTurn('open'); paintMic(); });
+  v.on('error', e=>{ agentLog('error', String((e && (e.message||e.errorMsg)) || e)); });
+  AGENT.conv = v;
+  return v;
+}
+/* The overrides are belt and braces: the assistant in the dashboard should
+   already send tool-calls to the client, and this makes sure of it whichever
+   assistant the id points at. */
+function vapiOverrides(warm){
+  const o = {clientMessages:['tool-calls','transcript','speech-update','status-update']};
+  if(warm) o.firstMessageMode = 'assistant-waits-for-user';
+  return o;
+}
+/* Pre-connect. Joining a Vapi call takes a second or two, and doing it on the
+   mic tap is a second or two of the counter standing there. So the Count tab
+   opens the call with the microphone muted and the assistant told to wait, and
+   the tap only unmutes. It is dropped again after VAPI_WARM_IDLE_MS, because a
+   connected call is billed whether anyone speaks into it or not. */
+async function warmAgent(){
+  if(AGENT.on || AGENT.starting || !agentReady()) return false;
+  if(voiceCfg().prefer === 'browser' || voiceCfg().prefer === 'scribe') return false;
+  AGENT.starting = true; AGENT.warm = true;
+  try{
+    const v = vapiClient();
+    if(!v) throw new Error('SDK did not load');
+    await v.start(agentId(), vapiOverrides(true));
+    v.setMuted(true);
+    AGENT.starting = false;
+    clearTimeout(AGENT.warmT);
+    AGENT.warmT = setTimeout(()=>{ if(AGENT.warm) stopAgent(); }, VAPI_WARM_IDLE_MS);
+    return true;
+  }catch(e){
+    AGENT.starting = false; AGENT.warm = false;
+    agentLog('error','pre-connect failed — '+String(e && e.message || e));
+    return false;
+  }
+}
 async function startAgent(){
-  if(AGENT.on || AGENT.starting) return true;
+  if(AGENT.on && !AGENT.warm) return true;
+  /* already sitting on a pre-connected call — this is the whole point */
+  if(AGENT.on && AGENT.warm){
+    clearTimeout(AGENT.warmT);
+    AGENT.warm = false;
+    try{ AGENT.conv.setMuted(false); }catch(e){}
+    setTurn('open'); paintMic();
+    agentLog('session','Mic opened on the pre-connected call.');
+    sendAgentContext();
+    return true;
+  }
+  if(AGENT.starting) return true;
   AGENT.starting = true;
   try{
-    if(!window.ElevenLabsClient || !ElevenLabsClient.Conversation) throw new Error('SDK did not load');
-    const id = agentId();
-    if(!id) throw new Error('no agent id');
-    /* the key never leaves the proxy: it mints a short-lived credential */
-    const r = await proxyFetch('/agent-token?agent_id='+encodeURIComponent(id));
-    if(!r.ok) throw new Error('token '+r.status);
-    const {token} = await r.json();
-    if(!token) throw new Error('no token');
-    AGENT.conv = await ElevenLabsClient.Conversation.startSession({
-      conversationToken: token,
-      connectionType: 'webrtc',
-      clientTools: AGENT_TOOLS,
-      onConnect: ()=>{
-        AGENT.on = true; setTurn('open'); paintMic();
-        agentLog('session','Session started.');
-        const s = cur();
-        agentContext('Counting for ' + ($('fOrg').value || 'no contractor')
-          + (LOC? ' at ' + LOC : '') + '. Container: ' + (s? s.container : containerLabel())
-          + '. Spot: ' + (SPOT||'not set') + '. '
-          + (REVIEW.active ? 'Review mode is running — walk the sheet.' : 'Normal counting.'));
-      },
-      onDisconnect: d=>{ agentLog('session','Session ended.'+(d&&d.reason? ' '+d.reason : ''));
-                         AGENT.on=false; AGENT.conv=null; setTurn('shut'); paintMic(); },
-      onMessage: m=>{
-        if(!m || !m.message) return;
-        if(m.source === 'user'){ $('heard').innerHTML = '<b>'+esc(m.message)+'</b>'; agentLog('heard', m.message); }
-        else agentLog('said', m.message);
-      },
-      onModeChange: m=>{ AGENT.mode = (m && m.mode) || ''; setTurn(AGENT.mode==='speaking' ? 'speaking' : 'open'); paintMic(); },
-      onError: e=>{ agentLog('error', String(e && e.message || e)); }
-    });
+    if(!window.Vapi) throw new Error('SDK did not load');
+    if(!agentId()) throw new Error('no assistant id');
+    const v = vapiClient();
+    AGENT.warm = false;
+    await v.start(agentId(), vapiOverrides(false));
+    try{ v.setMuted(false); }catch(e){}
     AGENT.on = true; AGENT.starting = false;
     return true;
   }catch(e){
-    AGENT.starting = false; AGENT.on = false; AGENT.conv = null;
+    AGENT.starting = false; AGENT.on = false; AGENT.warm = false;
     throw e;
   }
+}
+function sendAgentContext(){
+  const s = cur();
+  agentContext('Counting for ' + ($('fOrg').value || 'no contractor')
+    + (LOC? ' at ' + LOC : '') + '. Container: ' + (s? s.container : containerLabel())
+    + '. Spot: ' + (SPOT||'not set') + '. '
+    + (REVIEW.active ? 'Review mode is running — walk the sheet.' : 'Normal counting.'));
 }
 /* Tell the agent something it could not have heard — that a review has started,
    that the location changed. It is context, not a turn: the agent does not
    answer it, it just knows. */
 function agentContext(text){
   if(!AGENT.on || !AGENT.conv || !text) return false;
-  try{ AGENT.conv.sendContextualUpdate(String(text)); agentLog('context', text); return true; }
-  catch(e){ return false; }
+  const ok = vapiSend({type:'add-message', message:{role:'system', content:String(text)},
+                       triggerResponseEnabled:false});
+  if(ok) agentLog('context', text);
+  return ok;
 }
 /* the typed box drives the same agent, so an automated run exercises the real
    tools rather than a parallel path */
 function agentSay(text){
   if(!AGENT.on || !AGENT.conv || !text) return false;
-  try{ AGENT.conv.sendUserMessage(String(text)); return true; }
-  catch(e){ return false; }
+  return vapiSend({type:'add-message', message:{role:'user', content:String(text)},
+                   triggerResponseEnabled:true});
 }
 async function stopAgent(){
   const c = AGENT.conv;
-  AGENT.conv = null; AGENT.on = false; AGENT.mode = '';
-  if(c){ try{ await c.endSession(); }catch(e){} }
+  clearTimeout(AGENT.warmT);
+  AGENT.conv = null; AGENT.on = false; AGENT.mode = ''; AGENT.warm = false;
+  if(c){ try{ await c.stop(); }catch(e){} }
 }
 
 /* ---------- microphone to 16 kHz PCM ---------- */
@@ -3802,11 +3964,16 @@ function startListen(){
   if(VOICE.stt === 'agent'){
     chime();
     setTurn('thinking'); paintMic();
+    /* Vapi would not start. Scribe is the fallback and only exists when the
+       proxy is there; otherwise it is the browser. Either way the counter is
+       listening within the same tap. */
     startAgent().catch(e=>{
       const m = String(e && e.message || e);
       VOICE.degraded = true;
-      setEngine(proxyBase()?'eleven':'browser', proxyBase()?'eleven':'browser',
-        /SDK/.test(m) ? 'agent SDK did not load' : /token/.test(m) ? 'agent token refused' : 'agent would not start');
+      const to = proxyBase() ? 'eleven' : 'browser';
+      setEngine(to, to,
+        /SDK/.test(m) ? 'the Vapi SDK did not load' :
+        /assistant/.test(m) ? 'no Vapi assistant id' : 'Vapi would not start — ' + m.slice(0,40));
       startAudio(); openEar();
     });
     return;
@@ -7643,7 +7810,8 @@ function showTab(which){
     $(v).classList.toggle('hidden', !on);
   }
   $('band').classList.toggle('hidden', which!=='count');
-  if(which==='count') renderJobLocs();
+  /* the tap should not be the moment we start dialling — see warmAgent() */
+  if(which==='count'){ renderJobLocs(); warmAgent(); }
   if(which==='sheet') renderSheet();
   if(which==='mgr') renderMgr();
   if(which==='hist') renderHistory();
@@ -7905,12 +8073,15 @@ function fillVoiceBox(){
   if($('vProxy')) $('vProxy').value = c.proxy || '';
   if($('vToken')) $('vToken').value = c.token || '';
   if($('vPrefer')) $('vPrefer').value = c.prefer || 'auto';
+  if($('vAgent')) $('vAgent').value = c.agentId || VAPI_ASSISTANT_ID;
 }
 function saveVoiceCfg(){
   const c = voiceCfg();
   c.proxy = $('vProxy').value.trim().replace(/\/+$/,'');
   c.token = $('vToken').value.trim();
   c.prefer = $('vPrefer').value;
+  const id = $('vAgent') ? $('vAgent').value.trim() : '';
+  c.agentId = (id && id !== VAPI_ASSISTANT_ID) ? id : '';
   save();
   return probeVoice();
 }
@@ -7931,6 +8102,16 @@ $('vTest').onclick = e => withFeedback(e.currentTarget, async ()=>{
   await saveVoiceCfg();
   voiceNote();
   /* the button must tell the truth — a failed probe is not a success */
+  if(VOICE.stt === 'agent'){
+    /* Vapi is a live call, not a request: connecting it and hanging up is the
+       only honest test, and it proves the assistant id and the key together. */
+    await startAgent();
+    await new Promise(r=>setTimeout(r,900));
+    const up = AGENT.on;
+    await stopAgent();
+    if(!up) throw new Error('Vapi would not connect');
+    return;
+  }
   if(VOICE.stt !== 'eleven') throw new Error(VOICE.note || 'not connected');
   speak('Voice engine connected.');
 }, 'Connected');
@@ -7956,6 +8137,9 @@ $('vlogExport').onclick = e => withFeedback(e.currentTarget, ()=>{
 fillVoiceBox();
 renderVlog();
 probeVoice().then(voiceNote);
+/* the SDK is a deferred module, so it usually lands after this line */
+window.addEventListener('vapi-ready', ()=>{ probeVoice().then(voiceNote); });
+if(window.__vapiLoaded) probeVoice().then(voiceNote);
 
 initSync();
 </script>

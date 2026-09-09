@@ -1,31 +1,35 @@
-/* ElevenLabs Agents: the tier, the tools, and the rule that the agent can only
-   touch data through them. */
+/* Vapi: the tier, the tools, and the rule that the agent can only touch data
+   through them. */
 module.exports = async function({ browser, H }){
   const R = H.results();
   const t = R.t;
   const page = await H.openApp(browser);
 
-  t('the SDK exposes Conversation', await page.evaluate(()=>!!(window.ElevenLabsClient && ElevenLabsClient.Conversation)));
+  t('the SDK is there', await page.evaluate(()=>typeof window.Vapi==='function'));
+  t('the public key and assistant id ship in the page',
+    await page.evaluate(()=>/^[0-9a-f-]{36}$/.test(VAPI_PUBLIC_KEY) && agentId()==='aefc0a29-6dc2-41ec-be44-254316db923c'),
+    await page.evaluate(()=>agentId()));
 
-  /* ---- the three tiers ---- */
-  await H.useProxy(page, {agentId:'agent_test123'});
+  /* ---- the tiers ---- */
+  await H.useProxy(page);
   const tier = await page.evaluate(()=>({stt:VOICE.stt, chip:$('engChip').textContent, cls:$('engChip').className}));
-  t('an agent id gives Voice: Agent, green', tier.stt==='agent' && /Voice: Agent/.test(tier.chip) && / el\b/.test(tier.cls), JSON.stringify(tier));
+  t('Vapi is the tier, green', tier.stt==='agent' && /Voice: Vapi/.test(tier.chip) && / el\b/.test(tier.cls), JSON.stringify(tier));
 
-  await page.evaluate(()=>{ S.voice.agentId=''; save(); return probeVoice(); });
-  await page.waitForTimeout(700);
-  t('no agent id falls to Scribe, still green',
-    await page.evaluate(()=>VOICE.stt)==='eleven' && /Voice: Scribe/.test(await page.evaluate(()=>$('engChip').textContent)),
-    await page.evaluate(()=>$('engChip').textContent));
+  /* Vapi needs nothing of ours — it is up before the proxy is */
+  const noProxy = await page.evaluate(async ()=>{ S.voice.proxy=''; S.voice.token=''; save();
+    await probeVoice(); return {stt:VOICE.stt, chip:$('engChip').textContent}; });
+  t('and it does not need the Cloudflare proxy at all',
+    noProxy.stt==='agent' && /Voice: Vapi/.test(noProxy.chip), JSON.stringify(noProxy));
+  await H.useProxy(page);
 
   const amber = await page.evaluate(async ()=>{
-    const keep = window.ElevenLabsClient; window.ElevenLabsClient = undefined;
-    S.voice.agentId='agent_test123'; save(); await probeVoice();
+    const keep = window.Vapi; window.Vapi = undefined;
+    await probeVoice();
     const r = {stt:VOICE.stt, chip:$('engChip').textContent, cls:$('engChip').className};
-    window.ElevenLabsClient = keep; return r;
+    window.Vapi = keep; return r;
   });
-  t('an agent configured but no SDK goes amber, on Scribe',
-    amber.stt==='eleven' && /warn/.test(amber.cls) && /SDK did not load/.test(amber.chip), JSON.stringify(amber));
+  t('no SDK falls to Scribe and says so',
+    amber.stt==='eleven' && /Voice: Scribe/.test(amber.chip), JSON.stringify(amber));
   await page.evaluate(()=>probeVoice()); await page.waitForTimeout(700);
 
   /* ---- find_item ---- */
@@ -99,6 +103,68 @@ module.exports = async function({ browser, H }){
   const kt = await page.evaluate(()=>keytermsFor());
   t('the fallback keyterm list stays within 50 x 20 characters',
     kt.length<=50 && kt.every(x=>x.length<=20), 'n=' + kt.length);
+
+  /* ══ the wire: a tool call arrives the way Vapi sends it ══ */
+  await H.fakeAgent(page);
+  await page.evaluate(()=>{ $('setup').classList.add('hidden'); SPOT=''; if(!cur()){ $('fVan').value='202-C-8871'; PTYPE='van'; startSession(); } });
+
+  t('every tool the assistant can call is registered',
+    await page.evaluate(()=>['find_item','record_count','undo_last','set_location','read_total',
+      'pause','resume','next_line','jump_to','confirm_line','correct_line']
+      .every(n=>typeof AGENT_TOOLS[n]==='function')),
+    await page.evaluate(()=>Object.keys(AGENT_TOOLS).join(',')));
+
+  const sent = await H.toolCall(page, 'find_item', {spoken_text:'nine metre medium poles'});
+  t('a tool-call off the wire runs the tool', sent.length===1 && sent[0].type==='add-message', JSON.stringify(sent).slice(0,120));
+  /* Vapi client tools are one-way, so the answer goes back as an injected
+     message — this is the thing that makes find_item worth having */
+  t('and its answer goes back to the model, named',
+    /^Result of find_item: /.test(sent[0].message.content) && /500CONPOLE9M/.test(sent[0].message.content),
+    String(sent[0].message.content).slice(0,140));
+  t('and the model is asked to speak after it', sent[0].triggerResponseEnabled===true, JSON.stringify(sent[0]));
+  t('find_item answers with short names for it to read back',
+    /Medium Pole 9\.0m/.test(sent[0].message.content), String(sent[0].message.content).slice(0,140));
+
+  const n0 = await page.evaluate(()=>cur().lines.length);
+  const wireRec = await H.toolCall(page, 'record_count', {item_code:'500CONPOLE9M', quantity:6, unit_as_spoken:'each'});
+  const n1 = await page.evaluate(()=>cur().lines.length);
+  t('record_count off the wire writes exactly one line', n1===n0+1, n0+' -> '+n1);
+  t('and the readback goes back to the model', /"recorded":true/.test(wireRec[0].message.content), String(wireRec[0].message.content).slice(0,120));
+
+  const paused = await H.toolCall(page, 'pause', {});
+  t('pause is the one tool it must not talk after', paused[0].triggerResponseEnabled===false, JSON.stringify(paused[0]));
+  await page.evaluate(()=>{ PAUSED=false; paintMic(); });
+
+  const bogus = await H.toolCall(page, 'nonesuch', {});
+  t('a tool the app does not have is refused, not thrown',
+    /no such tool/.test(bogus[0].message.content), JSON.stringify(bogus[0]).slice(0,120));
+
+  const logged = await page.evaluate(()=>(S.vlog||[]).filter(e=>e.kind==='tool').map(e=>e.tool));
+  t('every tool call is in "What the app heard"',
+    ['find_item','record_count','pause'].every(n=>logged.includes(n)), JSON.stringify(logged));
+
+  /* ══ pre-connect ══ */
+  const warm = await page.evaluate(async ()=>{
+    await stopAgent(); AGENT.conv=null; AGENT.on=false;
+    window.__vapi.starts=[]; window.__vapi.muted=[];
+    showTab('count');
+    await new Promise(r=>setTimeout(r,400));
+    return {starts:window.__vapi.starts.length, id:(window.__vapi.starts[0]||{}).id,
+            ov:(window.__vapi.starts[0]||{}).ov, muted:window.__vapi.muted.slice(), warm:AGENT.warm, on:AGENT.on};
+  });
+  t('opening the Count tab connects the call before the tap', warm.starts===1 && warm.on===true, JSON.stringify(warm));
+  t('with the microphone muted and the assistant told to wait',
+    warm.muted[0]===true && warm.ov.firstMessageMode==='assistant-waits-for-user', JSON.stringify(warm));
+  t('and it asks Vapi for tool calls on the client',
+    (warm.ov.clientMessages||[]).includes('tool-calls'), JSON.stringify(warm.ov));
+  t('against the assistant in the page', warm.id==='aefc0a29-6dc2-41ec-be44-254316db923c', warm.id);
+
+  const tap = await page.evaluate(async ()=>{
+    const n = window.__vapi.starts.length;
+    await startAgent();
+    return {dialledAgain: window.__vapi.starts.length - n, muted: window.__vapi.muted.slice(-1)[0], warm:AGENT.warm};
+  });
+  t('the mic tap unmutes rather than dialling again', tap.dialledAgain===0 && tap.muted===false && tap.warm===false, JSON.stringify(tap));
 
   const out = R.report('agent — tiers, tools and ownership', page.errs);
   await page.ctx.close();

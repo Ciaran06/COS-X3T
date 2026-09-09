@@ -5,6 +5,12 @@ own speech engine. The ElevenLabs API key must never sit in `index.html`, becaus
 anyone opening the page could read it and spend your credit. So the key lives in a
 small Cloudflare Worker, and the app calls that.
 
+> **This is the fallback tier now.** Vapi holds the conversation (see
+> `agent/README.md`) and needs none of this — its public key is publishable and
+> lives in the page. What follows is the Scribe tier underneath: what runs when
+> Vapi will not start, or when the engine is set to *Scribe only*. It is worth
+> having, and worth setting up, but the app works without it.
+
 This takes about ten minutes and costs nothing on the free tiers.
 
 ---

@@ -3,7 +3,7 @@
    new item is found without anyone hand-writing an alias for it. */
 module.exports = async function({ browser, H }){
   const R = H.results(); const t = R.t;
-  const p = await H.openApp(browser, {sdk:false});
+  const p = await H.openApp(browser, {});
 
   t('the master is the fibre catalogue', await p.evaluate(()=>items('fibre').length)===388,
     String(await p.evaluate(()=>items('fibre').length)));

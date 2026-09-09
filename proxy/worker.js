@@ -11,6 +11,10 @@
  *   GET  /agent-token      ?agent_id= -> { token }       for a WebRTC Agents session
  *   GET  /agent-signed-url ?agent_id= -> { signed_url }  for a WebSocket one
  *
+ * The two /agent- routes are no longer called: Vapi holds the conversation now
+ * and needs nothing from here. They are left in place so a Worker deployed
+ * before the switch keeps working, and so going back is a one-line change.
+ *
  * Secrets and variables (see README.md):
  *   ELEVENLABS_API_KEY  required, secret
  *   APP_TOKEN           optional, secret — if set, callers must send it as

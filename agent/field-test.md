@@ -1,7 +1,7 @@
-# Field test — the agent, on a phone, on a real shelf
+# Field test — Vapi, on a phone, on a real shelf
 
-Two passes over the same fifteen cases. Once on the agent, once on Scribe
-(clear the **Agent ID** box in Data → Voice engine and Save to drop a tier).
+Two passes over the same fifteen cases. Once on Vapi, once on Scribe (set
+**Data → Voice engine → Engine** to *Scribe only* and Save to drop a tier).
 Same voice, same distance, same order.
 
 Before you start: **Data → What the app heard → Clear.** Everything below is
@@ -19,16 +19,16 @@ Say them straight through. Do not stop between them unless it asks you something
 
 | # | Say | What should happen | Watching for |
 | --- | --- | --- | --- |
-| 1 | "three full drums of ninety six fibre" | one line, readback "96F fibre drum. Three drums." | pack words — a drum is 4,000m and the app must do that, not the agent |
-| 2 | "eight hundred and fifty metres of forty eight fibre" | 850 | the long number form |
-| 3 | "drum A B C D one, one thousand two hundred metres" | 1,200m against drum ABCD1 | the drum ID as letters, not a word |
-| 4 | "six nine metre poles" | 6 poles | two numbers in one phrase — 6 is the quantity, 9 is part of the name |
-| 5 | "twelve coils of thirty two duct" | 12 coils | "thirty two" is the product, not the count |
-| 6 | "four boxes of cable hangers" | 4 boxes | box → 100 each |
-| 7 | "two manhole covers" | 2 | plain |
-| 8 | "seven connection kits" | 7 | plain |
-| 9 | "one thousand two hundred and fifty fixing screws" | 1,250 | the longest number |
-| 10 | "three twenty four way closures" | 3 | "twenty four way" is the name, 3 is the count |
+| 1 | "three full drums of aerial ninety six fibre" | one line, readback "Aerial Fibre Cable 096F. Three drums." | pack words — a drum is 4,000m and the app must do that, not the agent |
+| 2 | "eight hundred and fifty metres of aerial forty eight fibre" | 850 | the long number form |
+| 3 | "drum A B C D one, one thousand two hundred metres" | 1,200m, and it should **ask which cable** | the drum ID as letters; ten cables carry drums, so naming one is a guess |
+| 4 | "six nine metre medium poles" | 6 of Medium Pole 9.0m | two numbers in one phrase — 6 is the quantity, 9 is part of the name |
+| 5 | "four nine metre light poles" | 4 of 9Mt Light Pole | the grade, not the height, is what separates them |
+| 6 | "three cases of coach screws" | 3 cases | case → 200 each |
+| 7 | "five sump hole gratings" | 5 | plain |
+| 8 | "four in home NTUs" | 4 | plain |
+| 9 | "one thousand two hundred and fifty pole steps" | 1,250 | the longest number |
+| 10 | "ten poles" | it should **ask which pole** | a dozen poles on the master — asking is the right answer |
 
 Then **"read total"**.
 
@@ -43,8 +43,8 @@ These are the ones that decide whether it is usable on a ladder.
 
 ### 1 — Talk over a readback with "no"
 
-Say **"ten nine metre poles"**. The moment it starts reading back, say **"no"**
-over the top of it.
+Say **"ten nine metre medium poles"**. The moment it starts reading back, say
+**"no"** over the top of it.
 
 Should: stop talking mid-word, remove the line, say something like "Removed",
 and listen again.
@@ -55,8 +55,9 @@ of the next item.
 
 ### 2 — Say "yes" two words into a question
 
-Say **"350 ml pole bolt, four hundred"**. It should ask which item. As soon as
-you hear the first option, say **"yes"** over it.
+Say **"three hundred mil pole bolt, four hundred"**. It should ask which item —
+there is a 300mm, a 350mm and an M12 x 300mm. As soon as you hear the first
+option, say **"yes"** over it.
 
 Should: take the first option and record it.
 Should not: keep listing; ask again; record nothing.
@@ -104,10 +105,18 @@ refusal must not leave it stuck.*
 
 ## Things that are known and not worth reporting
 
-- The chime and "Go" happen on tap; if the phone is silent, check the ringer
-  switch before anything else.
+- The chime happens on tap; if the phone is silent, check the ringer switch
+  before anything else.
+- **The call is already connected before you tap.** Opening the Count tab dials
+  Vapi with the microphone muted so the tap feels instant; the tap only unmutes.
+  An untapped call is dropped after two minutes and re-dialled the next time you
+  land on the tab.
 - The mic pulses while the session is live. It stops pulsing when the session
-  ends — including when the plan's **max conversation duration** runs out, which
-  is the most likely reason it stops mid-count. Tap it again.
-- Pause does not end the agent session; it stops recording. Billing continues.
-  Tap the mic **off** between locations if cost matters.
+  ends — including when the assistant's **max call duration** runs out, which is
+  the most likely reason it stops mid-count. Tap it again.
+- Pause does not end the call; it stops recording. Billing continues. Tap the
+  mic **off** between locations if cost matters.
+- Every tool the model calls is a row in *What the app heard* with its arguments
+  and its result. If a line does not land, that is the first place to look — no
+  `tool` rows at all means the dashboard is not sending tool calls to the
+  browser (see `agent/README.md`, step 1).

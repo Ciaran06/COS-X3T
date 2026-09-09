@@ -8,7 +8,9 @@ module.exports = async function({ browser, H }){
   const PROXY = 'http://127.0.0.1:' + H.PROXY_PORT;
   const sample = n => require('path').join(H.ROOT, 'sample-data', n);
   const shot   = n => require('path').join(__dirname, '..', 'screenshots', n);
-  const p = await H.openApp(browser);
+/* The ladder below Vapi: Scribe, then the browser. The Vapi tier itself is
+     50-agent's, so this suite opens without the stub and starts one rung down. */
+  const p = await H.openApp(browser, {vapi:false});
   const errs = p.errs;
   const pg = p;   /* this suite was written against `pg` */
 
@@ -16,7 +18,7 @@ module.exports = async function({ browser, H }){
 
   /* 1. default state */
   let chip = await pg.textContent('#engChip');
-  t('chip shows browser by default', /Voice: Browser/.test(chip) && /no proxy set/.test(chip), chip);
+  t('chip shows browser by default', /Voice: Browser/.test(chip) && /Vapi SDK did not load/.test(chip), chip);
 
   /* 2. typed input still works on the browser engine */
   await pg.fill('#typeIn', 'six pole steps');

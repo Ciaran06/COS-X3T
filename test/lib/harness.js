@@ -25,8 +25,28 @@ const CHROMIUM = process.env.CHROMIUM_PATH
    else's JS into a one-file app is not a trade worth making. */
 const VENDOR = [
   { file: 'xlsx.full.min.js',  url: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js' },
-  { file: 'el-client.iife.js', url: 'https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.25.0/dist/lib.iife.js' },
 ];
+/* Vapi is not cached and injected the way SheetJS is: it is an ES module that
+   pulls a WebRTC stack behind it and then wants a real call to a real account.
+   The transport is the boundary, so it is stubbed — everything above it, the
+   tools included, is the app's own code. */
+const VAPI_STUB = `
+  window.__vapi = {key:'', starts:[], sent:[], muted:[], stopped:0, inst:null};
+  window.Vapi = function(key){
+    const h = {}; const self = this;
+    window.__vapi.key = key; window.__vapi.inst = this;
+    this.on = (e,f)=>{ (h[e]=h[e]||[]).push(f); return self; };
+    this.emit = (e,...a)=>{ (h[e]||[]).slice().forEach(f=>{ try{ f(...a); }catch(err){} }); };
+    this.start = async (id, ov)=>{ window.__vapi.starts.push({id, ov});
+      setTimeout(()=>self.emit('call-start'), 0); return {id:'call_stub'}; };
+    this.send = m => { window.__vapi.sent.push(m); };
+    this.setMuted = b => { window.__vapi.muted.push(!!b); };
+    this.isMuted = () => !!window.__vapi.muted[window.__vapi.muted.length-1];
+    this.say = ()=>{};
+    this.stop = async ()=>{ window.__vapi.stopped++; self.emit('call-end'); };
+  };
+  window.__vapiLoaded = true;
+`;
 async function ensureVendor(){
   fs.mkdirSync(CACHE, { recursive: true });
   for(const v of VENDOR){
@@ -132,16 +152,17 @@ async function openApp(browser, opts){
   await ctx.route(/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)/,
                   r => r.abort());
   const page = await ctx.newPage();
+  /* before any of the app's own script runs, so the first probe sees it */
+  if(o.vapi !== false) await page.addInitScript(VAPI_STUB);
   const errs = [];
   page.on('pageerror', e => errs.push('PAGEERROR: ' + e.message));
   page.on('console', m => {
     if(m.type()!=='error') return;
-    if(/ERR_CONNECTION|Failed to load resource|elevenlabs|jsdelivr|cdnjs|favicon/.test(m.text())) return;
+    if(/ERR_CONNECTION|Failed to load resource|elevenlabs|vapi|jsdelivr|cdnjs|favicon/i.test(m.text())) return;
     errs.push('CONSOLE: ' + m.text());
   });
   await page.goto('http://127.0.0.1:'+PAGE_PORT+'/index.html', {waitUntil:'domcontentloaded'});
   await page.waitForTimeout(900);
-  if(o.sdk !== false) await page.addScriptTag({url:'http://127.0.0.1:'+PAGE_PORT+'/vendor/el-client.iife.js'});
   if(o.xlsx !== false) await page.addScriptTag({url:'http://127.0.0.1:'+PAGE_PORT+'/vendor/xlsx.full.min.js'});
   await page.waitForTimeout(250);
   page.errs = errs;
@@ -173,17 +194,40 @@ async function fakeSocket(page){
 }
 
 /* a live agent session, without ElevenLabs: records what the app sends it */
+/* Stands in for a live Vapi call. Everything the app sends goes into __sent,
+   split into the two things it is used for — context the model should know and
+   turns it should answer — and __tool collects what came back out of a tool.
+   The transport is the only thing faked; the tools are the real ones. */
 async function fakeAgent(page){
   await page.evaluate(()=>{
-    window.__ctx = []; window.__msg = [];
-    AGENT.on = true;
+    window.__sent = []; window.__ctx = []; window.__msg = []; window.__tool = [];
+    AGENT.on = true; AGENT.warm = false;
     AGENT.conv = {
-      sendContextualUpdate: x => window.__ctx.push(x),
-      sendUserMessage:      x => window.__msg.push(x),
-      endSession: async ()=>{}
+      send: m => {
+        window.__sent.push(m);
+        const c = m && m.message && m.message.content;
+        if(m && m.type === 'add-message'){
+          if(m.message.role === 'user') window.__msg.push(c);
+          else if(/^Result of /.test(String(c||''))) window.__tool.push(c);
+          else window.__ctx.push(c);
+        }
+      },
+      setMuted: ()=>{},
+      stop: async ()=>{}
     };
     paintMic();
   });
+}
+/* Puts a tool call on the wire the way Vapi does, and hands back what the app
+   sent to the model in reply. */
+async function toolCall(page, name, args){
+  return await page.evaluate(async ({name, args})=>{
+    const before = window.__sent.length;
+    await runToolCall({id:'call_'+Math.random().toString(36).slice(2),
+                       type:'function',
+                       function:{name, arguments: JSON.stringify(args||{})}});
+    return window.__sent.slice(before);
+  }, {name, args});
 }
 
 /* somewhere for a suite to write during a run — never a fixture, which is input */
@@ -195,4 +239,4 @@ function tmp(name){
 
 module.exports = { ROOT, CACHE, FIXTURES, tmp, PAGE_PORT, PROXY_PORT, APP_TOKEN, CHROMIUM,
                    ensureVendor, servePage, serveProxy, results, openApp, useProxy,
-                   fakeSocket, fakeAgent, fixture: n => path.join(FIXTURES, n) };
+                   fakeSocket, fakeAgent, toolCall, fixture: n => path.join(FIXTURES, n) };
