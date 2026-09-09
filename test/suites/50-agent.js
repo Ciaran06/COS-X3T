@@ -166,6 +166,39 @@ module.exports = async function({ browser, H }){
   });
   t('the mic tap unmutes rather than dialling again', tap.dialledAgain===0 && tap.muted===false && tap.warm===false, JSON.stringify(tap));
 
+  /* ══ the eleven tools as a call override ══ */
+  t('the tools travel with the app', await page.evaluate(()=>VAPI_TOOLS.length)===11,
+     JSON.stringify(await page.evaluate(()=>VAPI_TOOLS.map(x=>x.function.name))));
+  t('and every one of them names a tool the app actually has',
+     await page.evaluate(()=>VAPI_TOOLS.every(x=>typeof AGENT_TOOLS[x.function.name]==='function')),
+     JSON.stringify(await page.evaluate(()=>VAPI_TOOLS.filter(x=>!AGENT_TOOLS[x.function.name]).map(x=>x.function.name))));
+  t('each is client-side — async, and no server url',
+     await page.evaluate(()=>VAPI_TOOLS.every(x=>x.async===true && !x.server)),
+     JSON.stringify(await page.evaluate(()=>VAPI_TOOLS.filter(x=>x.async!==true||x.server).map(x=>x.function.name))));
+  t('the system prompt travels with them', await page.evaluate(()=>VAPI_PROMPT.length)>2000
+     && await page.evaluate(()=>/never guess/i.test(VAPI_PROMPT)));
+
+  /* left empty, nothing about the assistant is overridden */
+  const off = await page.evaluate(async ()=>{ S.voice.llm=''; save();
+    await stopAgent(); window.__vapi.starts=[]; showTab('count');
+    await new Promise(r=>setTimeout(r,400));
+    return (window.__vapi.starts[0]||{}).ov; });
+  t('with no LLM named, the call takes its tools from the dashboard',
+     !off.model && (off.clientMessages||[]).includes('tool-calls'), JSON.stringify(off).slice(0,140));
+
+  const on = await page.evaluate(async ()=>{ S.voice.llm='openai/gpt-4.1'; save();
+    await stopAgent(); window.__vapi.starts=[]; showTab('count');
+    await new Promise(r=>setTimeout(r,400));
+    return (window.__vapi.starts[0]||{}).ov; });
+  t('naming one sends all eleven with the call',
+     !!on.model && on.model.tools.length===11, JSON.stringify(on.model && on.model.tools.map(x=>x.function.name)));
+  t('and the LLM it names, because Vapi needs the whole model object',
+     on.model.provider==='openai' && on.model.model==='gpt-4.1', JSON.stringify({p:on.model.provider, m:on.model.model}));
+  t('and the prompt, because it lives in that same object',
+     on.model.messages[0].role==='system' && /You are TruCount/.test(on.model.messages[0].content),
+     String(on.model.messages[0].content).slice(0,60));
+  await page.evaluate(async ()=>{ S.voice.llm=''; save(); await stopAgent(); });
+
   const out = R.report('agent — tiers, tools and ownership', page.errs);
   await page.ctx.close();
   return out;

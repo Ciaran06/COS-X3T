@@ -54,6 +54,16 @@ treat it as a specification of behaviour that must survive a rewrite.
       be declared **async**: a synchronous one leaves the model waiting for a result the transport
       cannot deliver. `pause` is the single exception that goes in without asking for a response,
       because being told "paused" and then talking about it is the opposite of pausing.
+    - **The eleven tools can be sent with the call.** Vapi takes tools as an
+      override, but `model` in an override is a whole object rather than a patch — `provider` and
+      `model` are required on it and the system prompt lives in the same object — so sending the
+      tools from the app means also naming the LLM and carrying the prompt. That is a real trade,
+      so it is opt-in behind one field (**Data → Voice engine**, e.g. `openai/gpt-4.1`); empty
+      means the call takes its model, prompt and tools from the assistant as before. Either way
+      the voice, transcriber, messaging and call settings come from the dashboard. The definitions
+      live in `agent/tools.json`, the prompt in `agent/system-prompt.md`, and
+      `agent/build-overrides.js` writes both into `index.html` between markers — **never edit that
+      block by hand**; `05-generated` fails when it has drifted.
     - **Pre-connect.** Joining a Vapi call takes a second or two, and doing that on the mic tap is
       a second or two of the counter standing there. Opening the Count tab connects the call with
       the microphone muted and the first-message mode overridden to *wait for the user*; the tap

@@ -21,7 +21,41 @@ Both are at the top of the Vapi section in `index.html` (`VAPI_PUBLIC_KEY`,
 
 ---
 
-## What has to change in the dashboard
+## The short way: let the app send the tools
+
+Vapi takes tools as a **call override**, so the eleven do not have to be created
+by hand. The catch is that `model` in an override is a whole object, not a
+patch: `provider` and `model` are required fields on it, and the system prompt
+lives in the same object. So sending the tools from the app means also naming
+the LLM and carrying the prompt.
+
+That is a real trade, so it is opt-in and it is one field:
+
+> **Data → Voice engine → "Send the tools from the app — name the LLM"**
+> Put in the provider and model your assistant already uses, e.g. `openai/gpt-4.1`.
+> Save.
+
+From then on every call carries all eleven tool definitions, the system prompt
+from `agent/system-prompt.md`, and that LLM at temperature 0.2. **Step 2 and
+step 3 below stop mattering** — there is nothing to create and nothing to
+delete off the prompt, because the prompt comes from the app. Step 1 still
+does: client messages are not part of the model object.
+
+What the dashboard still owns either way: the voice, the transcriber, the
+messaging settings, and every call setting (durations, timeouts, first message).
+What it stops owning when the field is filled: the model, the temperature, the
+system prompt and the tools.
+
+Leave the field empty and nothing is overridden — the call takes all four from
+the assistant, and steps 2 and 3 are the work.
+
+The definitions live in `agent/tools.json` and the prompt in
+`agent/system-prompt.md`; `node agent/build-overrides.js` writes both into
+`index.html` and the test suite fails if they have drifted.
+
+---
+
+## The long way: create them in the dashboard
 
 Three things, in this order.
 
@@ -60,7 +94,8 @@ The results still reach the model — see *How a result gets back* below.
 
 If your dashboard has a JSON view, paste the block below into the assistant's
 `model.tools`. If it only has the form, the `name`, `description` and each
-parameter are the fields to fill in.
+parameter are the fields to fill in. It is the same JSON the app sends —
+`agent/tools.json` is the one copy of it.
 
 ```json
 [
@@ -206,5 +241,6 @@ pausing.
 | Chip says **Voice: Browser — the Vapi SDK did not load** | The page could not fetch the Vapi module. Check the phone has signal on first load; it is cached after that. |
 | Chip is green, it talks, but nothing is ever recorded | `tool-calls` is not in **Client messages**, or the tools have a server URL set. Both are step 1 and step 2 above. |
 | It calls a tool and then goes quiet | The tool is not marked `async`. It is waiting for a result the transport cannot deliver. |
-| It names items that are not on the sheet | The "for this test only" list is still on the end of the system prompt. |
+| It names items that are not on the sheet | The "for this test only" list is still on the end of the system prompt. Filling in the LLM field also cures this, because the prompt then comes from the app. |
+| The tools are sent but the assistant talks like a different agent | The LLM field is filled in, so the prompt comes from the app. Edit `agent/system-prompt.md` and run `node agent/build-overrides.js`, not the dashboard. |
 | **Data → What the app heard** shows no `tool` rows | Same as "nothing is ever recorded" — the browser is not being told. |

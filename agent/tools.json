@@ -1,0 +1,188 @@
+[
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "find_item",
+      "description": "Look up an item on this customer's master from the words the counter said. Always call this before record_count. Returns up to three candidates with short names and a confidence.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "spoken_text": {
+            "type": "string",
+            "description": "The item words exactly as the counter said them, without the quantity."
+          }
+        },
+        "required": [
+          "spoken_text"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "record_count",
+      "description": "Record one counted line. The only way to record anything. Use an item_code that find_item returned; never invent one.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "item_code": {
+            "type": "string",
+            "description": "The code find_item returned."
+          },
+          "quantity": {
+            "type": "number",
+            "description": "The number the counter said."
+          },
+          "unit_as_spoken": {
+            "type": "string",
+            "description": "The unit exactly as spoken — case, box, drum, metres, each. The app converts it."
+          }
+        },
+        "required": [
+          "item_code",
+          "quantity",
+          "unit_as_spoken"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "undo_last",
+      "description": "Remove the line just recorded. Call this on \"no\", \"wrong\" or \"no no\" straight after a readback.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "set_location",
+      "description": "Set the location the count is happening at, from the words the counter said. Locations come from a list the office uploaded and cannot be created.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "spoken_text": {
+            "type": "string",
+            "description": "The place name as the counter said it."
+          }
+        },
+        "required": [
+          "spoken_text"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "read_total",
+      "description": "Read back the running total for this location.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "pause",
+      "description": "Stop recording. Call this on \"wait\", \"hang on\", \"stop\" or \"pause\", say OK, and stay silent.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "resume",
+      "description": "Start recording again after a pause.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "next_line",
+      "description": "Review mode only. Move to the next row of the sheet and return it.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "confirm_line",
+      "description": "Review mode only. Accept the row as it stands and move on. Call this on \"yes\" or \"next\".",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "correct_line",
+      "description": "Review mode only. Set a new number on the row being read.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "number",
+            "description": "The corrected number."
+          },
+          "unit_as_spoken": {
+            "type": "string",
+            "description": "The unit as spoken, if one was said."
+          }
+        },
+        "required": [
+          "quantity"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "async": true,
+    "function": {
+      "name": "jump_to",
+      "description": "Review mode only. Jump to a row by name.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "spoken_text": {
+            "type": "string",
+            "description": "The item words the counter said."
+          }
+        },
+        "required": [
+          "spoken_text"
+        ]
+      }
+    }
+  }
+]
