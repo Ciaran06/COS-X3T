@@ -338,6 +338,19 @@ treat it as a specification of behaviour that must survive a rewrite.
   finished first so its lines make the snapshot. Closed jobs live in `S.closed` and are never pruned,
   so they persist year over year. See `buildSnapshot()`, `doCloseJob()`, `renderHistory()`,
   `renderHistoryDetail()`.
+- **Removing is recorded, not silent.** A counted line is evidence, so taking one off writes an
+  entry to the session's `audit` array — who, when, and what it was — and that appears as **Count
+  history** under the lines on the Count tab. Every route in goes through `removeLine()`: the bin,
+  the swipe, "undo" by voice, and the agent's `undo_last` tool. Deleting a line deletes its
+  recording from IndexedDB with it, and **Undo** for five seconds puts both back at the original
+  index.
+  - On a phone, swipe a line left to uncover Delete; on a desktop a bin appears on hover. The
+    swipe only engages on a horizontal drag, so the list still scrolls, and a short drag springs
+    back rather than half-opening.
+  - **Anything bigger than one line asks first and says how much**: *"This removes 2 lines counted
+    at 12-G-12345"*, *"This removes 17 lines across 3 locations"*. `askConfirm()` is inline UI, not
+    `confirm()`, which is blocked. Deleting a job takes its sessions with it — it used to orphan
+    them silently, with no confirmation at all.
 - **Audio evidence.** Each spoken line is recorded (on by default, switchable) and played back
   against the line. Stored in IndexedDB.
 - **Reconciliation.** Import a file with an expected-quantity column and every count is compared

@@ -114,6 +114,44 @@
   .itemform .wide{grid-column:1/-1}
   .itemform .row{grid-column:1/-1; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
   .itemform .row .sp{margin-right:auto; font-size:12px; color:var(--ink-3)}
+  /* a removal you can take back, for five seconds */
+  .toast{position:fixed; left:50%; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateX(-50%);
+    z-index:80; display:flex; align-items:center; gap:14px; max-width:calc(100vw - 28px);
+    padding:11px 15px; border-radius:11px; background:var(--ink); color:var(--ground);
+    font-size:13.5px; font-weight:500; box-shadow:0 10px 30px -8px rgba(14,23,25,.5)}
+  .toast button{border:0; background:none; color:#8FB6FF; font:700 13px/1 inherit; letter-spacing:.02em; padding:2px 0}
+  .toast span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+  /* asking before something irreversible — never confirm(), which is blocked */
+  .sheet{position:fixed; inset:0; z-index:90; background:rgba(14,23,25,.42);
+    display:grid; place-items:center; padding:18px}
+  .sheetcard{background:var(--surface); border-radius:14px; max-width:420px; width:100%;
+    padding:20px 20px 16px; box-shadow:var(--lift)}
+  .sheetcard h3{font-size:17px; margin-bottom:8px}
+  .sheetcard p{font-size:14px; color:var(--ink-2); margin:0 0 16px}
+  .sheetbar{display:flex; gap:9px; justify-content:flex-end}
+  .btn.danger{background:var(--bad); border-color:var(--bad); color:#fff}
+
+  /* a line you can swipe away on a phone, or reach with a bin on a desk */
+  .locline{display:flex; align-items:stretch; gap:0}
+  .locline .locrow{flex:1; min-width:0}
+  .locdel{flex:none; width:42px; border:0; border-top:1px solid var(--line-soft); background:var(--surface);
+    color:var(--ink-3); display:grid; place-items:center; padding:0}
+  .locdel:hover{color:var(--bad); background:var(--bad-soft)}
+  .callwrap{position:relative; overflow:hidden}
+  .callwrap .swdel{position:absolute; inset:0 0 0 auto; width:96px; border:0; background:var(--bad);
+    color:#fff; font:700 12.5px/1 inherit; letter-spacing:.04em; text-transform:uppercase}
+  .callwrap .call{position:relative; background:var(--surface); transition:transform .16s ease; touch-action:pan-y}
+  .callwrap.open .call{transform:translateX(-96px)}
+  .callwrap.dragging .call{transition:none}
+  .call .del{width:28px; height:28px; border-radius:50%; border:1px solid var(--line);
+    background:var(--surface); color:var(--bad); display:grid; place-items:center; padding:0; opacity:0}
+  .call:hover .del, .call .del:focus-visible{opacity:1}
+  @media (hover:none){ .call .del{display:none} }
+  .calls.hist .call .said{color:var(--ink-3)}
+  .call .who{font-size:11px; color:var(--ink-3); white-space:nowrap}
+  .calls .more{display:block; width:100%; border:0; background:none; padding:9px 14px;
+    font:600 12px/1 inherit; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-ink); text-align:left}
   .lochint{margin-left:auto; font-size:10.5px; font-weight:600; letter-spacing:.02em; text-transform:none; color:var(--ink-3)}
   .lochint.bad{color:var(--bad)}
   #jobLocs{margin-bottom:14px}
@@ -297,7 +335,10 @@
   .sum{display:flex; justify-content:space-between; align-items:baseline; padding:11px 14px; background:var(--surface-2); border-top:1px solid var(--line)}
   .sum b{font-family:"Archivo",sans-serif; font-size:16px}
   .calls{border-top:1px solid var(--line)}
-  .call{display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:8px 14px; border-top:1px solid var(--line-soft)}
+  /* time · what was said · play · bin — the bin is a fourth column, not a
+     second row, which is what it became when it was first added */
+  .call{display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center; padding:8px 14px; border-top:1px solid var(--line-soft)}
+  .calls.hist .call{grid-template-columns:auto 1fr auto}
   .call .t{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3)}
   .call .said{font-size:13px; color:var(--ink-2); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   .play{width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:var(--surface); display:grid; place-items:center; font-size:11px; color:var(--accent-ink); padding:0}
@@ -515,6 +556,22 @@
     <button class="btn dark" id="roleGo">Use this view</button>
     <button class="btn" id="roleX">Cancel</button>
     <span class="pinmsg" id="roleMsg"></span>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast" role="status" aria-live="polite">
+  <span id="toastMsg"></span>
+  <button id="toastAct" class="hidden"></button>
+</div>
+
+<div class="sheet hidden" id="confirmSheet" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+  <div class="sheetcard">
+    <h3 id="cfTitle"></h3>
+    <p id="cfBody"></p>
+    <div class="sheetbar">
+      <button class="btn" id="cfNo">Cancel</button>
+      <button class="btn danger" id="cfYes">Delete</button>
+    </div>
   </div>
 </div>
 
@@ -1914,6 +1971,7 @@ function idb(){
   });
 }
 async function clipPut(k,v){ try{ const d=await idb(); d.transaction('clips','readwrite').objectStore('clips').put(v,k); }catch(e){} }
+async function clipDel(k){ try{ const d=await idb(); d.transaction('clips','readwrite').objectStore('clips').delete(k); }catch(e){} }
 async function clipGet(k){
   try{ const d=await idb();
     return await new Promise(res=>{ const r=d.transaction('clips').objectStore('clips').get(k); r.onsuccess=()=>res(r.result||null); r.onerror=()=>res(null); });
@@ -2295,14 +2353,14 @@ const AGENT_TOOLS = {
     return {recorded:true, short_name:it.short, quantity:qty, uom:plural(unit,qty),
             spot:SPOT, line_id:line?line.id:null};
   }),
-  undo_last: tool('undo_last', ()=>{
+  undo_last: tool('undo_last', async ()=>{
     const s = cur();
     if(!s || !s.lines.length) return {removed:false, message:'Nothing to remove.'};
-    const gone = s.lines.pop(); save();
-    LASTLINE = null;
-    renderSpots(); renderTally(); refreshWhere(); renderRecent();
-    if(!$('v-sheet').classList.contains('hidden')) renderSheet();
+    const gone = s.lines[s.lines.length-1];
     const it = item(s.cat, gone.code);
+    LASTLINE = null;
+    /* the same audited, recoverable path as the bin */
+    await removeLine(s.id, gone.id);
     return {removed:true, short_name:it.short, quantity:gone.qty, uom:plural(gone.unit,gone.qty)};
   }),
   set_location: tool('set_location', ({spoken_text})=>{
@@ -2655,13 +2713,12 @@ let LASTLINE = null;      /* {id} of the line we just read back */
 function undoLastSpoken(){
   const s = cur();
   const i = s ? s.lines.findIndex(l=>l.id===LASTLINE) : -1;
+  const id = LASTLINE;
   LASTLINE = null;
   if(i<0){ say('Nothing to take back','That line is already gone.',true); speakThen('Nothing to take back.'); return; }
-  const gone = s.lines.splice(i,1)[0];
-  save();
-  say('Deleted — '+gone.short, 'Say that line again.');
-  renderSpots(); renderTally(); refreshWhere(); renderRecent();
-  if(!$('v-sheet').classList.contains('hidden')) renderSheet();
+  const words = lineWords(s, s.lines[i]);
+  removeLine(s.id, id);              /* logged, and recoverable for five seconds */
+  say('Deleted — '+words, 'Say that line again.');
   speakThen('Deleted. Say it again.');
 }
 
@@ -3189,13 +3246,143 @@ function goLoc(label){
   speak(label+' is not on the location list.');
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   Removing things.
+
+   A counted line is evidence, so taking one off is recorded rather than
+   silent: who did it, when, and what it was. Anything bigger than one line
+   asks first, and says how much it is about to take with it.
+   ══════════════════════════════════════════════════════════════════════ */
+/* ---------- the two bits of inline UI removal needs ---------- */
+let toastTimer = null;
+function toast(msg, actionLabel, onAction){
+  const el = $('toast'), act = $('toastAct');
+  clearTimeout(toastTimer);
+  $('toastMsg').textContent = msg;
+  if(actionLabel){
+    act.textContent = actionLabel;
+    act.classList.remove('hidden');
+    act.onclick = ()=>{ hideToast(); if(onAction) onAction(); };
+  } else act.classList.add('hidden');
+  el.classList.remove('hidden');
+  /* five seconds, which is long enough to notice and short enough not to nag */
+  toastTimer = setTimeout(hideToast, 5000);
+}
+function hideToast(){ clearTimeout(toastTimer); $('toast').classList.add('hidden'); UNDO = null; }
+
+let CONFIRM = null;
+function askConfirm(title, body, yesLabel, onYes){
+  CONFIRM = onYes;
+  $('cfTitle').textContent = title;
+  $('cfBody').textContent = body;
+  $('cfYes').textContent = yesLabel || 'Delete';
+  $('confirmSheet').classList.remove('hidden');
+  $('cfNo').focus();
+}
+function closeConfirm(){ CONFIRM = null; $('confirmSheet').classList.add('hidden'); }
+
+function findSession(id){
+  if(S.current && S.current.id===id) return S.current;
+  return (S.sessions||[]).find(x=>x.id===id) || null;
+}
+function auditAdd(sess, action, detail){
+  if(!sess) return;
+  sess.audit = sess.audit || [];
+  sess.audit.push(Object.assign({t:Date.now(), who: me().name || roleLabel(curRole()), role: curRole(), action}, detail||{}));
+}
+function lineWords(sess, l){
+  const it = item(sess.cat, l.code);
+  return it.short+' '+fmt(l.qty)+' '+plural(l.unit, l.qty);
+}
+
+/* ---------- one line ---------- */
+let UNDO = null;                       /* {sess, line, idx, blob} */
+async function removeLine(sessId, lineId){
+  const sess = findSession(sessId);
+  if(!sess) return false;
+  const idx = sess.lines.findIndex(l=>l.id===lineId);
+  if(idx<0) return false;
+  const line = sess.lines[idx];
+  /* hold the clip so an accidental tap is genuinely recoverable, then take it
+     out of IndexedDB — a deleted line does not keep its recording */
+  const blob = line.audio ? await clipGet(lineId) : null;
+  sess.lines.splice(idx,1);
+  if(line.audio) clipDel(lineId);
+  auditAdd(sess, 'removed', {lineId, code:line.code, qty:line.qty, unit:line.unit,
+                             spot:line.loc||'', words:lineWords(sess,line)});
+  save();
+  UNDO = {sessId, line, idx, blob};
+  afterLineChange();
+  toast('Removed — '+lineWords(sess,line), 'Undo', ()=>restoreLine());
+  return true;
+}
+function restoreLine(){
+  if(!UNDO) return;
+  const {sessId, line, idx, blob} = UNDO;
+  UNDO = null;
+  const sess = findSession(sessId);
+  if(!sess) return;
+  sess.lines.splice(Math.min(idx, sess.lines.length), 0, line);
+  if(blob) clipPut(line.id, blob);
+  auditAdd(sess, 'restored', {lineId:line.id, code:line.code, qty:line.qty, unit:line.unit,
+                              spot:line.loc||'', words:lineWords(sess,line)});
+  save();
+  afterLineChange();
+  toast('Put back — '+lineWords(sess,line));
+}
+function afterLineChange(){
+  renderSpots(); renderTally(); refreshWhere(); renderRecent(); renderMgr();
+  if(!$('v-sheet').classList.contains('hidden')) renderSheet();
+  renderJobLocs();
+}
+
+/* ---------- a whole location, or a whole job ---------- */
+function removeSession(sessId){
+  const sess = findSession(sessId);
+  if(!sess) return;
+  const n = sess.lines.length;
+  askConfirm('Delete this location\u2019s count?',
+    'This removes ' + n + ' line' + (n===1?'':'s') + ' counted at ' + sess.container + '. It cannot be undone.',
+    'Delete '+n+' line'+(n===1?'':'s'),
+    ()=>{
+      sess.lines.forEach(l=>{ if(l.audio) clipDel(l.id); });
+      if(S.current && S.current.id===sessId) S.current = null;
+      S.sessions = (S.sessions||[]).filter(x=>x.id!==sessId);
+      save();
+      afterLineChange(); renderHistory();
+      toast(sess.container+' deleted \u2014 '+n+' line'+(n===1?'':'s'));
+    });
+}
+function removeJob(jobId){
+  const job = jobs().find(j=>j.id===jobId);
+  const mine = allSessions().filter(x=>x.job===jobId);
+  const locs = new Set(mine.map(x=>x.org+'|'+x.container)).size;
+  const lines = mine.reduce((n,x)=>n+x.lines.length, 0);
+  const what = lines
+    ? 'This removes ' + lines + ' line' + (lines===1?'':'s') + ' across ' + locs + ' location' + (locs===1?'':'s') + '. It cannot be undone.'
+    : 'Nothing has been counted against it yet.';
+  askConfirm('Delete \u201C' + (job? job.name : 'this job') + '\u201D?', what,
+    lines ? 'Delete job and '+lines+' line'+(lines===1?'':'s') : 'Delete job',
+    ()=>{
+      mine.forEach(x=> x.lines.forEach(l=>{ if(l.audio) clipDel(l.id); }));
+      if(S.current && S.current.job===jobId) S.current = null;
+      S.sessions = (S.sessions||[]).filter(x=>x.job!==jobId);
+      S.jobs = jobs().filter(j=>j.id!==jobId);
+      save();
+      fillJobs(); renderJobsAdmin(); afterLineChange(); renderHistory();
+      toast('Job deleted');
+    });
+}
+
 function doUndo(){
   const s=cur();
   if(!s||!s.lines.length){ say('Nothing to undo','No lines recorded here yet.',true); speak('Nothing to undo.'); return; }
-  const l=s.lines.pop(); save(); renderTally(); renderSpots();
-  const it=item(s.cat,l.code);
-  say('Removed', it.short+' '+fmt(l.qty)+' '+plural(l.unit,l.qty)+' taken off '+l.loc+'.');
-  speak('Removed '+it.short+', '+fmt(l.qty)+' '+plural(l.unit,l.qty)+'.');
+  const l = s.lines[s.lines.length-1];
+  const words = lineWords(s,l);
+  /* the same path as the bin, so it is logged and can be taken back */
+  removeLine(s.id, l.id);
+  say('Removed', words + (l.loc ? ' taken off '+l.loc+'.' : ' taken off this location.'));
+  speak('Removed '+words+'.');
 }
 function doTotal(){
   const s=cur();
@@ -3330,6 +3517,38 @@ function renderProg(){
    + '<div><div class="v">'+lines.length+'</div><div class="k">Lines</div></div>'
    + '<div><div class="v">'+Object.keys(by).length+'</div><div class="k">Items</div></div>';
 }
+let CALLS_ALL = false;
+/* Swipe a line left to uncover Delete. Only horizontal drags count, so the list
+   still scrolls, and a short drag springs back rather than half-opening. */
+function wireSwipe(root){
+  root.querySelectorAll('.callwrap').forEach(w=>{
+    const row = w.querySelector('.call');
+    let x0=0, y0=0, dx=0, dragging=false, decided=false;
+    row.addEventListener('touchstart', e=>{
+      const t=e.touches[0]; x0=t.clientX; y0=t.clientY; dx=0; dragging=true; decided=false;
+    }, {passive:true});
+    row.addEventListener('touchmove', e=>{
+      if(!dragging) return;
+      const t=e.touches[0];
+      const mx=t.clientX-x0, my=t.clientY-y0;
+      if(!decided){
+        if(Math.abs(mx)<6 && Math.abs(my)<6) return;
+        decided = true;
+        if(Math.abs(my) > Math.abs(mx)){ dragging=false; return; }   /* they are scrolling */
+        w.classList.add('dragging');
+      }
+      dx = Math.max(-96, Math.min(0, mx + (w.classList.contains('open') ? -96 : 0)));
+      row.style.transform = 'translateX('+dx+'px)';
+    }, {passive:true});
+    const end = ()=>{
+      if(!dragging) return;
+      dragging=false; w.classList.remove('dragging'); row.style.transform='';
+      w.classList.toggle('open', dx < -48);
+    };
+    row.addEventListener('touchend', end);
+    row.addEventListener('touchcancel', end);
+  });
+}
 function renderTally(){
   renderProg();
   const s = cur(), el = $('tally');
@@ -3354,17 +3573,45 @@ function renderTally(){
   h += '<div class="sum"><span>Running total</span><b>'+Object.keys(all).length+' items · '+s.lines.length+' lines · '+valCell(allVal.value,allVal.unpriced)+'</b></div>';
 
   h += '<div class="calls"><h3>As called out</h3>';
-  for(const l of s.lines.slice(-8).reverse()){
+  const shown = CALLS_ALL ? s.lines.slice() : s.lines.slice(-8);
+  for(const l of shown.slice().reverse()){
     const it = item(s.cat,l.code);
     const said = l.raw || (it.short+' '+fmt(l.qty)+' '+plural(l.unit,l.qty));
-    h += '<div class="call"><span class="t">'+new Date(l.ts).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+'</span>'
+    h += '<div class="callwrap" data-line="'+esc(l.id)+'">'
+       + '<button class="swdel" data-del-line="'+esc(l.id)+'">Delete</button>'
+       + '<div class="call"><span class="t">'+new Date(l.ts).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+'</span>'
        + '<span class="said">'+esc(said)+'</span>'
        + (l.audio? '<button class="play" data-clip="'+l.id+'" title="Play what was said">▶</button>'
-                 : '<button class="play" disabled title="No recording">▶</button>')+'</div>';
+                 : '<button class="play" disabled title="No recording">▶</button>')
+       + '<button class="del" data-del-line="'+esc(l.id)+'" title="Delete this line" aria-label="Delete '+esc(said)+'">'
+       + '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>'
+       + '</button></div></div>';
   }
+  if(s.lines.length>8)
+    h += '<button class="more" id="callsMore">'+(CALLS_ALL? 'Show the last 8' : 'Show all '+s.lines.length+' lines')+'</button>';
   h += '</div>';
+  /* what was taken off, and by whom — a count is evidence, so a removal is
+     part of the record rather than a gap in it */
+  const ad = (s.audit||[]).filter(a=>a.action==='removed'||a.action==='restored');
+  if(ad.length){
+    h += '<div class="calls hist"><h3>Count history</h3>';
+    for(const a of ad.slice(-12).reverse()){
+      h += '<div class="call"><span class="t">'+new Date(a.t).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+'</span>'
+         + '<span class="said">'+(a.action==='removed'?'Removed':'Put back')+' '+esc(a.words||a.code||'')
+         + (a.spot? ' from '+esc(a.spot):'')+'</span>'
+         + '<span class="who">'+esc(a.who||'')+'</span></div>';
+    }
+    h += '</div>';
+  }
   el.innerHTML = h;
   el.querySelectorAll('.play[data-clip]').forEach(b=> b.addEventListener('click',()=>playClip(b.dataset.clip,b)));
+  el.querySelectorAll('[data-del-line]').forEach(b=> b.addEventListener('click', e=>{
+    e.stopPropagation();
+    removeLine(s.id, b.dataset.delLine);
+  }));
+  const more = $('callsMore');
+  if(more) more.onclick = ()=>{ CALLS_ALL = !CALLS_ALL; renderTally(); };
+  wireSwipe(el);
 }
 
 /* ============================================================
@@ -4413,7 +4660,9 @@ function renderJobLocs(){
     return;
   }
   $('locSearch').parentElement.classList.remove('hidden');
-  const rows = reg.map(pl=>({pl, st:locStatus(cat, jid, pl)}));
+  const rows = reg.map(pl=>({pl, st:locStatus(cat, jid, pl),
+    sess: allSessions().find(x=>(x.cat||'fibre')===cat && x.job===jid
+        && (!pl.org || x.org===pl.org) && regKey(x.container)===regKey(pl.label) && x.lines.length)}));
   const done = rows.filter(r=>r.st!=='none').length;
   $('locProg').textContent = done+' of '+rows.length+' locations counted';
   const q = LOC_Q.trim().toLowerCase();
@@ -4426,15 +4675,21 @@ function renderJobLocs(){
   const cap = shown.slice(0,60);
   const here = regKey($('fVan').value.trim());
   $('locRows').innerHTML = (cap.length ? cap.map(r=>
-      '<button class="locrow'+(here && regKey(r.pl.label)===here ? ' on':'')+'" data-l="'+esc(r.pl.label)+'">'
+      '<div class="locline">'
+      + '<button class="locrow'+(here && regKey(r.pl.label)===here ? ' on':'')+'" data-l="'+esc(r.pl.label)+'">'
       + '<span class="li"><b>'+esc(r.pl.label)+'</b><small>'+esc(PL(r.pl.type||'van').label)
       + (r.pl.org? ' · '+esc(r.pl.org):'')
       + (r.pl.da? ' · '+esc(/^da/i.test(r.pl.da) ? r.pl.da : 'DA '+r.pl.da):'')
       + (r.pl.spots&&r.pl.spots.length? ' · '+r.pl.spots.length+' spots':'')
-      + '</small></span><span class="st '+r.st+'">'+LOC_LABEL[r.st]+'</span></button>').join('')
+      + '</small></span><span class="st '+r.st+'">'+LOC_LABEL[r.st]+'</span></button>'
+      + (r.sess ? '<button class="locdel" data-dloc="'+esc(r.sess.id)+'" title="Delete this location\u2019s count"'
+                + ' aria-label="Delete the count at '+esc(r.pl.label)+'">'
+                + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></button>' : '')
+      + '</div>').join('')
     : '<div class="locmore">Nothing matches “'+esc(LOC_Q)+'”.</div>')
     + (shown.length>cap.length ? '<div class="locmore">'+(shown.length-cap.length)+' more — narrow the search.</div>' : '');
   $('locRows').querySelectorAll('button[data-l]').forEach(b=> b.onclick = ()=>pickJobLoc(b.dataset.l));
+  $('locRows').querySelectorAll('button[data-dloc]').forEach(b=> b.onclick = e=>{ e.stopPropagation(); removeSession(b.dataset.dloc); });
 }
 function pickJobLoc(label){
   const cat=$('fCat').value;
@@ -6203,9 +6458,7 @@ function renderJobsAdmin(){
       + '<span class="bar2"><i style="width:'+pct+'%"></i></span>'
       + '<button class="btn" data-del="'+esc(j.id)+'">Remove</button></div>';
   }).join('');
-  el.querySelectorAll('button[data-del]').forEach(b=> b.onclick=()=>{
-    S.jobs = jobs().filter(j=>j.id!==b.dataset.del); save(); fillJobs(); renderJobsAdmin(); renderMgr();
-  });
+  el.querySelectorAll('button[data-del]').forEach(b=> b.onclick=()=> removeJob(b.dataset.del));
 }
 
 /* ============================================================
@@ -6590,6 +6843,13 @@ $('locSearch').oninput = e=>{ LOC_Q = e.target.value; renderJobLocs(); };
 $('fVan').oninput = ()=>{ if(S.current&&!S.current.lines.length) S.current=null; openPick(); refreshWhere(); };
 $('fRec').onchange = ()=>{ if(!audioOn()){ if(recorder&&recorder.state==='recording'){ clipTarget=null; try{recorder.stop();}catch(e){} } recorder=null; } else if(wantListen) armRecorder(); };
 
+$('cfNo').onclick = closeConfirm;
+$('cfYes').onclick = ()=>{ const go = CONFIRM; closeConfirm(); if(go) go(); };
+$('confirmSheet').addEventListener('click', e=>{ if(e.target.id==='confirmSheet') closeConfirm(); });
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Escape') return;
+  if(!$('confirmSheet').classList.contains('hidden')) closeConfirm();
+});
 $('mic').onclick = ()=>{
   primeAudio();
   /* mid-readback, a tap is "stop talking and listen to me" */
