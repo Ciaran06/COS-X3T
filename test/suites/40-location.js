@@ -30,7 +30,7 @@ module.exports = async function({ browser, H }){
   const up = await p.evaluate(()=>({ n:(S.locs.fibre||[]).length, stat:$('locStat').textContent,
       das:[...new Set((S.locs.fibre||[]).map(l=>l.da))].filter(Boolean).length,
       first:(S.locs.fibre||[])[0], orgs:[...new Set((S.locs.fibre||[]).map(l=>l.org))] }));
-  t('the list imports past the junk rows', up.n===23, JSON.stringify(up.stat));
+  t('the list imports past the junk rows', up.n===25, JSON.stringify(up.stat));
   t('the DA column comes with it', up.das===7 && up.first.da==='DA008', JSON.stringify(up.first));
   t('it is stored against that contractor only', JSON.stringify(up.orgs)===JSON.stringify(['KN Circet']), JSON.stringify(up.orgs));
   t('the header row is not imported as a location', await p.evaluate(()=>!(S.locs.fibre||[]).some(l=>/^location$/i.test(l.name))));
@@ -39,7 +39,7 @@ module.exports = async function({ browser, H }){
   await p.click('#t-count'); await p.waitForTimeout(400);
   await p.evaluate(()=>{ setViewOrgs(['KN Circet']); afterViewChange&&afterViewChange(); renderLocField(); syncStartable(); });
   await p.waitForTimeout(400);
-  t('the field wakes up for that contractor', await p.evaluate(()=>$('fLoc').disabled===false && /23 locations/.test($('fLoc').placeholder)),
+  t('the field wakes up for that contractor', await p.evaluate(()=>$('fLoc').disabled===false && /25 locations/.test($('fLoc').placeholder)),
      await p.evaluate(()=>$('fLoc').placeholder));
   t('counting is blocked until a location is picked', await p.evaluate(()=>{ syncStartable(); return $('btnStart').disabled===true; }));
 
@@ -66,14 +66,14 @@ module.exports = async function({ browser, H }){
   t('saying "location Castlebar" sets it', exact.LOC==='Castlebar' && exact.LOCDA==='DA005' && !exact.pend, JSON.stringify(exact));
   const near = await p.evaluate(async ()=>{ setLoc(''); onHeardFinal('location Claremoris');
      await new Promise(r=>setTimeout(r,2200)); return {LOC, pend:PEND&&PEND.kind, q:$('cf1').textContent}; });
-  t('a near miss asks "Did you mean…?" rather than guessing', near.LOC==='' && near.pend==='loc' && /Did you mean Claremorris/.test(near.q), JSON.stringify(near));
+  t('a near miss asks "Do you mean…?" rather than guessing', near.LOC==='' && near.pend==='loc' && /Do you mean Claremorris/.test(near.q), JSON.stringify(near));
   const yes = await p.evaluate(async ()=>{ onHeardFinal('yes'); await new Promise(r=>setTimeout(r,2200)); return {LOC, pend:!!PEND}; });
   t('"yes" accepts it', yes.LOC==='Claremorris' && !yes.pend, JSON.stringify(yes));
   const no = await p.evaluate(async ()=>{ setLoc(''); onHeardFinal('location Timbuktu');
      await new Promise(r=>setTimeout(r,2200));
      return {LOC, pend:!!PEND, msg:$('cf1').textContent, created:(S.locs.fibre||[]).length}; });
   t('a name that is nowhere near is refused', no.LOC==='' && /not on the location list/.test(no.msg), JSON.stringify(no));
-  t('and voice never adds one', no.created===23, 'count '+no.created);
+  t('and voice never adds one', no.created===25, 'count '+no.created);
 
   /* it lands on the session and in the band */
   const sess = await p.evaluate(async ()=>{

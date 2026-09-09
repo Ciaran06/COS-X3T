@@ -319,9 +319,29 @@ treat it as a specification of behaviour that must survive a rewrite.
   a contractor with no list gets an empty field and cannot start counting. Picking a location
   carries its DA onto the session.
   - **Nothing may invent a location.** Typed or spoken, it has to be on the list: an exact name is
-    taken, one near miss comes back as *"Did you mean Claremorris?"*, several near misses become a
-    numbered choice, anything else is refused outright. Voice can never add one — locations are
-    added by uploading a list, and only there. Typing a name off the list reverts the field.
+    taken, one clear near miss comes back as *"Do you mean Claremorris?"* with a yes that sets it,
+    several become a numbered choice, and only something with nothing remotely close is refused.
+    Voice can never add one — locations are added by uploading a list, and only there. Typing a
+    name off the list reverts the field.
+  - **Matched by sound, not by spelling.** Irish place names are the norm here and a recogniser
+    writes them the way it hears them: *Claire Morris* for Claremorris, *Ross Common* for
+    Roscommon, *Doo Leg* for Dooleeg, *Nock* for Knock, *Tober Curry* for Tubbercurry. Both sides
+    drop their spaces, hyphens and case, and are then reduced to the sounds the letters make —
+    `soundKey()`, a metaphone in the Double Metaphone family, one key rather than two, with the
+    rules that matter for these names (silent `KN-`, doubled letters as one sound, vowels only at
+    the front). `locScore()` takes the better of the sound distance and the spelling distance, so
+    a name spelled a new way still scores 1. **0.78** puts one name to them, **0.62** puts it in a
+    list, and the leader has to be **0.08** clear of the runner-up or it is a list rather than a
+    guess with a question mark on it. The picker searches the same way when the plain substring
+    search finds nothing, so typing what you heard works too.
+  - **A bare place name is a location.** Counters say *"Claremorris"*, not *"location
+    Claremorris"*. `parse()` takes a bare utterance as a location only when there is **no quantity
+    in it** and no item worth the name — anything with a number in it is a count, always.
+  - **"Spoken as" on the location list**, for the ones the sound rules still miss. The Data tab
+    carries the contractor's locations as an editable table — name, DA, and a box to type the
+    phrases they answer to — searchable, exportable, and **kept when the list is uploaded again**,
+    exactly like the item master. The importer also reads a *Spoken as* column out of the file if
+    there is one.
 - **Location register.** The vehicle regs and named rooms *within* a location. Counts must land on a registered vehicle reg or named location, each with a
   type, a contractor and the **DA it is served from** (DA008 and so on). Unregistered ones are
   challenged with the nearest matches. The picker is **strictly scoped to the place type** — a
@@ -510,8 +530,10 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
   carry (chiefly `drum:true`). Only 10 of the 398 have a unit value and 69 have no product group,
   so most of the value columns read "—" until the office fills them in.
 
-- `KN02_locations.xlsx` — the KN Circet location list: 23 Mayo/Roscommon towns across 7 DAs, with a
-  title and a blank row above the heading so the header-finding is exercised.
+- `KN02_locations.xlsx` — the KN Circet location list: 25 Mayo/Roscommon/Sligo towns across 7 DAs,
+  with a title and a blank row above the heading so the header-finding is exercised, and a *Spoken
+  as* column so the importer's fourth column is exercised too. Tubbercurry and Dooleeg are in there
+  on purpose: they are the two names a recogniser is most likely to write as something else.
 
 - `TLI-location-register-sample.csv` — 20 Irish vehicle registrations plus named locations, each with
   its own shelf list. Junk rows above the header, on purpose.

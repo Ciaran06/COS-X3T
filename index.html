@@ -104,6 +104,11 @@
   table.vlog tr.said td{background:var(--sunk); color:var(--ink-3)}
   table.vlog tr.said td i{color:var(--ink-3); font-style:normal; opacity:.65}
   .vstat span.bad b, .vstat span.bad{color:var(--bad)}
+  input.srch{flex:1 1 180px; min-width:140px; font:inherit; font-size:14px; padding:8px 10px;
+    border-radius:8px; border:1px solid var(--line); background:var(--sunk); color:var(--ink)}
+  #tblLoc input.lsaid{width:100%; min-width:150px; font:inherit; font-size:13px; padding:6px 8px;
+    border-radius:7px; border:1px solid var(--line); background:var(--sunk); color:var(--ink)}
+  #tblLoc input.lsaid::placeholder{color:var(--ink-3); opacity:.7}
   #tblCat td.act{white-space:nowrap; width:1%}
   #tblCat .ed{padding:4px 9px; border-radius:7px; border:1px solid var(--line); background:var(--surface-2); font:600 11.5px/1.6 inherit; cursor:pointer}
   #tblCat tr.editing>td{background:var(--accent-soft)}
@@ -855,6 +860,12 @@
         <span class="dropstat" id="locStat"></span>
       </div>
       <div id="locAdmin" class="joblist"></div>
+      <div class="bar" style="margin-top:12px">
+        <input id="locFind" class="srch" placeholder="Search this contractor’s locations…" autocomplete="off" spellcheck="false">
+        <span class="sp" id="locFound"></span>
+        <button class="btn" id="locExport">Export list</button>
+      </div>
+      <div class="scroll"><table id="tblLoc"></table></div>
     </div>
 
     <div class="panel">
@@ -2251,6 +2262,13 @@ function parse(text, cat){
      phrase was lifted out of it — the item has to account for everything they
      said about the item, not just the bit it happened to match. */
   const ranked = matchItemAll(cat, toks);
+  /* A bare place name is a location. "Claremorris" on its own used to fall
+     through to the item matcher and die as "not understood"; it is only taken
+     as a location when there is no quantity and no item worth the name. */
+  if(qty==null && (!ranked.length || ranked[0].conf < MATCH_BAR)){
+    const bl = bareLoc(t);
+    if(bl) return {kind:'loc', label:t};
+  }
   if(!hit){
     if(!ranked.length) return qty!=null ? {kind:'noitem', text:t, qty, unit, said:leftover.join(' ')} : {kind:'unclear', text:t};
     if(qty==null) return {kind:'unclear', text:t};
@@ -2354,23 +2372,115 @@ function locsFor(cat, org){
   return reg.filter(l=>!l.org || l.org===org);
 }
 function locByName(cat, org, name){
-  const k = norm(name);
-  return locsFor(cat,org).find(l=>norm(l.name)===k) || null;
+  const k = locLetters(name);
+  return locsFor(cat,org).find(l=>locLetters(l.name)===k) || null;
 }
-/* exact, or the nearest few — never a silent best guess */
+/* ---------- how a place name sounds ----------
+   Irish place names are the norm on this job and a recogniser writes them the
+   way it hears them: "Claire Morris" for Claremorris, "Ross Common" for
+   Roscommon, "Doo Leg" for Dooleeg, "Nock" for Knock. Two words or one, a
+   different vowel, a silent letter — the sound is right and the spelling is
+   not. So both sides lose their spaces, hyphens and case, and are then reduced
+   to the sounds the letters make. A metaphone in the Double Metaphone family:
+   one key rather than two, with the rules that matter for these names. */
+function locLetters(s){ return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function soundKey(s){
+  let w = String(s==null?'':s).toUpperCase().replace(/[^A-Z]/g,'');
+  if(!w) return '';
+  /* silent starts — Knock is "nock", Wren is "ren" */
+  w = w.replace(/^(?:KN|GN|PN|AE|WR)/, m => m==='AE' ? 'E' : m[1]);
+  if(w[0]==='X') w = 'S'+w.slice(1);
+  if(/^WH/.test(w)) w = 'W'+w.slice(2);
+  const V = c => /[AEIOU]/.test(c||'');
+  let out = '';
+  for(let i=0;i<w.length;i++){
+    const c=w[i], p=w[i-1]||'', n=w[i+1]||'', n2=w[i+2]||'';
+    if(c===p) continue;                       /* a doubled letter is one sound */
+    let k = '';
+    if(V(c)){ if(i===0) k = c; }              /* vowels only count at the front */
+    else switch(c){
+      case 'B': k = (i===w.length-1 && p==='M') ? '' : 'B'; break;
+      case 'C': k = (n==='H' || (n==='I'&&n2==='A')) ? 'X'
+                  : /[IEY]/.test(n) ? (p==='S' ? '' : 'S') : 'K'; break;
+      case 'D': k = (n==='G' && /[EYI]/.test(n2)) ? 'J' : 'T'; break;
+      case 'G': k = n==='H' ? (V(n2) ? 'K' : '') : n==='N' ? '' : /[IEY]/.test(n) ? 'J' : 'K'; break;
+      case 'H': k = (V(p) && !V(n)) || /[CSPTG]/.test(p) ? '' : 'H'; break;
+      case 'K': k = p==='C' ? '' : 'K'; break;
+      case 'P': k = n==='H' ? 'F' : 'P'; break;
+      case 'Q': k = 'K'; break;
+      case 'S': k = (n==='H' || (n==='I' && /[OA]/.test(n2))) ? 'X' : 'S'; break;
+      case 'T': k = (n==='I' && /[OA]/.test(n2)) ? 'X' : n==='H' ? '0'
+                  : (n==='C' && n2==='H') ? '' : 'T'; break;
+      case 'V': k = 'F'; break;
+      case 'W': k = V(n) ? 'W' : ''; break;
+      case 'X': k = 'KS'; break;
+      case 'Y': k = V(n) ? 'Y' : ''; break;
+      case 'Z': k = 'S'; break;
+      default:  k = c;                        /* F J L M N R */
+    }
+    if(k && k !== out.slice(-1)) out += k;
+  }
+  return out;
+}
+/* every phrase this location answers to — its name, and any "Spoken as" the
+   office wrote for the ones that still miss */
+function locStrings(l){
+  return [l.name].concat(String(l.alias||'').split(',').map(x=>x.trim()).filter(Boolean));
+}
+function nearness(a,b){
+  const L = Math.max(a.length, b.length);
+  if(!L) return 0;
+  return Math.max(0, 1 - dist(a,b)/L);
+}
+/* 0 nothing alike, 1 the same thing. Sound counts for more than spelling,
+   because a recogniser gets the sound right and the spelling wrong — which is
+   the entire problem this is here to solve. */
+function locScore(heard, cand){
+  const a = locLetters(heard), b = locLetters(cand);
+  if(!a || !b) return 0;
+  if(a === b) return 1;
+  const ka = soundKey(a), kb = soundKey(b);
+  let s = Math.max(nearness(a,b), (ka&&kb) ? nearness(ka,kb) : 0);
+  if(ka && ka === kb) s = Math.max(s, 0.97);          /* same sound, other spelling */
+  if(a.includes(b) || b.includes(a)) s = Math.max(s, 0.9);
+  return s;
+}
+/* Sure enough to put one name to them; close enough to be worth offering at
+   all; and far enough ahead of the runner-up that naming it is not a guess.
+   0.78 is one sound out of five wrong — "Bally Robe" against Ballinrobe. */
+const LOC_SURE = 0.78, LOC_NEAR = 0.62, LOC_GAP = 0.08;
+/* exact, or the nearest few — never a silent best guess, and never invented */
 function matchLoc(cat, org, label){
   const list = locsFor(cat,org);
-  if(!list.length) return {none:true, exact:null, near:[]};
-  const nm = norm(label), k = regKey(label);
-  const exact = list.find(l=>norm(l.name)===nm) || null;
-  if(exact) return {none:false, exact, near:[]};
-  const scored = list.map(l=>{
-    const ln = norm(l.name);
-    let d = dist(k, regKey(l.name));
-    if(nm && ln && (ln.includes(nm) || nm.includes(ln))) d = Math.min(d, 1);
-    return {l, d};
-  }).filter(x=>x.d <= Math.max(2, Math.round(k.length*0.34))).sort((a,b)=>a.d-b.d);
-  return {none:false, exact:null, near:scored.slice(0,4).map(x=>x.l)};
+  if(!list.length) return {none:true, exact:null, near:[], scores:[], sure:null};
+  const exact = list.find(l=>locStrings(l).some(x=>locLetters(x)===locLetters(label))) || null;
+  if(exact) return {none:false, exact, near:[], scores:[], sure:null};
+  const scored = list.map(l=>({l, s: Math.max.apply(null, locStrings(l).map(x=>locScore(label,x)))}))
+                     .filter(x=>x.s >= LOC_NEAR)
+                     .sort((a,b)=>b.s-a.s)
+                     .slice(0,4);
+  /* One name clearly out in front is a question with a yes in it. Two that are
+     nearly as good as each other is a list — putting one of them to them would
+     be guessing with extra steps. */
+  const sure = (scored.length && scored[0].s >= LOC_SURE
+                && (scored.length===1 || scored[0].s - scored[1].s >= LOC_GAP))
+             ? scored[0].l : null;
+  return {none:false, exact:null, sure,
+          near:scored.map(x=>x.l), scores:scored.map(x=>x.s)};
+}
+/* Is the whole utterance, on its own, one of this contractor's locations?
+   Counters say "Claremorris", not "location Claremorris", and that used to fall
+   through to the item matcher and die as "not understood". Nothing is invented
+   here — it still has to be on the uploaded list. */
+function bareLoc(text){
+  try{
+    const cat = $('fCat').value, org = $('fOrg').value;
+    const w = String(text||'').trim().split(/\s+/).filter(Boolean);
+    if(!w.length || w.length > 4) return null;
+    if(!locsFor(cat,org).length) return null;
+    const m = matchLoc(cat, org, text);
+    return m.exact || m.sure || null;
+  }catch(e){ return null; }
 }
 function setLoc(name, quiet){
   /* announced below once it has actually taken */
@@ -2994,6 +3104,10 @@ const AGENT_TOOLS = {
     const m = matchLoc(cat, org, String(spoken_text||''));
     if(m.none) return {set:false, message:'No location list for this contractor.'};
     if(m.exact){ setLoc(m.exact.name); return {set:true, location:m.exact.name, da:m.exact.da||''}; }
+    /* One name clearly ahead is a yes/no question — the agent asks it and calls
+       back with the name. Several are a list. Neither sets anything. */
+    if(m.sure) return {set:false, did_you_mean:{location:m.sure.name, da:m.sure.da||''},
+                       candidates:m.near.slice(0,3).map(l=>({location:l.name, da:l.da||''}))};
     if(m.near.length) return {set:false, candidates:m.near.slice(0,3).map(l=>({location:l.name, da:l.da||''}))};
     return {set:false, message:'Not on the location list.'};
   }),
@@ -3891,6 +4005,12 @@ function writeLine(it, qty, unit, drumId, text){
 
 /* Spoken locations are closed: it must be on the list. A near miss is offered
    back as a yes/no, anything else is refused, and voice never adds one. */
+/* the name as it would be put to somebody out loud — with the DA only when the
+   DA is a word rather than a code like DA008 */
+function locSaidName(l){
+  const da = String((l&&l.da)||'').trim();
+  return l.name + ((da && !/^da\s*\d+$/i.test(da)) ? ', '+da : '');
+}
 function goLoc(label){
   const cat=$('fCat').value, org=$('fOrg').value;
   const m = matchLoc(cat, org, label);
@@ -3905,18 +4025,23 @@ function goLoc(label){
     speak(m.exact.name+'.');
     return;
   }
-  if(m.near.length===1){
-    const only = m.near[0];
-    const list = [{label:'Yes — '+only.name, keys:['yes','yeah','yep','correct','right', norm(only.name)], loc:only}];
+  /* One name clearly ahead of the rest is a question with a yes in it. The DA
+     goes in the question when it is a word somebody would say — "Do you mean
+     Claremorris, Mayo?" — and stays on the screen when it is a code. */
+  if(m.sure){
+    const only = m.sure;
+    const said = locSaidName(only);
+    const list = [{label:'Yes — '+only.name, sub:only.da||'',
+                   keys:['yes','yeah','yep','correct','right','that\u2019s it','thats it', norm(only.name)], loc:only}];
     PEND = {kind:'loc', list, onPick:()=>{ clearPend(); setLoc(only.name);
       say('Location — '+only.name, 'Go ahead.'); speak(only.name+'.'); }};
     askChoices(list);
-    say('Did you mean '+only.name+'?', '“'+label+'” is not on the list. Say yes, or say the location again.');
-    speak('Did you mean '+only.name+'?');
+    say('Do you mean '+said+'?', '\u201c'+label+'\u201d is not spelled that way on the list. Say yes, or say the location again.');
+    speak('Do you mean '+said+'?');
     return;
   }
   if(m.near.length){
-    const list = m.near.map(l=>({label:l.name, sub:l.da||'', keys:[norm(l.name)], loc:l}));
+    const list = m.near.map(l=>({label:l.name, sub:l.da||'', keys:locStrings(l).map(norm), loc:l}));
     PEND = {kind:'loc', list, onPick:(i)=>{ const c=list[i]; clearPend(); setLoc(c.loc.name);
       say('Location — '+c.loc.name, 'Go ahead.'); speak(c.loc.name+'.'); }};
     askChoices(list);
@@ -5615,22 +5740,31 @@ function fillPlaces(){
 /* ---------- reading a location list ---------- */
 const LOC_HDR = /^(location|location name|site|site name|town|depot|place|area|exchange|village)$/;
 const DA_HDR  = /^(da|da code|da no|da number|da served|deployment area|serving da)$/;
+const LSAID_HDR = /^(spoken as|said as|spoken|say as|aliases?|also known as|pronounced)$/;
 /* the heading is wherever it is — these files arrive with a title and a blank
    row above it as often as not */
 function findLocHeader(rows){
   for(let r=0;r<Math.min(rows.length,25);r++){
     const cells=(rows[r]||[]).map(c=>String(c==null?'':c).trim().toLowerCase());
     const name = cells.findIndex(c=>LOC_HDR.test(c));
-    if(name>=0) return {row:r, name, da:cells.findIndex(c=>DA_HDR.test(c))};
+    if(name>=0) return {row:r, name, da:cells.findIndex(c=>DA_HDR.test(c)),
+                        said:cells.findIndex(c=>LSAID_HDR.test(c))};
   }
   /* no heading at all — take the first column of a single-column list */
   const wide = rows.some(r=>(r||[]).filter(c=>String(c==null?'':c).trim()).length>1);
-  return wide ? null : {row:-1, name:0, da:-1};
+  return wide ? null : {row:-1, name:0, da:-1, said:-1};
 }
 function importLocs(rows, cat, org){
   const h = findLocHeader(rows);
   if(!h) return {ok:false, why:'Could not find a column of location names. Name the heading “Location”.'};
   const out=[], seen=new Set();
+  /* A re-upload replaces the list but must never throw away the "Spoken as"
+     somebody typed on the phone to make a name land — same rule as the item
+     master. A phrase in the file wins for that row; anything typed by hand and
+     not in the file is kept alongside it. */
+  const held = new Map();
+  ((S.locs&&S.locs[cat])||[]).forEach(l=>{ if((l.org||'')===(org||'') && l.alias) held.set(locLetters(l.name), l.alias); });
+  const said = h.said==null ? -1 : h.said;
   for(let r=h.row+1;r<rows.length;r++){
     const cells = rows[r]||[];
     const name = String(cells[h.name]==null?'':cells[h.name]).trim();
@@ -5638,7 +5772,9 @@ function importLocs(rows, cat, org){
     const k = norm(name);
     if(!k || seen.has(k)) continue;
     seen.add(k);
-    out.push({name, da: h.da>=0 ? String(cells[h.da]==null?'':cells[h.da]).trim() : '', org});
+    const fromFile = said>=0 ? String(cells[said]==null?'':cells[said]).trim() : '';
+    out.push({name, da: h.da>=0 ? String(cells[h.da]==null?'':cells[h.da]).trim() : '', org,
+              alias: mergeAlias(held.get(locLetters(name))||'', fromFile)});
   }
   if(!out.length) return {ok:false, why:'No location names in that file.'};
   S.locs = S.locs || {};
@@ -5646,7 +5782,7 @@ function importLocs(rows, cat, org){
   S.locs[cat] = (S.locs[cat]||[]).filter(l=>(l.org||'')!==(org||'')).concat(out);
   save();
   const withDa = out.filter(l=>l.da).length;
-  return {ok:true, n:out.length, withDa};
+  return {ok:true, n:out.length, withDa, kept:out.filter(l=>l.alias).length};
 }
 function readLocFile(f, cat, org){
   return new Promise(resolve=>{
@@ -5685,8 +5821,64 @@ function renderLocAdmin(){
     const o=b.dataset.loczap==='—'?'':b.dataset.loczap;
     S.locs[cat]=(S.locs[cat]||[]).filter(l=>(l.org||'')!==o);
     if(!locByName(cat,$('fOrg').value,LOC)) setLoc('');
-    save(); renderLocAdmin(); renderLocField();
+    save(); renderLocAdmin(); renderLocTable(); renderLocField();
   });
+}
+/* The list, editable. "Spoken as" is the escape hatch for a name the sound
+   rules still miss — it works exactly as it does on the item master, and it is
+   kept when the file is uploaded again. */
+function locRows(){
+  const cat=$('fCat').value, org=($('locOrg')&&$('locOrg').value)||'';
+  const q = ($('locFind') && $('locFind').value.trim()) || '';
+  const qn = norm(q);
+  let list = ((S.locs&&S.locs[cat])||[]).filter(l=>(l.org||'')===org);
+  if(qn){
+    const hit = list.filter(l=> norm(l.name).includes(qn) || norm(l.alias||'').includes(qn)
+                             || (l.da||'').toLowerCase().includes(qn));
+    /* search it the way you heard it, too */
+    list = hit.length ? hit
+         : list.map(l=>({l, s:Math.max.apply(null, locStrings(l).map(x=>locScore(q,x)))}))
+               .filter(x=>x.s>=LOC_NEAR).sort((a,b)=>b.s-a.s).map(x=>x.l);
+  }
+  return list;
+}
+function setLocAlias(name, value){
+  const cat=$('fCat').value, org=($('locOrg')&&$('locOrg').value)||'';
+  const l = ((S.locs&&S.locs[cat])||[]).find(x=>(x.org||'')===org && locLetters(x.name)===locLetters(name));
+  if(!l) return false;
+  const v = String(value||'').split(',').map(x=>x.trim()).filter(Boolean).join(', ');
+  if(v) l.alias = v; else delete l.alias;
+  save();
+  return true;
+}
+function renderLocTable(){
+  const tbl=$('tblLoc'); if(!tbl) return;
+  const cat=$('fCat').value, org=($('locOrg')&&$('locOrg').value)||'';
+  const all = ((S.locs&&S.locs[cat])||[]).filter(l=>(l.org||'')===org);
+  const rows = locRows();
+  const cnt = $('locFound');
+  if(cnt) cnt.textContent = all.length
+    ? (rows.length===all.length ? all.length+' locations' : rows.length+' of '+all.length+' locations')
+    : 'No list for this contractor yet';
+  if(!all.length){ tbl.innerHTML=''; return; }
+  let h = '<thead><tr><th>Location</th><th>DA</th><th>Spoken as</th></tr></thead><tbody>';
+  for(const l of rows){
+    h += '<tr><td>'+esc(l.name)+'</td><td style="color:var(--ink-3)">'+esc(l.da||'\u2014')+'</td>'
+       + '<td><input class="lsaid" data-loc="'+esc(l.name)+'" value="'+esc(l.alias||'')
+       + '" placeholder="only if it still misses" autocomplete="off" spellcheck="false"></td></tr>';
+  }
+  if(!rows.length) h += '<tr><td colspan="3" style="color:var(--ink-3)">Nothing matches that search.</td></tr>';
+  tbl.innerHTML = h+'</tbody>';
+  tbl.querySelectorAll('input.lsaid').forEach(i=>{
+    i.onchange = ()=>{ setLocAlias(i.dataset.loc, i.value); renderLocField(); };
+  });
+}
+function locListAoA(){
+  const cat=$('fCat').value, org=($('locOrg')&&$('locOrg').value)||'';
+  const rows = [['Location','DA','Spoken as']];
+  ((S.locs&&S.locs[cat])||[]).filter(l=>(l.org||'')===org)
+    .forEach(l=>rows.push([l.name, l.da||'', l.alias||'']));
+  return rows;
 }
 function fillLocOrgs(){
   const sel=$('locOrg'); if(!sel) return;
@@ -5720,8 +5912,16 @@ function renderLocField(){
 function renderLocMenu(){
   const el=$('locMenu'); if(!el) return;
   const cat=$('fCat').value, org=$('fOrg').value;
-  const q = norm($('fLoc').value.trim());
-  const list = locsFor(cat,org).filter(l=>!q || norm(l.name).includes(q) || (l.da||'').toLowerCase().includes(q));
+  const q = $('fLoc').value.trim(), qn = norm(q);
+  const all = locsFor(cat,org);
+  let list = all.filter(l=>!qn || norm(l.name).includes(qn) || norm(l.alias||'').includes(qn)
+                        || (l.da||'').toLowerCase().includes(qn));
+  /* Typing what you heard finds it too: "claire morris" spells nothing on the
+     list, and the substring search returns an empty box that looks like the
+     town is missing. */
+  if(q && !list.length)
+    list = all.map(l=>({l, s:Math.max.apply(null, locStrings(l).map(x=>locScore(q,x)))}))
+              .filter(x=>x.s>=LOC_NEAR).sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.l);
   el.innerHTML = list.length
     ? list.slice(0,60).map(l=>'<button type="button" data-loc="'+esc(l.name)+'">'+esc(l.name)
         +(l.da? '<small>'+esc(l.da)+'</small>':'')+'</button>').join('')
@@ -7460,8 +7660,9 @@ function doLocUpload(f){
   return dropFeedback('locDrop','locStat', async ()=>{
     const r = await readLocFile(f, cat, org);
     if(!r.ok){ $('locStat').textContent = r.why; return false; }
-    $('locStat').textContent = r.n+' locations for '+org+(r.withDa? ', '+r.withDa+' with a DA':'')+'.';
-    renderLocAdmin(); renderLocField(); syncStartable();
+    $('locStat').textContent = r.n+' locations for '+org+(r.withDa? ', '+r.withDa+' with a DA':'')
+      + (r.kept? ', '+r.kept+' with a spoken-as kept':'')+'.';
+    renderLocAdmin(); renderLocTable(); renderLocField(); syncStartable();
     return true;
   }, 'Loaded');
 }
@@ -7644,7 +7845,18 @@ renderMgr();
 renderCat();
 fillLocOrgs();
 renderLocAdmin();
+renderLocTable();
 renderLocField();
+$('locFind').oninput = renderLocTable;
+$('locOrg').addEventListener('change', renderLocTable);
+$('locExport').onclick = e => withFeedback(e.currentTarget, ()=>{
+  const rows = locListAoA();
+  if(rows.length<2) return false;
+  const name = 'trucount-locations-'+String($('locOrg').value||'list').replace(/[^A-Za-z0-9]+/g,'-').toLowerCase()+'.csv';
+  return saveFile(name, rows.map(r=>r.map(c=>{
+    const v=String(c==null?'':c); return /[",\n]/.test(v)? '"'+v.replace(/"/g,'""')+'"' : v;
+  }).join(',')).join('\n'));
+}, 'Exported');
 renderOrgBox();
 renderBrands();
 renderRecent();

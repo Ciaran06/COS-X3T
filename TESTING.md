@@ -75,6 +75,7 @@ either way — counting them would flatter the recognition rate.
 | `32-retune` | the socket reopens when the vocabulary changes and not otherwise; which engine spoke every readback |
 | `40-location` | the location list is closed — typed, spoken, or near-missed |
 | `41-item-master` | editing, deleting, merging an upload without losing hand edits, export |
+| `42-loc-sound` | place names matched by sound — Claire Morris, Tober Curry, Doo Leg, Nock |
 | `50-agent` | the tools are the only way the agent can touch data |
 | `51-agent-context` | what the app tells the agent that it could not have heard |
 | `60-delete` | every line can be removed, undone for five seconds, and the removal is in the record |
