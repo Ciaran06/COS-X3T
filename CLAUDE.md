@@ -338,6 +338,17 @@ treat it as a specification of behaviour that must survive a rewrite.
   finished first so its lines make the snapshot. Closed jobs live in `S.closed` and are never pruned,
   so they persist year over year. See `buildSnapshot()`, `doCloseJob()`, `renderHistory()`,
   `renderHistoryDetail()`.
+- **Storage areas are optional and start off.** A count goes straight against the location; lines
+  carry `loc:''` until somebody creates an area. One **+ Add storage area** button replaces the old
+  shelf chips, and an area is named whatever the counter types or says — "Bay 3", "back yard",
+  "container". **Nothing is ever seeded**: an app-invented "Shelf A1" is a shelf nobody chose and a
+  column nobody asked for, so `CATALOGUES[].spots` no longer feeds the picker, the seeded example
+  counts carry no areas, and an imported count sheet no longer invents a "Count sheet" area either.
+  A location with an uploaded shelf list still offers those, because the office chose them.
+  - Once one area exists, a **Whole location** chip appears so the counter can get back out.
+  - **If nobody used one, it is not a column.** The tally shows no area headings, the Storage areas
+    tile is not rendered, and the CSV export omits the column entirely rather than carrying an empty
+    one on every row.
 - **Removing is recorded, not silent.** A counted line is evidence, so taking one off writes an
   entry to the session's `audit` array — who, when, and what it was — and that appears as **Count
   history** under the lines on the Count tab. Every route in goes through `removeLine()`: the bin,

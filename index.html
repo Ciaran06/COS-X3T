@@ -228,6 +228,9 @@
   .spot{padding:6px 12px; border-radius:999px; border:1px solid var(--line); background:var(--sunk); font-size:12.5px; font-weight:600; color:var(--ink-2)}
   .spot[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
   .spot.add{border-style:dashed; color:var(--ink-3)}
+  .spotnew{display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:center}
+  .spotnew input{font:inherit; font-size:13px; padding:6px 10px; border-radius:999px; border:1px solid var(--accent-line);
+    background:var(--surface); color:var(--ink); min-width:0; width:min(230px, 60vw)}
 
   .micwrap{position:relative; width:100%; margin:2px auto 0; display:flex; align-items:center; justify-content:center; gap:14px}
   .micstack{position:relative; width:150px; height:150px; display:grid; place-items:center; flex:none}
@@ -688,7 +691,7 @@
       <div class="acts">
         <button id="aUndo">Undo last</button>
         <button id="aTotal">Read total</button>
-        <button id="aNextLoc">New spot</button>
+        <button id="aNextLoc">Storage area</button>
         <button id="aFinish" class="primary">Finish</button>
       </div>
       <div class="prog" id="prog"></div>
@@ -1144,32 +1147,32 @@ function jobName(id){ const j=job(id); return j? j.name : 'Unassigned'; }
 function seedSessions(){
   return [
     {id:'demo-tli-1', cat:'fibre', org:'TLI Group', ctype:'van', container:'12-G-12345', by:'Seán M', job:'j-nbi-me', started:seedTs, finished:seedTs+2.4e6, example:true, lines:[
-      L('fibre','FIB-96F',3,'drum','Floor',null,seedTs),
-      L('fibre','FIB-96F',800,'metre','Floor','ABCD1',seedTs+6e4),
-      L('fibre','FIB-96F',350,'metre','Floor','ABCD7',seedTs+9e4),
-      L('fibre','DUCT-32',6,'coil','Shelf A1',null,seedTs+1.5e5),
-      L('fibre','HANG-STD',4,'box','Shelf A1',null,seedTs+1.8e5),
-      L('fibre','CONN-KIT',22,'each','Shelf A2',null,seedTs+2.4e5),
-      L('fibre','POLE-9',2,'each','Roof rack',null,seedTs+3e5)]},
+      L('fibre','FIB-96F',3,'drum','',null,seedTs),
+      L('fibre','FIB-96F',800,'metre','','ABCD1',seedTs+6e4),
+      L('fibre','FIB-96F',350,'metre','','ABCD7',seedTs+9e4),
+      L('fibre','DUCT-32',6,'coil','',null,seedTs+1.5e5),
+      L('fibre','HANG-STD',4,'box','',null,seedTs+1.8e5),
+      L('fibre','CONN-KIT',22,'each','',null,seedTs+2.4e5),
+      L('fibre','POLE-9',2,'each','',null,seedTs+3e5)]},
     {id:'demo-tli-2', cat:'fibre', org:'TLI Group', ctype:'yard', container:'Back yard', by:'Marie D', job:'j-nbi-me', started:seedTs+2.9e6, finished:seedTs+3.4e6, example:true, lines:[
-      L('fibre','FIB-96F',9,'drum','Bay 1',null,seedTs+2.9e6),
-      L('fibre','FIB-48F',4,'drum','Bay 1',null,seedTs+2.95e6),
-      L('fibre','POLE-9',36,'each','Bay 2',null,seedTs+3.0e6),
-      L('fibre','MH-D400',14,'each','Bay 2',null,seedTs+3.1e6)]},
+      L('fibre','FIB-96F',9,'drum','',null,seedTs+2.9e6),
+      L('fibre','FIB-48F',4,'drum','',null,seedTs+2.95e6),
+      L('fibre','POLE-9',36,'each','',null,seedTs+3.0e6),
+      L('fibre','MH-D400',14,'each','',null,seedTs+3.1e6)]},
     {id:'demo-knc-1', cat:'fibre', org:'KN Circet', ctype:'van', container:'202-C-8871', by:'Declan B', job:'j-nbi-me', started:seedTs+3.6e6, finished:seedTs+5.4e6, example:true, lines:[
-      L('fibre','FIB-48F',2,'drum','Floor',null,seedTs+3.6e6),
-      L('fibre','FIB-48F',1250,'metre','Floor','KN0043',seedTs+3.7e6),
-      L('fibre','CONN-KIT',14,'each','Shelf A1',null,seedTs+3.8e6),
-      L('fibre','SCREW-100',3,'box','Shelf A1',null,seedTs+3.9e6),
-      L('fibre','CLOS-24',6,'each','Shelf A2',null,seedTs+4.0e6)]},
+      L('fibre','FIB-48F',2,'drum','',null,seedTs+3.6e6),
+      L('fibre','FIB-48F',1250,'metre','','KN0043',seedTs+3.7e6),
+      L('fibre','CONN-KIT',14,'each','',null,seedTs+3.8e6),
+      L('fibre','SCREW-100',3,'box','',null,seedTs+3.9e6),
+      L('fibre','CLOS-24',6,'each','',null,seedTs+4.0e6)]},
     {id:'demo-powers-1', cat:'pub', org:'Powers', ctype:'store-in', container:'Main bar', by:'Pat', job:'j-powers-me', started:seedTs+7.2e6, finished:seedTs+8.1e6, example:true, lines:[
-      L('pub','COKE-330',20,'bottle','Shelf 1',null,seedTs+7.2e6),
-      L('pub','COKE-330',10,'bottle','Shelf 2',null,seedTs+7.25e6),
-      L('pub','SPRT-330',10,'bottle','Shelf 2',null,seedTs+7.3e6),
-      L('pub','COKE-330',10,'case','Cellar',null,seedTs+7.4e6),
-      L('pub','JAM-70',7,'bottle','Back bar',null,seedTs+7.5e6),
-      L('pub','HEIN-KEG',4,'keg','Cellar',null,seedTs+7.6e6),
-      L('pub','GUIN-KEG',6,'keg','Cellar',null,seedTs+7.7e6)]}
+      L('pub','COKE-330',20,'bottle','',null,seedTs+7.2e6),
+      L('pub','COKE-330',10,'bottle','',null,seedTs+7.25e6),
+      L('pub','SPRT-330',10,'bottle','',null,seedTs+7.3e6),
+      L('pub','COKE-330',10,'case','',null,seedTs+7.4e6),
+      L('pub','JAM-70',7,'bottle','',null,seedTs+7.5e6),
+      L('pub','HEIN-KEG',4,'keg','',null,seedTs+7.6e6),
+      L('pub','GUIN-KEG',6,'keg','',null,seedTs+7.7e6)]}
   ];
 }
 
@@ -1830,7 +1833,6 @@ function ensureSession(){
 }
 function addLine(it,qty,unit,drumId,raw){
   const s = ensureSession();
-  if(!SPOT) SPOT = (spotsFor()||CATALOGUES[s.cat].spots)[0];
   s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code:it.code, qty, unit,
     loc:SPOT, drumId:drumId||null, ts:Date.now(), raw:raw||null, role:curRole()});
   save();
@@ -1880,7 +1882,7 @@ function qtyByUnit(map){
 }
 function spotTotal(){
   const s=cur(); if(!s) return {};
-  return rollLines(s.lines.filter(l=>l.loc===SPOT), s.cat);
+  return rollLines(s.lines.filter(l=>(l.loc||'')===(SPOT||'')), s.cat);
 }
 /* ---------- reopening a closed count ---------- */
 function priorFor(cat, org, label){
@@ -1936,18 +1938,6 @@ function renderRecent(){
       + '<button data-re="'+s.id+'">Add to it</button></div>';
   }).join('');
   el.querySelectorAll('button[data-re]').forEach(b=> b.onclick=()=>resume(b.dataset.re));
-}
-
-function nextSpotName(){
-  const s = cur();
-  const used = new Set((s?s.lines:[]).map(l=>l.loc));
-  const m = String(SPOT||'').match(/^(.*?)([A-Z]?)(\d+)\s*$/i);
-  if(m){
-    const cand = (m[1]+m[2]+(parseInt(m[3],10)+1)).trim();
-    if(!used.has(cand)) return cand;
-  }
-  for(const o of CATALOGUES[$('fCat').value].spots){ if(!used.has(o) && o!==SPOT) return o; }
-  return 'Spot '+(used.size+1);
 }
 
 /* ============================================================
@@ -3145,10 +3135,18 @@ function handle(text){
     return goPlace(p.ptype, p.label);
   }
   if(p.kind==='spot'){
-    SPOT = (p.name||'').trim() || nextSpotName();
-    say('Moved to '+SPOT, 'Previous spot saved. Go ahead.');
-    speak('Moved to '+SPOT+'. Go ahead.');
-    renderSpots(); renderTally(); refreshWhere(); return;
+    const name = (p.name||'').trim();
+    if(!name){
+      /* it has to be called something — the app does not invent "Shelf A1" */
+      SPOTADD = true; renderSpots();
+      const f = $('spotName'); if(f) f.focus();
+      say('What is it called?', 'Say or type the name — “Bay 3”, “back yard”, “container”.');
+      speak('What is it called?');
+      return;
+    }
+    addSpot(name);
+    speak('Counting in '+SPOT+'.');
+    return;
   }
   if(p.kind==='noitem'){
     say('Didn’t catch the item','I heard the quantity but not the product. Try the short description, or add it in the Data tab.',true);
@@ -3179,7 +3177,6 @@ function goPlace(ptype, label){
 
 function writeLine(it, qty, unit, drumId, text){
   const cat = $('fCat').value;
-  if(!SPOT) SPOT = (spotsFor()||CATALOGUES[cat].spots)[0];
   const line = addLine(it, qty, unit, drumId, text);
   const p = {it, qty, unit, drumId};
   if(captureClip(line.id)){ line.audio=true; save(); }
@@ -3192,7 +3189,8 @@ function writeLine(it, qty, unit, drumId, text){
   if(p.drumId) l1 += ' · drum '+p.drumId;
   let l2 = 'Confirmed. ';
   if(base!==p.qty) l2 += fmt(p.qty)+' '+plural(p.unit,p.qty)+' × '+it.pack+' = '+fmt(base)+' '+plural(it.unit,base)+'. ';
-  l2 += SPOT+' now holds '+fmt(spotBase)+' '+plural(it.unit,spotBase)+' of '+it.short+'.';
+  /* with no storage area the running total belongs to the location itself */
+  l2 += (SPOT || cur().container)+' now holds '+fmt(spotBase)+' '+plural(it.unit,spotBase)+' of '+it.short+'.';
   say(l1,l2);
 
   /* short: item, then number, then unit — the screen carries the rest */
@@ -3492,28 +3490,59 @@ function syncPlaceUI(){
   renderSegs(); refreshWhere();
   if(S.current && !S.current.lines.length) S.current=null;
 }
+/* Storage areas are optional and start off. A count goes straight against the
+   location until somebody says otherwise; only then does a spot exist, named
+   whatever they call it. Nothing is ever seeded — "Shelf A1" invented by the
+   app is a shelf nobody chose and a column nobody asked for. */
+let SPOTADD = false;
+function spotsUsed(){
+  const s = cur(), out = [];
+  if(s) for(const l of s.lines) if(l.loc && !out.includes(l.loc)) out.push(l.loc);
+  return out;
+}
 function renderSpots(){
-  const s = cur();
-  const cat = $('fCat').value;
-  const used = [];
-  if(s) for(const l of s.lines) if(!used.includes(l.loc)) used.push(l.loc);
-  const reg = spotsFor();
-  const base = reg || CATALOGUES[cat].spots.slice(0,3);
-  const list = [...new Set(used.concat(SPOT?[SPOT]:[]).concat(base))].filter(Boolean);
-  $('spots').innerHTML = list.map(x=>'<button class="spot" data-s="'+esc(x)+'" aria-pressed="'+(x===SPOT)+'">'+esc(x)+'</button>').join('')
-    + '<button class="spot add" id="spotAdd">+ new spot</button>';
+  const used = spotsUsed();
+  const reg = spotsFor() || [];       /* only ones uploaded against this location */
+  const list = [...new Set(used.concat(SPOT?[SPOT]:[]).concat(reg))].filter(Boolean);
+  let h = '';
+  if(list.length){
+    h += '<button class="spot" data-s="" aria-pressed="'+(!SPOT)+'">Whole location</button>';
+    h += list.map(x=>'<button class="spot" data-s="'+esc(x)+'" aria-pressed="'+(x===SPOT)+'">'+esc(x)+'</button>').join('');
+  }
+  h += SPOTADD
+    ? '<span class="spotnew"><input id="spotName" placeholder="Bay 3, back yard, container…" autocomplete="off">'
+      + '<button class="btn dark" id="spotGo">Add</button><button class="btn" id="spotCancel">Cancel</button></span>'
+    : '<button class="spot add" id="spotAdd">+ Add storage area</button>';
+  $('spots').innerHTML = h;
   $('spots').querySelectorAll('.spot[data-s]').forEach(b=>{
-    b.onclick = ()=>{ SPOT=b.dataset.s; renderSpots(); renderTally(); refreshWhere(); };
+    b.onclick = ()=>{ SPOT = b.dataset.s; renderSpots(); renderTally(); refreshWhere(); };
   });
-  $('spotAdd').onclick = ()=>{ SPOT = nextSpotName(); renderSpots(); renderTally(); refreshWhere(); };
+  const add = $('spotAdd');
+  if(add) add.onclick = ()=>{ SPOTADD = true; renderSpots(); const f=$('spotName'); if(f) f.focus(); };
+  const cancel = $('spotCancel');
+  if(cancel) cancel.onclick = ()=>{ SPOTADD = false; renderSpots(); };
+  const go = $('spotGo');
+  if(go) go.onclick = ()=> addSpot($('spotName').value);
+  const nm = $('spotName');
+  if(nm) nm.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); addSpot(nm.value); }
+                             if(e.key==='Escape'){ SPOTADD=false; renderSpots(); } };
+}
+function addSpot(name){
+  const v = String(name||'').trim();
+  if(!v) return false;
+  SPOTADD = false;
+  SPOT = cap(v);
+  renderSpots(); renderTally(); refreshWhere();
+  say('Counting in '+SPOT, 'Lines go against this area until you pick another, or Whole location.');
+  return true;
 }
 function renderProg(){
   const s = cur();
   const lines = s? s.lines : [];
-  const spots = new Set(lines.map(l=>l.loc));
+  const spots = new Set(lines.map(l=>l.loc).filter(Boolean));
   const by = rollLines(lines, s?s.cat:$('fCat').value);
   $('prog').innerHTML =
-     '<div><div class="v">'+spots.size+'</div><div class="k">Spots</div></div>'
+     (spots.size ? '<div><div class="v">'+spots.size+'</div><div class="k">Storage areas</div></div>' : '')
    + '<div><div class="v">'+lines.length+'</div><div class="k">Lines</div></div>'
    + '<div><div class="v">'+Object.keys(by).length+'</div><div class="k">Items</div></div>';
 }
@@ -3556,11 +3585,13 @@ function renderTally(){
     el.innerHTML = '<h3>This location</h3><div class="empty">Nothing counted yet. Say an item and a quantity to begin.</div>';
     return;
   }
-  const locs=[]; for(const l of s.lines) if(!locs.includes(l.loc)) locs.push(l.loc);
+  const locs=[]; for(const l of s.lines) if(!locs.includes(l.loc||'')) locs.push(l.loc||'');
+  const anySpot = locs.some(Boolean);
   let h = '<h3>'+esc(PL(s.ctype||'van').label)+' · '+esc(s.container)+' · '+esc(s.org)+'</h3>';
   for(const loc of locs){
-    const by = rollLines(s.lines.filter(l=>l.loc===loc), s.cat);
-    h += '<div class="grp2">'+esc(loc)+'</div>';
+    const by = rollLines(s.lines.filter(l=>(l.loc||'')===loc), s.cat);
+    /* no heading at all when nobody used a storage area */
+    if(anySpot) h += '<div class="grp2">'+esc(loc || 'Whole location')+'</div>';
     for(const r of Object.values(by)){
       h += '<div class="line"><span class="code">'+esc(r.it.code)+'</span><span class="nm">'+esc(r.it.short)
          + (r.drums.length? '<small>'+esc(r.drums.join(', '))+'</small>':'')
@@ -5218,7 +5249,7 @@ function importCountSheet(sheets, fileName){
       if(v==null) continue;
       sess.lines = sess.lines.filter(l => !(l.code===code && lineRole(l)===role && !l.drumId));
       if(v>0) sess.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat, code, qty:v, unit:it.unit,
-        loc:'Count sheet', drumId:null, ts:Date.now(), raw:null, role, typed:true, imported:true});
+        loc:'', drumId:null, ts:Date.now(), raw:null, role, typed:true, imported:true});
       placed++;
       if(role==='contractor') physCount++; else witCount++;
     }
@@ -5250,7 +5281,7 @@ function importCountSheet(sheets, fileName){
         }
         sess.lines = sess.lines.filter(l => !(l.code===code && l.drumId===did.toUpperCase() && lineRole(l)==='contractor'));
         sess.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat, code, qty:len, unit:it.unit,
-          loc:'Count sheet', drumId:did.toUpperCase(), ts:Date.now(), raw:null, role:'contractor', typed:true, imported:true});
+          loc:'', drumId:did.toUpperCase(), ts:Date.now(), raw:null, role:'contractor', typed:true, imported:true});
         drumTotals[code] += len;
         drumsIn++;
       }
@@ -5554,7 +5585,7 @@ function setCount(code, role, val){
   let line = null;
   if(isFinite(v) && v>0){
     line = {id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code, qty:v, unit:it.unit,
-      loc:SPOT||'Sheet', drumId:null, ts:Date.now(), raw:null, role, typed:true};
+      loc:SPOT||'', drumId:null, ts:Date.now(), raw:null, role, typed:true};
     s.lines.push(line);
   }
   save(); return line || true;
@@ -5565,7 +5596,7 @@ function addDrum(code, role, id, len){
   if(!did || !isFinite(v) || v<=0) return false;
   const it = item(s.cat, code);
   s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code, qty:v, unit:it.unit,
-    loc:SPOT||'Sheet', drumId:did, ts:Date.now(), raw:null, role, typed:true});
+    loc:SPOT||'', drumId:did, ts:Date.now(), raw:null, role, typed:true});
   save(); return true;
 }
 function dropLine(lineId){
@@ -6489,15 +6520,22 @@ async function syncUp(){
   save(); setSync('online');
 }
 function csv(){
-  const rows=[['Stocktake','Date','Customer','Location type','Location','Spot','Code','Short description','Product Group',
-               'Qty as called','Unit','Base qty','Base unit','Unit value','Stock value','Drum ID','Recorded']];
+  /* Storage areas are optional, so the column only appears if somebody used
+     one — an empty Spot column on every row is noise in a spreadsheet */
+  const anySpot = scopedSessions().some(s=>s.lines.some(l=>l.loc));
+  const rows=[['Stocktake','Date','Customer','Location type','Location']
+    .concat(anySpot? ['Storage area'] : [])
+    .concat(['Code','Short description','Product Group',
+             'Qty as called','Unit','Base qty','Base unit','Unit value','Stock value','Drum ID','Recorded'])];
   /* customer -> product group -> base unit -> {qty, value, unpriced} */
   const roll={};
   for(const s of scopedSessions()) for(const l of s.lines){
     const it=item(s.cat||l.cat,l.code);
     const b=baseQty(it,l.qty,l.unit), uv=unitValue(it), val = uv==null? null : b*uv;
-    rows.push([s.id,new Date(l.ts).toISOString(),s.org,PL(s.ctype||'van').label,s.container,l.loc,it.code,it.short,groupOf(it),
-      l.qty,l.unit,b,it.unit, uv==null?'':uv.toFixed(2), val==null?'':val.toFixed(2), l.drumId||'',l.audio?'yes':'no']);
+    rows.push([s.id,new Date(l.ts).toISOString(),s.org,PL(s.ctype||'van').label,s.container]
+      .concat(anySpot? [l.loc||''] : [])
+      .concat([it.code,it.short,groupOf(it),
+        l.qty,l.unit,b,it.unit, uv==null?'':uv.toFixed(2), val==null?'':val.toFixed(2), l.drumId||'',l.audio?'yes':'no']));
     const g = groupOf(it);
     const o = roll[s.org] = roll[s.org] || {};
     const gr = o[g] = o[g] || {};
@@ -6671,11 +6709,10 @@ function fillOrgs(keepPlace){
   renderOrgPick();
   if(!keepPlace){
     PTYPE = CATALOGUES[cat].defaultPlace;
-    SPOT = SPOT || CATALOGUES[cat].spots[0];
   }
   $('heard').innerHTML = cat==='fibre'
-    ? '<b>“reg number one two G one two three four five”</b> · <b>“shelf A1”</b> · <b>“three full drums of ninety six fibre”</b>'
-    : '<b>“Coke, twenty bottles”</b> · <b>“ten cases of Coke”</b> · <b>“next shelf”</b>';
+    ? '<b>“reg number one two G one two three four five”</b> · <b>“three full drums of ninety six fibre”</b> · <b>“eight hundred and fifty metres of forty eight fibre”</b>'
+    : '<b>“Coke, twenty bottles”</b> · <b>“ten cases of Coke”</b> · <b>“four bottles of Powers”</b>';
   fillJobs(); fillPlaces();
   syncPlaceUI(); applyBrand(); renderSpots(); renderCat(); renderRecent();
 }
@@ -6881,7 +6918,7 @@ $('typeGo').onclick = typeSend;
 $('typeIn').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); typeSend(); } });
 $('aUndo').onclick=doUndo;
 $('aTotal').onclick=doTotal;
-$('aNextLoc').onclick=()=>handle('next spot');
+$('aNextLoc').onclick=()=>{ SPOTADD = true; renderSpots(); const f=$('spotName'); if(f) f.focus(); };
 $('aFinish').onclick=()=>doFinish();
 $('expCsv').onclick = e => withFeedback(e.currentTarget, doExport, 'Exported');
 
