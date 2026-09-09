@@ -49,13 +49,39 @@ Everything is in `index.html`. Roughly in order down the file:
 | Matching | `extractAll()`, `distinguishers()`, `parse()` |
 | Location register | `matchPlace()`, `placesFor()` |
 | Session | `addLine()`, `resume()`, `doFinish()` |
-| Voice | speech recognition, `MediaRecorder`, IndexedDB clips |
+| Voice | the ElevenLabs Agent, the Scribe tier, turn taking, `MediaRecorder`, IndexedDB clips |
 | Conversation | `handle()`, `askChoices()`, `resolvePick()` |
 | Rendering | count screen, rollup tables, data tab |
 | Import | `FIELDS`, `analyse()`, `doImport()`, `importPlaces()` |
 
 Read `CLAUDE.md` for the product context and the roadmap, and `docs/iterating.md`
 for how to drive changes to this repo with Claude Code.
+
+## The voice
+
+Out of the box it uses the browser's own speech engine, which needs nothing and works
+with no signal. Two better tiers are opt-in and both keep the ElevenLabs API key out of
+the page, in a Cloudflare Worker you own:
+
+- **`proxy/README.md`** — the Worker. Ten minutes. Gets you ElevenLabs listening and
+  speaking (the *Scribe* tier).
+- **`agent/README.md`** — an ElevenLabs Agent on top of that, which holds the
+  conversation itself: interruptions, stop words, turn taking. Its system prompt is
+  versioned at `agent/system-prompt.md` and must be kept in step with the dashboard.
+- **`agent/field-test.md`** — the protocol for measuring whether any of it is actually
+  more accurate on a real shelf, which no automated test can tell you.
+
+The chip under the mic always names the engine actually running and goes amber when it
+has fallen back. You lose the conversation, never the count.
+
+## Tests
+
+```bash
+npm install       # once, for the tests only — the app has no dependencies
+npm test          # or: node test/run.js, or /test in Claude Code
+```
+
+`TESTING.md` explains what a test is here and how to write another.
 
 ## Storage
 

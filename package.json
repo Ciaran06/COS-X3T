@@ -1,0 +1,12 @@
+{
+  "name": "trucount",
+  "private": true,
+  "description": "TruCount — voice stocktaking. The app is index.html and has no build step; this file exists only for the test harness.",
+  "scripts": {
+    "test": "node test/run.js"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.0",
+    "xlsx": "^0.18.5"
+  }
+}

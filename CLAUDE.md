@@ -436,7 +436,27 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
 
 ## Testing
 
-There is no test suite. The parser is the part that most needs one — `parse()` is pure and easy to
-test in isolation. A good first task is to extract it into a module and put a table of spoken
-phrases and expected outputs around it. The behaviours listed under "What works today" are the
-specification; every one of them was verified by hand and should stay verified.
+`npm test`, `node test/run.js`, or `/test` in Claude Code. **TESTING.md** is the full
+account; the short version:
+
+- The app is one HTML file with no build step, so a test serves the folder, opens it in a
+  headless Chromium, and drives **the same functions the phone drives** — `parse()`,
+  `AGENT_TOOLS.record_count()`, `onHeardFinal()`, `keytermsFor()`. There is no second
+  implementation of anything.
+- Exactly three things are stubbed, all in `test/lib/harness.js`: the voice proxy (same
+  routes as the Worker, no key, no network), the Scribe WebSocket (opens and swallows, so
+  the keyterms can be read off the URL the app tried to open), and the agent session
+  (records what the app sends it). Excel is read with the real SheetJS.
+- The two CDN libraries are cached into `test/.cache/` on first run and served locally. A
+  test that needs the internet to pass is a test that fails on a train.
+- **Drive the layer below the microphone**, not the typed box: `onHeardFinal()` for
+  something heard, `agentSay()` for something the agent heard, `speakThen()` for a readback.
+  Typed input is not a parallel path — with an agent running it goes in through `agentSay()`
+  so an automated run exercises the real tools — but it is never logged as something the ear
+  heard, because counting it would flatter the recognition rate.
+- Name an assertion after the behaviour, not the function, and always pass the third
+  argument: a failure you cannot read the actual value out of costs a debugging round.
+
+**Nothing here proves recognition accuracy.** Every voice suite drives text. Whether the
+agent actually hears an Irish site accent is measured on a phone — `agent/field-test.md` is
+that protocol, and the number comes off Data → *What the app heard*.

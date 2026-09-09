@@ -6604,8 +6604,21 @@ $('pauseBtn').onclick = ()=>{
   if(!wantListen && !PAUSED){ $('setup').classList.add('hidden'); return startListen(); }
   togglePause();
 };
-$('typeGo').onclick = ()=>{ const v=$('typeIn').value.trim(); if(v){ handle(v); $('typeIn').value=''; } };
-$('typeIn').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('typeGo').click(); } });
+/* Typed input is the same input, not a parallel path. With an agent running it
+   goes in as a user turn so the agent hears it and calls the same tools — which
+   is what makes an automated run mean anything. Otherwise it goes to the parser
+   directly, as it always did. It is still never logged as something the ear
+   heard: counting typed lines would flatter the recognition rate. */
+function typeSend(){
+  const v = $('typeIn').value.trim();
+  if(!v) return;
+  $('typeIn').value = '';
+  $('heard').innerHTML = '<b>'+esc(v)+'</b>';
+  if(AGENT.on && agentSay(v)) return;
+  handle(v);
+}
+$('typeGo').onclick = typeSend;
+$('typeIn').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); typeSend(); } });
 $('aUndo').onclick=doUndo;
 $('aTotal').onclick=doTotal;
 $('aNextLoc').onclick=()=>handle('next spot');
