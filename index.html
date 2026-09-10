@@ -730,6 +730,7 @@
       <div class="bar">
         <span class="sp" id="mgSaid"></span>
         <button class="btn" id="mgClear">Clear filters</button>
+        <button class="btn dark" id="mgExport">Export to Excel</button>
       </div>
     </div>
 
@@ -2597,10 +2598,20 @@ function ensureSession(){
   else { S.current.ctype=PTYPE; S.current.container=containerLabel(); }
   return S.current;
 }
+/* Which way a line arrived. Recorded on the line at write time rather than
+   looked up in the voice log afterwards, because the log is capped at 400
+   entries and a line outlives it — and a month later "was that spoken or typed?"
+   is a fair question to ask of a number in a contract dispute. */
+let LINE_SRC = '';
+function lineSource(){
+  if(LINE_SRC) return LINE_SRC;
+  if(AGENT.on) return 'Vapi';
+  return VOICE.stt==='agent' ? 'Vapi' : VOICE.stt==='eleven' ? 'Scribe' : 'Browser';
+}
 function addLine(it,qty,unit,drumId,raw){
   const s = ensureSession();
   s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code:it.code, qty, unit,
-    loc:SPOT, drumId:drumId||null, ts:Date.now(), raw:raw||null, role:curRole()});
+    loc:SPOT, drumId:drumId||null, ts:Date.now(), raw:raw||null, role:curRole(), eng:lineSource()});
   save();
   return s.lines[s.lines.length-1];
 }
@@ -5023,6 +5034,133 @@ function mgDefaults(){
 }
 function tile(k,v,s){ return '<div class="tile"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="s">'+esc(s||'')+'</div></div>'; }
 
+/* The by-item table, as one function, because the export has to be exactly what
+   the screen shows and two copies of this drift within a month. */
+function rollupItems(lines){
+  const byItem={};
+  for(const l of lines){
+    const it = item(l.cat,l.code), k=l.cat+'|'+l.code;
+    byItem[k] = byItem[k] || {it, base:0, packs:0, orgs:new Set(), value:0, unpriced:false};
+    const b = baseQty(it,l.qty,l.unit);
+    byItem[k].base += b;
+    const uv = unitValue(it);
+    if(uv==null) byItem[k].unpriced = true; else byItem[k].value += b*uv;
+    if(isPackUnit(it,l.unit)) byItem[k].packs += l.qty;
+    byItem[k].orgs.add(l.org);
+  }
+  return Object.values(byItem).sort((a,b)=>b.base-a.base);
+}
+/* ---------- exporting exactly what is on screen ----------
+   Two sheets. The first is the by-item table as the screen has it, under a
+   header block naming every filter, so a spreadsheet mailed to somebody who was
+   not standing at the phone still says what it is of. The second is every line
+   behind it — the audit trail, one row per thing somebody said. */
+function whereLabel(k){ return !k ? 'Not specified' : PL(k).label; }
+function stamp(ts){ return new Date(ts).toLocaleString('en-IE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function rollupHeadAoA(said, filters, nLoc, nLines){
+  const aoa = [['TruCount — rollup'], ['Showing', said], ['Exported', stamp(Date.now())]];
+  filters.forEach(f=>aoa.push([f[0], f[1]]));
+  aoa.push(['Locations', nLoc], ['Lines', nLines], []);
+  return aoa;
+}
+const ROLLUP_COLS = ['Item','Code','Product Group','Unit','Total','Whole packs','Value','Held by'];
+function rollupItemsAoA(rows){
+  const aoa = [ROLLUP_COLS.slice()];
+  for(const r of rows){
+    const whole = r.it.pack>1 ? Math.floor(r.base/r.it.pack) : 0;
+    const g = groupOf(r.it);
+    aoa.push([r.it.short, r.it.code, g===UNASSIGNED? '' : g, r.it.unit, r.base,
+              whole || '', r.unpriced? '' : Math.round(r.value*100)/100, r.orgs.size]);
+  }
+  return aoa;
+}
+const LINE_COLS = ['Date','Time','Location','Where','Registration / store','Storage area',
+                   'Item','Code','Quantity','Unit','Base quantity','Base unit','Drum','Counted by','Engine'];
+function rollupLinesAoA(sess){
+  const aoa = [LINE_COLS.slice()];
+  const flat = [];
+  sess.forEach(x=>x.lines.forEach(l=>flat.push({x,l})));
+  flat.sort((a,b)=>a.l.ts-b.l.ts);
+  for(const {x,l} of flat){
+    const it = item(x.cat||l.cat, l.code);
+    const d = new Date(l.ts);
+    aoa.push([d.toLocaleDateString('en-IE'), d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}),
+              x.loc||'', whereLabel(x.ctype), x.container||'', l.loc||'',
+              it.short, it.code, l.qty, l.unit, baseQty(it,l.qty,l.unit), it.unit,
+              l.drumId||'', x.by||'', l.eng||'']);
+  }
+  return aoa;
+}
+async function exportRollup(){
+  const sess = mgSessions();
+  if(!sess.length) return false;
+  const lines = sess.flatMap(s=>s.lines.map(l=>Object.assign({},l,{org:s.org, container:s.container, cat:s.cat||l.cat})));
+  const v = viewOrgs();
+  const filters = [
+    ['Contractor', v.length ? v.join(', ') : 'All contractors'],
+    ['Counting job', MGF.job ? jobName(MGF.job) : 'All jobs'],
+    ['Date', (!MGF.date || MGF.date===MG_ALLDATES) ? 'All dates'
+           : MGF.date===MG_RANGE ? ((MGF.from? dayLabel(MGF.from):'the start')+' to '+(MGF.to? dayLabel(MGF.to):'today'))
+           : dayLabel(MGF.date)],
+    ['Location', MGF.loc || 'All locations'],
+    ['Where', MGF.where ? (MGF.where===MG_NOWHERE? 'Not specified' : PL(MGF.where).label) : 'All'],
+    ['Registration / store name', MGF.place || 'All']
+  ];
+  const name = 'trucount-rollup-'
+    + slug(v.length===1 ? v[0] : (v.length? 'contractors' : 'all-contractors')) + '-'
+    + slug(MGF.job ? jobName(MGF.job) : 'all-jobs') + '-'
+    + ((MGF.date && MGF.date!==MG_ALLDATES && MGF.date!==MG_RANGE) ? MGF.date
+       : new Date().toISOString().slice(0,10)) + '.xlsx';
+  await saveWorkbook(name, [
+    {name:'Rollup', aoa: rollupHeadAoA(mgSaid(), filters, sess.length, lines.length)
+                          .concat(rollupItemsAoA(rollupItems(lines)))},
+    {name:'Lines',  aoa: rollupLinesAoA(sess)}
+  ]);
+  return true;
+}
+/* A closed job is the same two sheets built from the snapshot instead of from
+   live sessions, so the figures are the ones frozen on the day. */
+async function exportClosed(id){
+  const h = (S.closed||[]).find(x=>x.id===id);
+  if(!h || !h.rows.length) return false;
+  const said = (h.orgs.join(', ')||'All contractors')+' \u00b7 '+h.name+' \u00b7 frozen '+stamp(h.closedAt);
+  const filters = [
+    ['Contractor', h.orgs.join(', ') || 'All contractors'],
+    ['Counting job', h.name], ['Date', 'closed '+stamp(h.closedAt)],
+    ['Location', 'All locations'], ['Where', 'All'], ['Registration / store name', 'All'],
+    ['Figures', 'frozen at close — a later price change cannot move them']
+  ];
+  const byCode = {};
+  for(const r of h.rows){
+    const k = r.code;
+    byCode[k] = byCode[k] || {short:r.short, code:r.code, group:r.group, unit:r.unit,
+                              pack:r.pack||1, packName:r.packName||'', base:0, value:0, unpriced:false, orgs:new Set()};
+    byCode[k].base += r.base;
+    if(r.price==null) byCode[k].unpriced = true; else byCode[k].value += r.value;
+    byCode[k].orgs.add(r.org);
+  }
+  const items2 = [ROLLUP_COLS.slice()];
+  Object.values(byCode).sort((a,b)=>b.base-a.base).forEach(r=>{
+    const whole = r.pack>1 ? Math.floor(r.base/r.pack) : 0;
+    items2.push([r.short, r.code, r.group===UNASSIGNED? '' : r.group, r.unit, r.base,
+                 whole || '', r.unpriced? '' : Math.round(r.value*100)/100, r.orgs.size]);
+  });
+  const lines2 = [LINE_COLS.slice()];
+  h.rows.slice().sort((a,b)=>a.ts-b.ts).forEach(r=>{
+    const d = new Date(r.ts);
+    lines2.push([d.toLocaleDateString('en-IE'), d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}),
+                 r.loc||'', whereLabel(r.ctype), r.container||'', r.spot||'',
+                 r.short, r.code, r.qty, r.asUnit, r.base, r.unit,
+                 r.drumId||'', r.by||'', r.eng||'']);
+  });
+  const name = 'trucount-rollup-' + slug(h.orgs[0]||'all-contractors') + '-' + slug(h.name)
+             + '-' + new Date(h.closedAt).toISOString().slice(0,10) + '.xlsx';
+  await saveWorkbook(name, [
+    {name:'Rollup', aoa: rollupHeadAoA(said, filters, h.totals.locations, h.totals.lines).concat(items2)},
+    {name:'Lines',  aoa: lines2}
+  ]);
+  return true;
+}
 const MG_EMPTY = 'Nothing counted for this selection.';
 function renderMgr(){
   renderMgFilters();
@@ -5075,18 +5213,7 @@ function renderMgr(){
     : '<tbody><tr><td class="empty">'+MG_EMPTY+'</td></tr></tbody>';
   wireTree($('tblOrg'));
 
-  const byItem={};
-  for(const l of lines){
-    const it = item(l.cat,l.code), k=l.cat+'|'+l.code;
-    byItem[k] = byItem[k] || {it, base:0, packs:0, orgs:new Set(), value:0, unpriced:false};
-    const b = baseQty(it,l.qty,l.unit);
-    byItem[k].base += b;
-    const uv = unitValue(it);
-    if(uv==null) byItem[k].unpriced = true; else byItem[k].value += b*uv;
-    if(isPackUnit(it,l.unit)) byItem[k].packs += l.qty;
-    byItem[k].orgs.add(l.org);
-  }
-  const rows = Object.values(byItem).sort((a,b)=>b.base-a.base);
+  const rows = rollupItems(lines);
   if(!rows.length) $('tblItem').innerHTML = '<tbody><tr><td class="empty">'+MG_EMPTY+'</td></tr></tbody>';
   else {
     let h2 = '<thead><tr><th>Item</th><th class="r">Stock value</th><th class="r">Total</th><th>Unit</th><th>Product Group</th><th class="r">Whole packs</th><th class="r">Held by</th></tr></thead><tbody>';
@@ -5829,7 +5956,8 @@ function buildSnapshot(j){
       const uv = unitValue(it);
       const base = baseQty(it, l.qty, l.unit);
       rows.push({
-        org:x.org, container:x.container, ctype:x.ctype||'van', spot:l.loc, by:x.by||'', ts:l.ts,
+        org:x.org, loc:x.loc||'', container:x.container, ctype:x.ctype||'van', spot:l.loc,
+        by:x.by||'', ts:l.ts, eng:l.eng||'',
         code:it.code, short:it.short, long:it.long||it.short, group:groupOf(it),
         unit:it.unit, pack:it.pack||1, packName:it.packName||'',
         qty:l.qty, asUnit:l.unit, base, price:uv, value:(uv==null? null : base*uv),
@@ -7823,11 +7951,15 @@ function renderHistory(){
     + ' · '+qtyByUnit(h.totals.qty)
     + '</small></span>'
     + '<span class="tag">'+valCell(h.totals.value,h.totals.unpriced)+'</span>'
+    + '<button class="btn" data-hx="'+esc(h.id)+'">Export</button>'
     + '<button class="btn" data-h="'+esc(h.id)+'">Open</button></div>').join('');
   el.querySelectorAll('button[data-h]').forEach(b=> b.onclick=()=>{
     renderHistoryDetail(b.dataset.h);
     $('histDetail').scrollIntoView({behavior:'smooth', block:'start'});
   });
+  /* the same two sheets as the Rollup, off the frozen figures */
+  el.querySelectorAll('button[data-hx]').forEach(b=>
+    b.onclick = e => withFeedback(e.currentTarget, ()=>exportClosed(b.dataset.hx), 'Exported'));
 }
 function renderHistoryDetail(id){
   const el=$('histDetail');
@@ -8202,6 +8334,7 @@ $('mgLoc').oninput = ()=>{
 };
 $('mgLoc').onblur = ()=>{ if($('mgLoc').value.trim() !== (MGF.loc||'')){ $('mgLoc').value = MGF.loc||''; } };
 $('mgClear').onclick = e => withFeedback(e.currentTarget, ()=>{ mgDefaults(); renderMgr(); }, 'Cleared');
+$('mgExport').onclick = e => withFeedback(e.currentTarget, exportRollup, 'Exported');
 $('roleBtn').onclick = switchRole;
 $('editTypes').onclick = ()=>{ EDIT_TYPES=!EDIT_TYPES; renderSegs(); };
 $('fJob').onchange = ()=>{
@@ -8386,7 +8519,8 @@ function typeSend(){
   $('typeIn').value = '';
   $('heard').innerHTML = '<b>'+esc(v)+'</b>';
   if(AGENT.on && agentSay(v)) return;
-  handle(v);
+  LINE_SRC = 'Typed';
+  try{ handle(v); } finally { LINE_SRC = ''; }
 }
 $('typeGo').onclick = typeSend;
 $('typeIn').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); typeSend(); } });

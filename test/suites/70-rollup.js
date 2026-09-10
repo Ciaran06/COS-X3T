@@ -144,6 +144,82 @@ module.exports = async function({ browser, H }){
      /Sump Hole Grating/.test(range.item) && !/Medium Pole/.test(range.item), range.item.slice(0,60));
   t('and the line reads as a range', / to /.test(range.said), range.said);
 
+  /* ---------- G. the export is what the screen shows ---------- */
+  const X = require(require('path').join(H.ROOT,'node_modules','xlsx'));
+  await p.click('#mgClear'); await p.waitForTimeout(300);
+  await p.evaluate(()=>{ MGF.date='*'; MGF.where='van'; renderMgr(); }); await p.waitForTimeout(300);
+  const before = await bar();
+  const dl = p.waitForEvent('download',{timeout:15000}).catch(()=>null);
+  await p.click('#mgExport');
+  const d = await dl;
+  t('Export to Excel produces a file', !!d, d? d.suggestedFilename():'no download');
+  t('and the filename carries the contractor, the job and a date',
+     !!d && /kn-circet/.test(d.suggestedFilename()) && /daily-van-count/.test(d.suggestedFilename())
+     && /\d{4}-\d{2}-\d{2}\.xlsx$/.test(d.suggestedFilename()), d? d.suggestedFilename():'');
+  if(d){
+    await d.saveAs(H.tmp('rollup.xlsx'));
+    const wb = X.readFile(H.tmp('rollup.xlsx'));
+    t('two sheets — the rollup and every line behind it',
+       wb.SheetNames.join('|')==='Rollup|Lines', wb.SheetNames.join('|'));
+    const roll = X.utils.sheet_to_json(wb.Sheets['Rollup'],{header:1,defval:''});
+    const head = roll.slice(0,12).map(r=>r.join(': '));
+    t('a header block names every filter that was on',
+       head.some(x=>/^Showing/.test(x)) && head.some(x=>/^Exported/.test(x))
+       && head.some(x=>/^Counting job: Daily van count/.test(x))
+       && head.some(x=>/^Where: Vehicle/.test(x))
+       && head.some(x=>/^Date: All dates/.test(x)), JSON.stringify(head));
+    const hi = roll.findIndex(r=>r[0]==='Item');
+    t('the columns are the ones on screen',
+       roll[hi].join('|')==='Item|Code|Product Group|Unit|Total|Whole packs|Value|Held by', JSON.stringify(roll[hi]));
+    const body = roll.slice(hi+1);
+    t('and the rows are exactly what the filters left',
+       body.length===2 && body.some(r=>r[1]==='500CONPOLE9M') && body.some(r=>r[1]==='500POLESTEP')
+       && !body.some(r=>r[1]==='500POLECOACHSCREW300'),
+       JSON.stringify(body.map(r=>r[1])));
+
+    const lines = X.utils.sheet_to_json(wb.Sheets['Lines'],{header:1,defval:''});
+    t('the second sheet lists every underlying line',
+       lines[0].join('|').startsWith('Date|Time|Location|Where|Registration / store') && lines.length===3,
+       JSON.stringify(lines[0]));
+    t('with the location, the where and the registration on each one',
+       lines[1][2]==='Claremorris' && lines[1][3]==='Vehicle' && lines[1][4]==='202-C-8871',
+       JSON.stringify(lines[1]));
+    t('and who counted it', lines.slice(1).every(r=>r[13]==='Seán M'), JSON.stringify(lines.slice(1).map(r=>r[13])));
+  }
+
+  /* an empty selection has nothing to export */
+  const none = await p.evaluate(async ()=>{ MGF.loc='Belmullet'; renderMgr(); return await exportRollup(); });
+  t('an empty selection exports nothing rather than an empty workbook', none===false, String(none));
+  await p.evaluate(()=>{ MGF.loc=''; renderMgr(); });
+
+  /* ---------- H. a closed job exports the same way, frozen ---------- */
+  const closed = await p.evaluate(()=>{
+    const j = jobs().find(x=>x.id==='j-daily');
+    S.closed = [buildSnapshot(j)];
+    save(); renderHistory();
+    return {rows:S.closed[0].rows.length, hasLoc:S.closed[0].rows.every(r=>'loc' in r)};
+  });
+  t('closing a job freezes the location on every row', closed.hasLoc===true && closed.rows===4, JSON.stringify(closed));
+  await p.click('#t-hist'); await p.waitForTimeout(400);
+  const dl2 = p.waitForEvent('download',{timeout:15000}).catch(()=>null);
+  await p.click('#histList button[data-hx]');
+  const d2 = await dl2;
+  t('History exports a closed job', !!d2, d2? d2.suggestedFilename():'no download');
+  if(d2){
+    await d2.saveAs(H.tmp('closed.xlsx'));
+    const wb2 = X.readFile(H.tmp('closed.xlsx'));
+    const roll2 = X.utils.sheet_to_json(wb2.Sheets['Rollup'],{header:1,defval:''});
+    t('in the same two-sheet format', wb2.SheetNames.join('|')==='Rollup|Lines', wb2.SheetNames.join('|'));
+    t('and says the figures are frozen',
+       roll2.slice(0,12).some(r=>/frozen/.test(r.join(' '))), JSON.stringify(roll2.slice(0,10)));
+    const hi2 = roll2.findIndex(r=>r[0]==='Item');
+    t('with the same columns as the live export',
+       roll2[hi2].join('|')==='Item|Code|Product Group|Unit|Total|Whole packs|Value|Held by', JSON.stringify(roll2[hi2]));
+    t('and every line of the job, not just the filtered ones',
+       X.utils.sheet_to_json(wb2.Sheets['Lines'],{header:1,defval:''}).length===5,
+       String(X.utils.sheet_to_json(wb2.Sheets['Lines'],{header:1,defval:''}).length));
+  }
+
   const out = R.report('rollup — filters across the top', p.errs);
   await p.ctx.close();
   return out;

@@ -386,6 +386,21 @@ treat it as a specification of behaviour that must survive a rewrite.
     register rather than a slice of it.
   - An empty selection says **"Nothing counted for this selection."** rather than showing a blank
     table, which reads as breakage.
+  - **Export to Excel is exactly what the filters show.** Two sheets: *Rollup* — a header block
+    naming every filter and the export time, then the by-item table with the screen's own columns
+    (item, code, product group, unit, total, whole packs, value, held by) — and *Lines*, every line
+    behind it with date, time, location, where, registration or store, storage area, item, quantity,
+    unit, base quantity, drum, who counted it and which engine heard it. The screen and the sheet
+    are built from the same `rollupItems()`, because two copies of that drift within a month. The
+    filename carries the contractor, the job and the date. Nothing on screen means nothing exported,
+    rather than an empty workbook.
+  - **History exports the same two sheets for any closed job**, built from the snapshot rather than
+    from live sessions, so the figures are the ones frozen on the day and a later price change
+    cannot move them. See `exportRollup()`, `exportClosed()`.
+  - **Every line records how it arrived** — `eng` on the line, written at write time (`lineSource()`)
+    rather than looked up in the voice log afterwards: the log is capped at 400 entries and a line
+    outlives it. Vapi, Scribe, Browser or Typed. A month later "was that spoken or typed?" is a fair
+    question to ask of a number in a contract dispute.
 - **Location is a field of its own, and the list is closed.** *Where* the count is happening
   (Claremorris) is asked before *what* is being counted in (a van, the inside store) — the Location
   field sits above "Where are you counting?" on the Count tab, with type-ahead, a list and a mic.
