@@ -20,7 +20,7 @@ the same phrases.
 
 ## Try it in two minutes
 
-1. **Data** tab → drop in `sample-data/TLI-location-register-sample.csv` → **Replace register**.
+1. **Setup** tab → drop in `sample-data/TLI-location-register-sample.csv` → **Replace register**.
    That loads 20 vehicles and five named locations, each with its own shelf list.
 2. **Count** tab → tap the mic, or use the typing box, and say:
    - `reg number two six one D one two eight four four` — picks the van off the register
@@ -28,7 +28,7 @@ the same phrases.
    - `three full drums of ninety six fibre` — converts to 12,000 metres
    - `drum A B C D one, eight hundred metres` — keeps the drum ID with the part length
    - `total`
-3. **Rollup** tab → the count rolls up by customer, location and item.
+3. **Results** tab → the count rolls up by customer, location and item.
 4. Tap the role chip in the header, PIN `1234`, to see the owner's view — every counter,
    every job, and what's still to count.
 
@@ -51,7 +51,7 @@ Everything is in `index.html`. Roughly in order down the file:
 | Session | `addLine()`, `resume()`, `doFinish()` |
 | Voice | the ElevenLabs Agent, the Scribe tier, turn taking, `MediaRecorder`, IndexedDB clips |
 | Conversation | `handle()`, `askChoices()`, `resolvePick()` |
-| Rendering | count screen, rollup tables, data tab |
+| Rendering | count screen, Results tables, Setup |
 | Import | `FIELDS`, `analyse()`, `doImport()`, `importPlaces()` |
 
 Read `CLAUDE.md` for the product context and the roadmap, and `docs/iterating.md`

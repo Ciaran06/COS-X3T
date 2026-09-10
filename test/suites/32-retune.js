@@ -38,7 +38,7 @@ module.exports = async function({ browser, H }){
   await p.setInputFiles('#csFile', H.fixture('KN02_Stock_Take_Witness_Count_Sample.xlsx'));
   await p.waitForTimeout(1800);
   await p.evaluate(()=>{ $('fOrg').value='KN Circet'; $('fVan').value='202-C-8871'; });
-  await p.click('#t-sheet'); await p.waitForTimeout(500);
+  await p.evaluate(()=>showSheet()); await p.waitForTimeout(500);
 
   /* record every socket URL the app opens */
   await p.evaluate(()=>{
@@ -140,7 +140,7 @@ module.exports = async function({ browser, H }){
 
   /* ---------- D. the log ---------- */
   await p.evaluate(()=>{ reviewStop(); S.vlog=[]; save(); });
-  await p.click('#t-count'); await p.waitForTimeout(300);
+  await p.click('#t-count'); await p.evaluate(()=>showMode('voice')); await p.waitForTimeout(300);
   for(const line of ['six nine metre medium poles','flibbertigibbet wotsits','five sump hole gratings','one thousand two hundred and fifty pole steps']){
     await p.evaluate(l=>onHeardFinal(l), line); await p.waitForTimeout(3000);
   }
@@ -213,7 +213,7 @@ module.exports = async function({ browser, H }){
 
   /* the app shows the model the Worker is really running, not the one we hope */
   const spec = await p.evaluate(()=>{ voiceNote(); return $('vNote').textContent; });
-  t('the deployed model is shown on the Data tab',
+  t('the deployed model is shown on the Setup tab',
      /eleven_multilingual_v2/.test(spec) && /stability 0\.5/.test(spec) && /similarity 0\.8/.test(spec), spec);
 
   console.log('\nsockets opened:', await p.evaluate(()=>window.__sock.length));

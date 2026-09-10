@@ -22,7 +22,7 @@ module.exports = async function({ browser, H }){
   await p.waitForTimeout(1800);
 
   await p.evaluate(()=>{ $('fOrg').value='KN Circet'; $('fVan').value='202-C-8871'; });
-  await p.click('#t-sheet'); await p.waitForTimeout(600);
+  await p.evaluate(()=>showSheet()); await p.waitForTimeout(600);
 
   const started = await p.evaluate(()=>reviewStart('all', false));
   await p.waitForTimeout(2500);

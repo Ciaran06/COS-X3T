@@ -30,6 +30,29 @@ It was built fast to prove the interaction, and it works. It is **not** the arch
 scale — see "Where to take it" below. Do not treat the single file as a constraint to respect;
 treat it as a specification of behaviour that must survive a rewrite.
 
+### Navigation
+
+**Four tabs, left to right: Count · Results · Stocktakes · Setup.** Plain names for what each one
+holds, not for how it was built.
+
+- **Count** carries a **Voice | Sheet** mode toggle at the top (`showMode()`, `MODE`). Same
+  location, same lines, two ways to enter them. The sheet used to be a tab of its own, which made
+  it look like a different job; `showSheet()` is what anything that used to send you there calls
+  now. The mode is remembered while the app is open, so coming back to Count leaves you where you
+  were.
+- **Results** is everything counted, live: the filter bar, the tiles, the estate tree, the
+  breakdowns, and the job's location list with its progress.
+- **Stocktakes** is closed jobs only, frozen. Empty, it explains itself rather than showing a bare
+  panel.
+- **Setup** is configuration, grouped under headings — *Who is using this · What is counted · Where
+  it is counted · Voice · Moving counts about* — so it reads as a settings screen rather than a
+  dumping ground for panels.
+
+**The element ids are the old ones** — `v-mgr`, `v-hist`, `v-cat`, `t-mgr`, `t-hist`, `t-cat`,
+`renderMgr()`, `renderHistory()`. Renaming a hundred call sites to match a label is churn, and the
+label is the thing the counter reads. If you rename them, do it on its own and not inside another
+change.
+
 ### What works today
 
 - **Three engines, in tiers: Vapi, then Scribe, then the browser.** The chip names the one
@@ -178,7 +201,7 @@ treat it as a specification of behaviour that must survive a rewrite.
     phone rather than by reading the Worker source.
   - **Readbacks are quality, not speed** — `eleven_multilingual_v2`, stability 0.5, similarity 0.8,
     in `proxy/worker.js`. The turbo model was faster and did not sound like the voice's own library
-    preview, which is the point of picking a voice. *Save a sample readback* on the Data tab writes
+    preview, which is the point of picking a voice. *Save a sample readback* on the Setup tab writes
     the mp3 the proxy really returns to the phone, so the voice can be heard without a yard.
 - **Every item in the fibre catalogue is a real NBI part.** Ten hand-written demo rows (`POLE-9`,
   `FIB-96F`, `CONN-KIT`…) used to sit among the SAP codes; they were removed, and the seeded example
@@ -299,7 +322,7 @@ treat it as a specification of behaviour that must survive a rewrite.
   length, one line each, in the row's own unit; the row's count is their total, the count cell is
   read-only, and the drum lines are kept so they can be exported. See `renderSheet()`, `setCount()`, `addDrum()`, `setDiffNote()`,
   `addSheetItem()`, `isDrumItem()`, `curRole()`.
-- **Walking the sheet by voice.** *Review* on the Sheet tab, not a separate screen: the grid stays on
+- **Walking the sheet by voice.** *Review* in Count's **Sheet** mode, not a separate screen: the grid stays on
   show, the current row is highlighted and scrolled to, and the numbers change as they are spoken. It
   walks the **uploaded sheet's own row order**. Two ways in — *Walk me through*, which reads each line
   ("Coach screw 75 millimetre, box of 200 — currently 400") and waits, or a **jump**, by saying an
@@ -367,10 +390,10 @@ treat it as a specification of behaviour that must survive a rewrite.
   units × unit value, and is shown everywhere a quantity is — the count screen, the estate rollup at
   contractor, location and item level, the by-item table, and the catalogue. An item with no unit
   value contributes zero and is marked with an asterisk so a total is never quietly understated.
-  The Rollup tab breaks stock value down by Product Group under each contractor, with quantity and
+  The Results tab breaks stock value down by Product Group under each contractor, with quantity and
   euro on every row, and the CSV export carries the same breakdown. Quantity is kept per base unit
   rather than summed across metres and each. See `unitValue()`, `valCell()`, `qtyByUnit()`, `eur()`.
-- **The Rollup answers a question, not just "how much stock".** A filter bar across the top —
+- **Results answers a question, not just "how much stock".** A filter bar across the top —
   **counting job, date, location, where, registration or store name** — narrows everything under it,
   and a line beneath the bar states what is on screen ("KN Circet · Daily van count · 10 Sep 2026 ·
   Claremorris · Vehicle · 202-C-8871") so a number is never read out of context. Contractor is
@@ -394,7 +417,7 @@ treat it as a specification of behaviour that must survive a rewrite.
     are built from the same `rollupItems()`, because two copies of that drift within a month. The
     filename carries the contractor, the job and the date. Nothing on screen means nothing exported,
     rather than an empty workbook.
-  - **History exports the same two sheets for any closed job**, built from the snapshot rather than
+  - **Stocktakes exports the same two sheets for any closed job**, built from the snapshot rather than
     from live sessions, so the figures are the ones frozen on the day and a later price change
     cannot move them. See `exportRollup()`, `exportClosed()`.
   - **Every line records how it arrived** — `eng` on the line, written at write time (`lineSource()`)
@@ -404,7 +427,7 @@ treat it as a specification of behaviour that must survive a rewrite.
 - **Location is a field of its own, and the list is closed.** *Where* the count is happening
   (Claremorris) is asked before *what* is being counted in (a van, the inside store) — the Location
   field sits above "Where are you counting?" on the Count tab, with type-ahead, a list and a mic.
-  The list is **uploaded per contractor** on the Data tab: a column of names under any of the usual
+  The list is **uploaded per contractor** on the Setup tab: a column of names under any of the usual
   headings, plus a `DA` column if the file has one, with junk rows above the heading tolerated as
   everywhere else. `locsFor()` deliberately does **not** fall back to another contractor's list the
   way `placesFor()` does — showing one contractor another's towns is a leak, not a convenience — so
@@ -429,7 +452,7 @@ treat it as a specification of behaviour that must survive a rewrite.
   - **A bare place name is a location.** Counters say *"Claremorris"*, not *"location
     Claremorris"*. `parse()` takes a bare utterance as a location only when there is **no quantity
     in it** and no item worth the name — anything with a number in it is a count, always.
-  - **"Spoken as" on the location list**, for the ones the sound rules still miss. The Data tab
+  - **"Spoken as" on the location list**, for the ones the sound rules still miss. The Setup tab
     carries the contractor's locations as an editable table — name, DA, and a box to type the
     phrases they answer to — searchable, exportable, and **kept when the list is uploaded again**,
     exactly like the item master. The importer also reads a *Spoken as* column out of the file if
@@ -443,7 +466,7 @@ treat it as a specification of behaviour that must survive a rewrite.
   - **A blank is the truth and a wrong label is not.** A line counted with no type has `ctype:''`
     and `container:''`; every screen shows the location instead (`placeLabel()`, `typeTag()`,
     `typeLabel()`), and every export writes an empty Where cell. "Not specified" is a thing to
-    filter *by* on the Rollup, never a fact written into a column. Voice still sets a type when the
+    filter *by* on Results, never a fact written into a column. Voice still sets a type when the
     words carry one — *"van 191 D 12345"* — because that is somebody choosing it out loud.
   - The catalogue's old `defaultPlace` is gone. It is why every count carried "Vehicle" whether
     anybody chose one or not.
@@ -474,7 +497,7 @@ treat it as a specification of behaviour that must survive a rewrite.
   no PIN — it is a client-side switch to demonstrate the model, and it is **not** security.
   A contractor is fixed to their own stock and the fibre catalogue: the Catalogue and Counting-for
   controls are hidden, and every view is filtered to their org. For NBI, **Counting for is a
-  multi-select** — tick one, several, or All, like an Excel column filter — and Rollup and History sum
+  multi-select** — tick one, several, or All, like an Excel column filter — and Results and Stocktakes sum
   whatever is ticked. It offers every contractor on the register or holding counts, so a filter can
   never hide data that exists. Views are scoped by catalogue as well as contractor, so an NBI estate
   total is fibre stock and does not quietly absorb a pub.
@@ -490,20 +513,20 @@ treat it as a specification of behaviour that must survive a rewrite.
   receiving device can describe and value them) and **Import job** (merges sessions, skipping any id
   already present, and adds the job, any unknown items and any new contractor). Re-importing the same
   file changes nothing. See `exportJobFile()`, `importJobFile()`, `saveFile()`.
-- **Job progress per location** lives at the top of the **History** tab, above the closed
+- **Job progress per location** lives at the top of the **Results** tab, above the closed
   stocktakes — never on Count. It went there rather than into a tab of its own because the tab bar
   is already full enough that the wordmark hides below 480px, and because per-location progress is
-  a property of a job, which is what History is already about. Count is a screen for counting.
+  a property of a job, which is what Results is already about. Count is a screen for counting.
 - **Jobs.** Counts belong to a named job (month-end, daily, etc.) with progress against a target.
   The job dropdown on the count screen ends in **+ New job…**, which opens an inline form — name,
   type (Month end / Mid-year / Year end / Ad hoc) and date — and the job it creates becomes the
-  selected one. Note the older job admin on the Data tab still offers its own type list
+  selected one. Note the older job admin on the Setup tab still offers its own type list
   (Month end / Daily / Weekly / Spot check / Ad hoc); the two lists have not been reconciled.
-- **Closing a job, and History.** *Close job* sits beside the job dropdown on the count screen. It
+- **Closing a job, and Stocktakes.** *Close job* sits beside the job dropdown on the count screen. It
   shows what is about to be frozen — lines, locations, contractors, value — and on confirmation takes
   a **snapshot**: every line of every session on that job, with the item's description, product group,
   unit, pack and unit value all *copied in at close time*. The job then drops out of the active
-  dropdown and appears on the **History** tab with its name, date closed, contractors, total lines,
+  dropdown and appears on the **Stocktakes** tab with its name, date closed, contractors, total lines,
   total quantity and total value. Opening one shows the full rollup — contractor, location, item, and
   the product-group breakdown — drawn entirely from the snapshot and never from the live catalogue,
   so a later price change or a new count cannot move a closed number. An open count on the job is
@@ -555,7 +578,7 @@ treat it as a specification of behaviour that must survive a rewrite.
 - Irish spelling and en-IE formatting throughout (`metre`, `colour`, `toLocaleString('en-IE')`).
 - Copy is written in the customer's language, not the system's: "vehicle", "yard", "spot", "counter".
 - **The app opens empty. No count line is ever seeded.** The first number in it is one somebody
-  said out loud. It used to open with four example stocktakes so the Rollup had something in it;
+  said out loud. It used to open with four example stocktakes so Results had something in it;
   they were written into `localStorage` on the first load and then lived there for good, which is
   how a phone ended up showing counts against demo item codes months after the demo items were
   removed — Unassigned rows for FIB-48F and CONN-KIT that no filter could explain. **Example data

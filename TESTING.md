@@ -69,6 +69,7 @@ either way — counting them would flatter the recognition rate.
 | --- | --- |
 | `05-generated` | the tools and prompt in `index.html` still match `agent/` |
 | `06-clean` | the app starts empty, old example counts are cleared, every item has a group |
+| `08-nav` | four tabs, plainly named, and the count sheet as a mode of Count |
 | `10-theme` | blue and white, contrast on the bar, one line reshades everything, contractor colours untouched |
 | `20-turn-taking` | one utterance one line, the ear shut while speaking, "no" undoes, pause, never guessing an item |
 | `22-spoken-rules` | a written part number, said out loud — and a pole's grade is never metres |
@@ -83,7 +84,7 @@ either way — counting them would flatter the recognition rate.
 | `60-delete` | every line can be removed, undone for five seconds, and the removal is in the record |
 | `61-spots` | storage areas are optional, off by default, and never invented |
 | `62-where` | the place type is optional, and blank everywhere it was never chosen |
-| `70-rollup` | the filter bar narrows every table under it, says what it is showing, and exports it |
+| `70-rollup` | Results' filter bar narrows every table under it, says what it is showing, and exports it |
 
 ## Writing another one
 

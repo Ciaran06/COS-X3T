@@ -499,7 +499,7 @@
   .sheetwho{padding:10px 15px; font-size:12.5px; color:var(--ink-2); border-bottom:1px solid var(--line); background:var(--sunk)}
   .sheetwho b{color:var(--ink)}
 
-  #v-sheet .scroll{max-height:70vh; overflow:auto}
+  #mode-sheet .scroll{max-height:70vh; overflow:auto}
   #tblSheet thead th{position:sticky; top:0; z-index:2; background:var(--sunk); box-shadow:0 1px 0 var(--line)}
   /* frozen first column, so the item stays put while you scroll out to the count */
   #tblSheet td:first-child{position:sticky; left:0; z-index:1; background:var(--surface); box-shadow:1px 0 0 var(--line)}
@@ -535,6 +535,16 @@
   .drumline .x{border:0; background:none; color:var(--ink-3); font-size:16px; cursor:pointer; padding:0 4px}
   .hideNarrow{display:none}
   @media (min-width:760px){ .hideNarrow{display:table-cell} #tblSheet .nm small{display:none} }
+  /* Voice or Sheet, inside Count. Quieter than the tab bar above it — it is a
+     choice about how to enter a line, not about where you are in the app. */
+  .modebar{display:flex; gap:6px; padding:11px 15px 0}
+  .modebar button{flex:1 1 0; padding:8px 10px; border-radius:9px; border:1px solid var(--line);
+    background:var(--surface); font:600 13px/1.4 inherit; color:var(--ink-2); cursor:pointer}
+  .modebar button[aria-selected="true"]{background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent-ink)}
+  /* Setup reads as configuration rather than a dumping ground */
+  .setuphdr{margin:18px 15px 2px; font:700 10.5px/1 inherit; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--ink-3)}
+  .setuphdr:first-child{margin-top:8px}
   .catgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:10px; padding:13px 15px; border-bottom:1px solid var(--line)}
 </style>
 
@@ -546,10 +556,9 @@
     </div>
     <div class="tabs" role="tablist">
       <button role="tab" id="t-count" aria-selected="true">Count</button>
-      <button role="tab" id="t-sheet" aria-selected="false">Sheet</button>
-      <button role="tab" id="t-mgr" aria-selected="false">Rollup</button>
-      <button role="tab" id="t-hist" aria-selected="false">History</button>
-      <button role="tab" id="t-cat" aria-selected="false">Data</button>
+      <button role="tab" id="t-mgr" aria-selected="false">Results</button>
+      <button role="tab" id="t-hist" aria-selected="false">Stocktakes</button>
+      <button role="tab" id="t-cat" aria-selected="false">Setup</button>
     </div>
     <button class="rolechip" id="roleBtn" title="Switch view"><span class="rl" id="roleLed"></span><span id="roleTxt">Counter</span></button>
     <span class="sync" id="sync"><span class="led"></span><span id="syncTxt">On device</span></span>
@@ -599,6 +608,14 @@
   <!-- ================= COUNT ================= -->
   <section id="v-count" class="count">
 
+    <!-- Same location, same lines, two ways to enter them. The sheet used to be
+         a tab of its own, which made it look like a different job. -->
+    <div class="modebar" role="tablist" id="modebar">
+      <button role="tab" id="m-voice" aria-selected="true">Voice</button>
+      <button role="tab" id="m-sheet" aria-selected="false">Sheet</button>
+    </div>
+
+    <div id="mode-voice">
     <div class="card setup" id="setup">
       <div class="field full">
         <label class="lblrow" for="fJob">Counting job<button class="lnk" id="closeJobBtn">Close job</button></label>
@@ -716,11 +733,57 @@
 
     <div class="card tally" id="tally"></div>
     <p class="note" style="border:0;text-align:center">Counts save on this phone as you speak them — no signal needed. They upload when you're back in coverage.</p>
+    </div><!-- /mode-voice -->
+
+    <div id="mode-sheet" class="hidden">
+
+    <div class="panel">
+      <header>
+        <h2>Count sheet</h2>
+        <span class="hint" id="sheetHint">The selected location, item by item</span>
+        <button class="btn dark" id="sheetUp">Upload count sheet</button>
+        <button class="btn" id="sheetReview">Review</button>
+        <button class="btn" id="csExpLoc">Export sheet</button>
+        <button class="btn" id="sheetAdd">Add item</button>
+        <input type="file" id="sheetFile" accept=".xlsx,.xls,.csv" class="hidden">
+      </header>
+      <div class="sheetwho" id="sheetWho"></div>
+      <div class="sheetstate" id="sheetState"></div>
+      <div class="sheetsrc" id="sheetSrc"></div>
+      <p class="note" id="sheetMsg" style="margin:0"></p>
+      <div class="colask hidden" id="colAsk"></div>
+      <div class="reviewbar hidden" id="reviewBar"></div>
+      <div class="sheetbar">
+        <input type="text" id="sheetSearch" placeholder="Search any column — code, description, group…" autocomplete="off">
+        <label><input type="checkbox" id="sheetOnly"> Only rows with a count</label>
+        <button class="btn" id="sheetMic">Dictate</button>
+      </div>
+      <div id="sheetAddBox" class="hidden">
+        <div class="catgrid">
+          <div class="field"><label for="niCode">Part code</label><input id="niCode" placeholder="SAP or part code" autocomplete="off"></div>
+          <div class="field"><label for="niDesc">Description</label><input id="niDesc" placeholder="Short description" autocomplete="off"></div>
+          <div class="field"><label for="niUom">UoM</label><input id="niUom" placeholder="Each" autocomplete="off"></div>
+          <div class="field"><label for="niPack">Pack size</label><input id="niPack" type="number" min="1" placeholder="1"></div>
+        </div>
+        <div class="bar"><span class="sp" id="niNote"></span><button class="btn" id="niCancel">Cancel</button><button class="btn dark" id="niAdd">Add to sheet</button></div>
+      </div>
+      <div class="scroll"><table id="tblSheet"></table></div>
+    </div>
+    </div>
   </section>
 
-  <!-- ================= ROLLUP ================= -->
+  <!-- ================= RESULTS ================= -->
   <section id="v-mgr" class="mgr hidden">
     <div class="scope" id="scope"></div>
+    <div class="card loclist" id="jobLocs">
+      <div class="lochdr">
+        <h3 id="locTitle">Locations in this job</h3>
+        <span class="locprog" id="locProg"></span>
+      </div>
+      <div class="locsearch"><input id="locSearch" placeholder="Search locations…" autocomplete="off"></div>
+      <div id="locRows"></div>
+    </div>
+
 
     <div class="panel" id="pnlMgf">
       <header><h2>What to show</h2><span class="hint">Filters combine · the line underneath says exactly what is on screen</span></header>
@@ -791,51 +854,8 @@
     </div>
   </section>
 
-  <!-- ================= DATA ================= -->
-  <section id="v-sheet" class="hidden mgr">
-    <div class="panel">
-      <header>
-        <h2>Count sheet</h2>
-        <span class="hint" id="sheetHint">The selected location, item by item</span>
-        <button class="btn dark" id="sheetUp">Upload count sheet</button>
-        <button class="btn" id="sheetReview">Review</button>
-        <button class="btn" id="csExpLoc">Export sheet</button>
-        <button class="btn" id="sheetAdd">Add item</button>
-        <input type="file" id="sheetFile" accept=".xlsx,.xls,.csv" class="hidden">
-      </header>
-      <div class="sheetwho" id="sheetWho"></div>
-      <div class="sheetstate" id="sheetState"></div>
-      <div class="sheetsrc" id="sheetSrc"></div>
-      <p class="note" id="sheetMsg" style="margin:0"></p>
-      <div class="colask hidden" id="colAsk"></div>
-      <div class="reviewbar hidden" id="reviewBar"></div>
-      <div class="sheetbar">
-        <input type="text" id="sheetSearch" placeholder="Search any column — code, description, group…" autocomplete="off">
-        <label><input type="checkbox" id="sheetOnly"> Only rows with a count</label>
-        <button class="btn" id="sheetMic">Dictate</button>
-      </div>
-      <div id="sheetAddBox" class="hidden">
-        <div class="catgrid">
-          <div class="field"><label for="niCode">Part code</label><input id="niCode" placeholder="SAP or part code" autocomplete="off"></div>
-          <div class="field"><label for="niDesc">Description</label><input id="niDesc" placeholder="Short description" autocomplete="off"></div>
-          <div class="field"><label for="niUom">UoM</label><input id="niUom" placeholder="Each" autocomplete="off"></div>
-          <div class="field"><label for="niPack">Pack size</label><input id="niPack" type="number" min="1" placeholder="1"></div>
-        </div>
-        <div class="bar"><span class="sp" id="niNote"></span><button class="btn" id="niCancel">Cancel</button><button class="btn dark" id="niAdd">Add to sheet</button></div>
-      </div>
-      <div class="scroll"><table id="tblSheet"></table></div>
-    </div>
-  </section>
-
+  <!-- ================= STOCKTAKES ================= -->
   <section id="v-hist" class="hidden mgr">
-    <div class="card loclist" id="jobLocs">
-      <div class="lochdr">
-        <h3 id="locTitle">Locations in this job</h3>
-        <span class="locprog" id="locProg"></span>
-      </div>
-      <div class="locsearch"><input id="locSearch" placeholder="Search locations…" autocomplete="off"></div>
-      <div id="locRows"></div>
-    </div>
     <div class="panel">
       <header>
         <h2>Closed stocktakes</h2>
@@ -848,57 +868,42 @@
 
   <section id="v-cat" class="hidden mgr">
 
-    <div class="panel" id="voicePanel">
-      <header><h2>Voice engine</h2><span class="hint">ElevenLabs when a proxy is set, the browser’s own engine when it is not</span></header>
-      <div class="engwrap" style="justify-content:flex-start; margin:0 0 10px"><button type="button" class="engchip" id="engChip2"><span class="eled"></span><span class="ewho">Voice: Browser</span></button></div>
+    <div class="setuphdr">Who is using this</div>
+    <div class="panel">
+      <header><h2>Access</h2><span class="hint">Who is using this device, and what they can see</span></header>
       <div class="catgrid">
-        <div class="field full"><label for="vProxy">Proxy URL</label><input id="vProxy" placeholder="https://trucount-voice.your-name.workers.dev" autocomplete="off" spellcheck="false"></div>
-        <div class="field"><label for="vToken">App token</label><input id="vToken" placeholder="the APP_TOKEN secret, if you set one" autocomplete="off" spellcheck="false"></div>
-        <div class="field"><label for="vAgent">Vapi assistant ID</label><input id="vAgent" placeholder="aefc0a29-…" autocomplete="off" spellcheck="false"></div>
-        <div class="field"><label for="vLlm">Send the tools from the app — name the LLM</label><input id="vLlm" placeholder="openai/gpt-4.1 · empty = tools from the dashboard" autocomplete="off" spellcheck="false"></div>
-        <div class="field"><label for="vPrefer">Engine</label><select id="vPrefer"><option value="auto">Vapi when it is reachable</option><option value="scribe">Scribe only (the fallback)</option><option value="browser">Browser only</option></select></div>
+        <div class="field"><label for="aRole">This device is</label><select id="aRole"><option value="nbi">NBI — sees every contractor</option><option value="contractor">A contractor — sees only their own stock</option></select></div>
+        <div class="field"><label for="aOrg">Which contractor</label><select id="aOrg"></select></div>
+        <div class="field"><label for="aName">Counter name</label><input id="aName" placeholder="Seán M"></div>
+        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="aSave">Save</button></div>
+      </div>
+      <p class="note">In the shipped product this is a real account login with hard separation between contractors. Here it is a switch, with no password, so you can see both sides: a contractor opens the app fixed to their own stock and the fibre catalogue; NBI sees every contractor that has reached this device, and can sum them.</p>
+    </div>
+    <div class="panel">
+      <header><h2>Customers and branding</h2><span class="hint">Each one gets its own colour and badge across the app</span></header>
+      <div id="brandList"></div>
+      <div class="bar"><span class="sp">Add or remove customers below, one per line</span></div>
+      <div style="padding:0 15px 13px"><textarea id="orgBox"></textarea></div>
+      <div class="bar"><span class="sp" id="orgCount"></span><button class="btn dark" id="orgSave">Save list</button></div>
+      <p class="note">Upload each customer's own logo file to replace the generated badge — that's the version you'd put in front of them.</p>
+    </div>
+
+    <div class="setuphdr">What is counted</div>
+    <div class="panel">
+      <header><h2>Item master</h2><span class="hint">edit any field · “Spoken as” goes straight into the voice vocabulary</span></header>
+      <div class="catgrid">
+        <div class="field full"><label for="catSearch">Search</label>
+          <input id="catSearch" placeholder="Code, description, group or spoken-as…" autocomplete="off"></div>
       </div>
       <div class="bar">
-        <span class="sp" id="vNote">The API key is never held in this page. It lives in the proxy — see proxy/README.md for the ten-minute setup.</span>
-        <button class="btn" id="vTest">Test connection</button>
-        <button class="btn" id="vSample">Save a sample readback</button>
-        <button class="btn dark" id="vSave">Save</button>
+        <span class="sp" id="catCount"></span>
+        <button class="btn" id="catNoGrp">No Product Group</button>
+        <button class="btn" id="catExport">Export to Excel</button>
+        <button class="btn dark" id="catNew">Add item</button>
       </div>
+      <div id="itemEdit"></div>
+      <div class="scroll"><table id="tblCat"></table></div>
     </div>
-
-    <div class="panel">
-      <header><h2>What the app heard</h2><span class="hint">every spoken line, the engine that heard it, and whether it landed</span></header>
-      <div id="ktBox" class="ktbox"></div>
-      <div id="vlogBox"></div>
-      <div class="bar">
-        <span class="sp">Count the same lines on each engine and compare the two rates. A line marked in red was heard but could not be used.</span>
-        <button class="btn" id="vlogClear">Clear</button>
-        <button class="btn" id="vlogExport">Export CSV</button>
-      </div>
-    </div>
-
-    <div class="panel">
-      <header><h2>Locations</h2><span class="hint">one list per contractor · a column of location names, and a DA column if you have one</span></header>
-      <div class="catgrid">
-        <div class="field"><label for="locOrg">These locations belong to</label><select id="locOrg"></select></div>
-        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label>
-          <label class="lbl-btn" style="text-align:center">Choose a file<input type="file" id="locFile" accept=".xlsx,.xls,.csv" class="hidden"></label>
-        </div>
-      </div>
-      <div class="drop" id="locDrop">
-        <b>Drop a location list here</b>
-        <small>One column of names — Location, Town, Site, Depot, whatever it is called — and a DA column if the list has one. Junk rows above the heading are fine. Uploading again replaces that contractor's list.</small>
-        <span class="dropstat" id="locStat"></span>
-      </div>
-      <div id="locAdmin" class="joblist"></div>
-      <div class="bar" style="margin-top:12px">
-        <input id="locFind" class="srch" placeholder="Search this contractor’s locations…" autocomplete="off" spellcheck="false">
-        <span class="sp" id="locFound"></span>
-        <button class="btn" id="locExport">Export list</button>
-      </div>
-      <div class="scroll"><table id="tblLoc"></table></div>
-    </div>
-
     <div class="panel">
       <header><h2>Import your item master</h2><span class="hint">CSV or Excel · columns in any order, under any heading</span></header>
       <div class="drop" id="drop">
@@ -935,7 +940,6 @@
       </div>
       <div id="jobList"></div>
     </div>
-
     <div class="panel">
       <header>
         <h2>NBI count sheets</h2>
@@ -951,54 +955,57 @@
       <p class="note" id="csNote">Nothing imported yet.</p>
     </div>
 
+    <div class="setuphdr">Where it is counted</div>
     <div class="panel">
-      <header><h2>Moving counts between devices</h2><span class="hint">A stop-gap until there is a shared back end</span></header>
-      <p class="note" id="shareWhy"></p>
-      <div class="bar">
-        <span class="sp" id="shareNote"></span>
-        <button class="btn" id="expJob">Export job</button>
-        <button class="btn dark" id="impJobBtn">Import job</button>
-        <input type="file" id="jobFile" accept=".json,application/json,.txt" class="hidden">
-      </div>
-      <p class="note" id="shareMsg"></p>
-    </div>
-
-    <div class="panel">
-      <header><h2>Access</h2><span class="hint">Who is using this device, and what they can see</span></header>
+      <header><h2>Locations</h2><span class="hint">one list per contractor · a column of location names, and a DA column if you have one</span></header>
       <div class="catgrid">
-        <div class="field"><label for="aRole">This device is</label><select id="aRole"><option value="nbi">NBI — sees every contractor</option><option value="contractor">A contractor — sees only their own stock</option></select></div>
-        <div class="field"><label for="aOrg">Which contractor</label><select id="aOrg"></select></div>
-        <div class="field"><label for="aName">Counter name</label><input id="aName" placeholder="Seán M"></div>
-        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="aSave">Save</button></div>
+        <div class="field"><label for="locOrg">These locations belong to</label><select id="locOrg"></select></div>
+        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label>
+          <label class="lbl-btn" style="text-align:center">Choose a file<input type="file" id="locFile" accept=".xlsx,.xls,.csv" class="hidden"></label>
+        </div>
       </div>
-      <p class="note">In the shipped product this is a real account login with hard separation between contractors. Here it is a switch, with no password, so you can see both sides: a contractor opens the app fixed to their own stock and the fibre catalogue; NBI sees every contractor that has reached this device, and can sum them.</p>
+      <div class="drop" id="locDrop">
+        <b>Drop a location list here</b>
+        <small>One column of names — Location, Town, Site, Depot, whatever it is called — and a DA column if the list has one. Junk rows above the heading are fine. Uploading again replaces that contractor's list.</small>
+        <span class="dropstat" id="locStat"></span>
+      </div>
+      <div id="locAdmin" class="joblist"></div>
+      <div class="bar" style="margin-top:12px">
+        <input id="locFind" class="srch" placeholder="Search this contractor’s locations…" autocomplete="off" spellcheck="false">
+        <span class="sp" id="locFound"></span>
+        <button class="btn" id="locExport">Export list</button>
+      </div>
+      <div class="scroll"><table id="tblLoc"></table></div>
     </div>
 
-    <div class="panel">
-      <header><h2>Customers and branding</h2><span class="hint">Each one gets its own colour and badge across the app</span></header>
-      <div id="brandList"></div>
-      <div class="bar"><span class="sp">Add or remove customers below, one per line</span></div>
-      <div style="padding:0 15px 13px"><textarea id="orgBox"></textarea></div>
-      <div class="bar"><span class="sp" id="orgCount"></span><button class="btn dark" id="orgSave">Save list</button></div>
-      <p class="note">Upload each customer's own logo file to replace the generated badge — that's the version you'd put in front of them.</p>
-    </div>
-
-    <div class="panel">
-      <header><h2>Item master</h2><span class="hint">edit any field · “Spoken as” goes straight into the voice vocabulary</span></header>
+    <div class="setuphdr">Voice</div>
+    <div class="panel" id="voicePanel">
+      <header><h2>Voice engine</h2><span class="hint">ElevenLabs when a proxy is set, the browser’s own engine when it is not</span></header>
+      <div class="engwrap" style="justify-content:flex-start; margin:0 0 10px"><button type="button" class="engchip" id="engChip2"><span class="eled"></span><span class="ewho">Voice: Browser</span></button></div>
       <div class="catgrid">
-        <div class="field full"><label for="catSearch">Search</label>
-          <input id="catSearch" placeholder="Code, description, group or spoken-as…" autocomplete="off"></div>
+        <div class="field full"><label for="vProxy">Proxy URL</label><input id="vProxy" placeholder="https://trucount-voice.your-name.workers.dev" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="vToken">App token</label><input id="vToken" placeholder="the APP_TOKEN secret, if you set one" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="vAgent">Vapi assistant ID</label><input id="vAgent" placeholder="aefc0a29-…" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="vLlm">Send the tools from the app — name the LLM</label><input id="vLlm" placeholder="openai/gpt-4.1 · empty = tools from the dashboard" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label for="vPrefer">Engine</label><select id="vPrefer"><option value="auto">Vapi when it is reachable</option><option value="scribe">Scribe only (the fallback)</option><option value="browser">Browser only</option></select></div>
       </div>
       <div class="bar">
-        <span class="sp" id="catCount"></span>
-        <button class="btn" id="catNoGrp">No Product Group</button>
-        <button class="btn" id="catExport">Export to Excel</button>
-        <button class="btn dark" id="catNew">Add item</button>
+        <span class="sp" id="vNote">The API key is never held in this page. It lives in the proxy — see proxy/README.md for the ten-minute setup.</span>
+        <button class="btn" id="vTest">Test connection</button>
+        <button class="btn" id="vSample">Save a sample readback</button>
+        <button class="btn dark" id="vSave">Save</button>
       </div>
-      <div id="itemEdit"></div>
-      <div class="scroll"><table id="tblCat"></table></div>
     </div>
-
+    <div class="panel">
+      <header><h2>What the app heard</h2><span class="hint">every spoken line, the engine that heard it, and whether it landed</span></header>
+      <div id="ktBox" class="ktbox"></div>
+      <div id="vlogBox"></div>
+      <div class="bar">
+        <span class="sp">Count the same lines on each engine and compare the two rates. A line marked in red was heard but could not be used.</span>
+        <button class="btn" id="vlogClear">Clear</button>
+        <button class="btn" id="vlogExport">Export CSV</button>
+      </div>
+    </div>
     <div class="panel">
       <header><h2>What it understands</h2></header>
       <details class="hb"><summary>Saying where you are</summary><div class="body">
@@ -1021,6 +1028,20 @@
       </div></details>
       <p class="note">Speech recognition runs on the device, which is why it keeps working with no signal. A production build loads your part codes as a boosted vocabulary so codes and contractor names are recognised first time.</p>
     </div>
+
+    <div class="setuphdr">Moving counts about</div>
+    <div class="panel">
+      <header><h2>Moving counts between devices</h2><span class="hint">A stop-gap until there is a shared back end</span></header>
+      <p class="note" id="shareWhy"></p>
+      <div class="bar">
+        <span class="sp" id="shareNote"></span>
+        <button class="btn" id="expJob">Export job</button>
+        <button class="btn dark" id="impJobBtn">Import job</button>
+        <input type="file" id="jobFile" accept=".json,application/json,.txt" class="hidden">
+      </div>
+      <p class="note" id="shareMsg"></p>
+    </div>
+
   </section>
 </div>
 
@@ -1580,7 +1601,7 @@ const CATALOGUES = {
 function seedSessions(){ return []; }
 
 /* Jobs are not counts — a count has to belong to one, so there are three to
-   start with and they can be renamed or replaced on the Data tab. */
+   start with and they can be renamed or replaced on the Setup tab. */
 function seedJobs(){
   return [
     {id:'j-nbi-me',    name:'NBI stocktake — month end',  kind:'Month end', cat:'fibre', due:'2026-09-30', target:12},
@@ -2958,7 +2979,7 @@ function spokenFor(r){
   return best || al[0] || r.desc || r.code;
 }
 /* every "Spoken as" phrase the owner typed, plus the description as a fallback —
-   adding a word on the Data tab has to improve recognition on the next session */
+   adding a word on the Setup tab has to improve recognition on the next session */
 function spokenAll(r, cat){
   const out = [];
   let al = r.alias;
@@ -4422,7 +4443,7 @@ function handle(text){
     return;
   }
   if(p.kind==='noitem'){
-    say('Didn’t catch the item','I heard the quantity but not the product. Try the short description, or add it in the Data tab.',true);
+    say('Didn’t catch the item','I heard the quantity but not the product. Try the short description, or add it in the Setup tab.',true);
     speak('I got the quantity but not the item. Say it again.'); return;
   }
   if(p.kind==='unclear' || p.kind==='none'){
@@ -4473,7 +4494,7 @@ function writeLine(it, qty, unit, drumId, text){
   speak(spoken);
 
   renderSpots(); renderTally(); refreshWhere();
-  if(!$('v-sheet').classList.contains('hidden')) renderSheet();
+  if(MODE==='sheet' && !$('v-count').classList.contains('hidden')) renderSheet();
   renderJobLocs();
   return line;
 }
@@ -4490,7 +4511,7 @@ function goLoc(label){
   const cat=$('fCat').value, org=$('fOrg').value;
   const m = matchLoc(cat, org, label);
   if(m.none){
-    say('No location list yet','Upload one for this contractor on the Data tab, then the location can be spoken.',true);
+    say('No location list yet','Upload one for this contractor on the Setup tab, then the location can be spoken.',true);
     speak('There is no location list for this contractor.');
     return;
   }
@@ -4524,7 +4545,7 @@ function goLoc(label){
     speak('Which one? '+list.map((c,i)=>(i+1)+', '+c.label).join('. ')+'.');
     return;
   }
-  say('“'+label+'” is not on the location list', 'Nothing close to it. Say it again, or pick from the list — locations can only be added on the Data tab.',true);
+  say('“'+label+'” is not on the location list', 'Nothing close to it. Say it again, or pick from the list — locations can only be added on the Setup tab.',true);
   speak(label+' is not on the location list.');
 }
 
@@ -4614,7 +4635,7 @@ function restoreLine(){
 }
 function afterLineChange(){
   renderSpots(); renderTally(); refreshWhere(); renderRecent(); renderMgr();
-  if(!$('v-sheet').classList.contains('hidden')) renderSheet();
+  if(MODE==='sheet' && !$('v-count').classList.contains('hidden')) renderSheet();
   renderJobLocs();
 }
 
@@ -6233,7 +6254,7 @@ function renderJobLocs(){
     $('locProg').textContent='';
     $('locSearch').parentElement.classList.add('hidden');
     $('locRows').innerHTML = '<div class="locmore">No location register for '+esc(viewLabel())
-      + ' yet. Import one on the Data tab and every location in this job shows up here with its status.</div>';
+      + ' yet. Import one on the Setup tab and every location in this job shows up here with its status.</div>';
     return;
   }
   $('locSearch').parentElement.classList.remove('hidden');
@@ -6313,7 +6334,7 @@ function renderPickMenu(){
   const {list, other, total} = pickList(term);
   if(!total){
     menu.innerHTML = '<div class="none">No '+esc(PL(PTYPE).label.toLowerCase())+' on the register for this contractor yet. '
-      + 'Type the name and it will be used as-is, or import a register in the Data tab.</div>';
+      + 'Type the name and it will be used as-is, or import a register in the Setup tab.</div>';
   } else if(!list.length){
     menu.innerHTML = '<div class="none">No '+esc(PL(PTYPE).label.toLowerCase())+' matches “'+esc(term)+'”. Type it in full to add it.</div>';
   } else {
@@ -6636,7 +6657,7 @@ function renderLocField(){
     LOC=''; LOCDA='';
     inp.value=''; inp.disabled=true;
     inp.placeholder='No location list for this contractor';
-    hint.textContent='Upload one on the Data tab'; hint.className='lochint bad';
+    hint.textContent='Upload one on the Setup tab'; hint.className='lochint bad';
   }else{
     inp.disabled=false;
     inp.placeholder='Search '+list.length+' locations…';
@@ -7871,7 +7892,7 @@ function renderCatalogueSheet(){
     return (it.short+' '+it.long+' '+it.code+' '+groupOf(it)).toLowerCase().includes(q);
   });
   if(!rows.length){
-    tbl.innerHTML = '<tbody><tr><td class="empty">'+(q? 'Nothing matches “'+esc(SHEET_Q)+'”.' : 'No items in this catalogue yet — import an item master on the Data tab.')+'</td></tr></tbody>';
+    tbl.innerHTML = '<tbody><tr><td class="empty">'+(q? 'Nothing matches “'+esc(SHEET_Q)+'”.' : 'No items in this catalogue yet — import an item master on the Setup tab.')+'</td></tr></tbody>';
     return;
   }
   const byGroup={};
@@ -7983,8 +8004,8 @@ function renderHistory(){
   const list = closedJobs();
   if(!list.length){
     el.className='';
-    el.innerHTML = '<p class="note">No closed stocktakes yet. Close a counting job on the Count tab and it is frozen here — '
-      + 'the numbers exactly as they stood that day, whatever happens to prices or counts afterwards.</p>';
+    el.innerHTML = '<p class="note">No stocktakes closed yet. Close a counting job on the Count tab and it '
+      + 'appears here, frozen as of that day, for as long as you need it.</p>';
     $('histDetail').innerHTML=''; return;
   }
   el.className='joblist';
@@ -8168,7 +8189,7 @@ function csv(){
     u.qty += b;
     if(uv==null) u.unpriced = true; else u.value += b*uv;
   }
-  /* the same breakdown the Rollup tab shows, one row per base unit so the
+  /* the same breakdown the Results tab shows, one row per base unit so the
      quantity and value columns both stay addable in Excel */
   rows.push([]);
   rows.push(['Stock value by product group']);
@@ -8344,20 +8365,35 @@ function fillOrgs(keepPlace){
   fillJobs(); fillPlaces();
   syncPlaceUI(); applyBrand(); renderSpots(); renderCat(); renderRecent();
 }
+/* Four tabs: Count · Results · Stocktakes · Setup. The ids are the old ones —
+   mgr, hist, cat — because renaming a hundred call sites to match a label is
+   churn, and the label is the thing the counter reads. */
 function showTab(which){
-  for(const [t,v] of [['t-count','v-count'],['t-sheet','v-sheet'],['t-mgr','v-mgr'],['t-hist','v-hist'],['t-cat','v-cat']]){
+  for(const [t,v] of [['t-count','v-count'],['t-mgr','v-mgr'],['t-hist','v-hist'],['t-cat','v-cat']]){
     const on = t==='t-'+which;
     $(t).setAttribute('aria-selected', on?'true':'false');
     $(v).classList.toggle('hidden', !on);
   }
   $('band').classList.toggle('hidden', which!=='count');
-  /* the tap should not be the moment we start dialling — see warmAgent() */
-  if(which==='count'){ renderJobLocs(); warmAgent(); }
-  if(which==='sheet') renderSheet();
-  if(which==='mgr'){ if(!MGF.set){ mgDefaults(); MGF.set = true; } renderMgr(); }
+  if(which==='count'){ warmAgent(); showMode(MODE); }
+  if(which==='mgr'){ if(!MGF.set){ mgDefaults(); MGF.set = true; } renderJobLocs(); renderMgr(); }
   if(which==='hist') renderHistory();
   if(which==='cat'){ renderCat(); renderOrgBox(); renderBrands(); renderJobsAdmin(); renderPlaceAdmin(); renderTypeAdmin(); renderShare(); renderAccess(); }
 }
+/* Voice or Sheet — two ways into the same location's lines, not two jobs. The
+   sheet was a tab of its own, which made it look like one. */
+let MODE = 'voice';
+function showMode(which){
+  MODE = (which==='sheet') ? 'sheet' : 'voice';
+  $('m-voice').setAttribute('aria-selected', MODE==='voice' ? 'true':'false');
+  $('m-sheet').setAttribute('aria-selected', MODE==='sheet' ? 'true':'false');
+  $('mode-voice').classList.toggle('hidden', MODE!=='voice');
+  $('mode-sheet').classList.toggle('hidden', MODE!=='sheet');
+  if(MODE==='sheet') renderSheet();
+}
+/* the sheet is a mode of Count now, so anything that used to send you to its
+   own tab sends you here instead */
+function showSheet(){ showTab('count'); showMode('sheet'); }
 /* Every filter redraws the whole Rollup — the tables and the line that says what
    they are of have to move together or the number is read out of context. */
 ['mgJob','mgDate','mgWhere','mgPlace'].forEach(id=>{
@@ -8492,8 +8528,9 @@ $('jAdd').onclick = e => withFeedback(e.currentTarget, ()=>{
 }, 'Job added');
 $('t-count').onclick=()=>showTab('count');
 $('t-mgr').onclick=()=>showTab('mgr');
-$('t-sheet').onclick=()=>showTab('sheet');
 $('t-hist').onclick=()=>showTab('hist');
+$('m-voice').onclick=()=>showMode('voice');
+$('m-sheet').onclick=()=>showMode('sheet');
 $('sheetSearch').oninput = e=>{ SHEET_Q=e.target.value; renderSheet(); };
 $('sheetOnly').onchange = e=>{ SHEET_ONLY=e.target.checked; renderSheet(); };
 $('sheetMic').onclick = ()=>{ if(listening||wantListen) stopListen(); else startListen(); syncSheetMic(); };

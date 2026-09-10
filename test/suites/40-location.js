@@ -9,16 +9,18 @@ module.exports = async function({ browser, H }){
   const p = await H.openApp(browser);
   const errs = p.errs;
 
-  /* the Count tab no longer carries the job locations list */
-  t('the job locations list is off the Count tab',
-     await p.evaluate(()=>document.querySelector('#v-count #jobLocs')===null && document.querySelector('#v-hist #jobLocs')!==null));
+  /* the job locations list lives on Results, not on Count and not on Stocktakes */
+  t('the job locations list is off the Count tab, and on Results',
+     await p.evaluate(()=>document.querySelector('#v-count #jobLocs')===null
+       && document.querySelector('#v-hist #jobLocs')===null
+       && document.querySelector('#v-mgr #jobLocs')!==null));
   t('Location sits above "Where are you counting?"', await p.evaluate(()=>{
       const f=$('locField'), segs=document.getElementById('segs');
       return !!(f && segs && (f.compareDocumentPosition(segs) & Node.DOCUMENT_POSITION_FOLLOWING));
   }));
   t('with no list, Location says so and counting is blocked', await p.evaluate(()=>{
       const org=activeOrg(); syncStartable();
-      return $('fLoc').disabled===true && /Data tab/.test($('locHint').textContent);
+      return $('fLoc').disabled===true && /Setup tab/.test($('locHint').textContent);
   }), await p.evaluate(()=>$('locHint').textContent));
 
   /* upload the KN Circet list */
