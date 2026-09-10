@@ -62,15 +62,24 @@ module.exports = async function({ browser, H }){
     btn: $('catNoGrp').textContent
   }));
   t('the master says how many items have no Product Group',
-     grp.none===69 && /69/.test(grp.said) && /no Product Group/.test(grp.said), JSON.stringify(grp));
+     grp.none===67 && /67/.test(grp.said) && /no Product Group/.test(grp.said), JSON.stringify(grp));
   t('the pub catalogue has none of them', grp.pubNone===0, String(grp.pubNone));
+  /* the two that are genuinely fibre-build material were placed; the 67 that are
+     Ceragon radio kit are held until NBI says which group they belong in */
+  t('the pillar and the toby box have a group now',
+     await p.evaluate(()=>groupOf(item('fibre','506PILLARUP31P600D300W'))==='08. Enclosures'
+       && groupOf(item('fibre','TOBYBOXUY1428LOGO'))==='10. Covers & Accessories'),
+     await p.evaluate(()=>groupOf(item('fibre','506PILLARUP31P600D300W'))+' / '+groupOf(item('fibre','TOBYBOXUY1428LOGO'))));
+  t('and every one still without a group is radio kit, not fibre',
+     await p.evaluate(()=>ungrouped('fibre').every(i=>/^(OUTDOORDC|IP-?[25]0|AM|SL|SFP|CBL|CAT5E|C13|DATA_|DP2DP|FIBERCLAMP|SOURCE_|ACPOE|TOBY)/i.test(i.code))),
+     await p.evaluate(()=>ungrouped('fibre').filter(i=>!/^(OUTDOORDC|IP-?[25]0|AM|SL|SFP|CBL|CAT5E|C13|DATA_|DP2DP|FIBERCLAMP|SOURCE_|ACPOE|TOBY)/i.test(i.code)).map(i=>i.code).join(',')));
   await p.click('#catNoGrp'); await p.waitForTimeout(400);
   const only = await p.evaluate(()=>({
     rows: document.querySelectorAll('#tblCat tbody tr').length,
     allUnassigned: [...document.querySelectorAll('#tblCat tbody tr')].every(r=>/Unassigned/.test(r.textContent)),
     btn: $('catNoGrp').textContent
   }));
-  t('and puts them on screen in one tap', only.rows===69 && only.allUnassigned===true, JSON.stringify(only));
+  t('and puts them on screen in one tap', only.rows===67 && only.allUnassigned===true, JSON.stringify(only));
   t('with a way back', only.btn==='Show all items', only.btn);
   await p.click('#catNoGrp'); await p.waitForTimeout(400);
   t('which goes back to all of them',

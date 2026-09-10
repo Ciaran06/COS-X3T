@@ -87,11 +87,20 @@ change.
       live in `agent/tools.json`, the prompt in `agent/system-prompt.md`, and
       `agent/build-overrides.js` writes both into `index.html` between markers — **never edit that
       block by hand**; `05-generated` fails when it has drifted.
+    - **Push to talk is the default, and it is a billing decision.** A Vapi call bills for every
+      minute it is connected, whether anybody is speaking into it or not, so a mic left open in a
+      pocket is money. In push mode the call ends after **ten seconds** of silence (`pttPoke()`,
+      `PTT_IDLE_MS`) and the next tap redials: a counter mid-flow speaks again inside ten seconds so
+      a burst stays live, and one who walks to the next shelf stops paying. **Continuous** keeps the
+      old behaviour and is what the sheet walk-through wants, because there the app reads a row and
+      the counter answers. The clock is poked by anything that means somebody is still counting — a
+      tap, a line heard, a readback finishing — and never armed in continuous mode.
     - **Pre-connect.** Joining a Vapi call takes a second or two, and doing that on the mic tap is
       a second or two of the counter standing there. Opening the Count tab connects the call with
       the microphone muted and the first-message mode overridden to *wait for the user*; the tap
       only unmutes. A connected call is billed by the minute whether anyone speaks into it or not,
-      so an unused one is dropped after `VAPI_WARM_IDLE_MS`. See `warmAgent()`.
+      so an unused one is dropped after `warmIdleMs()` — **30 seconds in push mode**, two minutes in
+      continuous. See `warmAgent()`.
   - **The tools are the only way the agent can touch data.** `AGENT_TOOLS` — `find_item`,
     `record_count`, `undo_last`, `set_location`, `read_total`, `pause`, `resume`, and in review
     `next_line`, `confirm_line`, `correct_line`, `jump_to`. The agent never matches an item, never

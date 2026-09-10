@@ -140,6 +140,59 @@ module.exports = async function({ browser, H }){
   await p.click('#t-cat'); await p.waitForTimeout(500);
   await p.evaluate(()=>$('voicePanel').scrollIntoView()); await p.waitForTimeout(300);
   await p.screenshot({ path: shot('b3-diag.png') });
+  /* ── push to talk is the default, because a connected call bills ── */
+  t('push to talk is what a fresh app does', await p.evaluate(()=>talkMode())==='push',
+     await p.evaluate(()=>talkMode()));
+  t('and the pre-connect is short in that mode, because it bills too',
+     await p.evaluate(()=>warmIdleMs())===30000, String(await p.evaluate(()=>warmIdleMs())));
+  const ptt = await p.evaluate(async ()=>{
+    const real = PTT_IDLE_MS;
+    window.__stopped = 0;
+    const keep = window.stopListen;
+    window.stopListen = function(){ window.__stopped++; return keep.apply(this, arguments); };
+    wantListen = true; PAUSED = false; VOICE.busy = false; setTurn('open');
+    pttPoke();
+    const armed = !!pttTimer;
+    /* a line heard restarts the clock rather than letting it run out */
+    await new Promise(r=>setTimeout(r, 60));
+    onHeardFinal('ten pole steps');
+    await new Promise(r=>setTimeout(r, 2600));
+    const afterLine = window.__stopped;
+    window.stopListen = keep;
+    return {armed, afterLine, idle:real};
+  });
+  t('the idle clock is armed the moment listening starts', ptt.armed===true, JSON.stringify(ptt));
+  t('and ten seconds is the window', ptt.idle===10000, String(ptt.idle));
+  t('a line heard restarts it rather than letting it run out', ptt.afterLine===0, JSON.stringify(ptt));
+
+  const closes = await p.evaluate(async ()=>{
+    /* the same clock with the window wound right down, so the suite does not
+       have to sit through ten seconds to prove it fires */
+    let fired = 0;
+    const keep = window.stopListen;
+    window.stopListen = function(){ fired++; return keep.apply(this, arguments); };
+    wantListen = true; PAUSED = false; VOICE.busy = false; setTurn('open');
+    clearTimeout(pttTimer);
+    pttTimer = setTimeout(()=>{ if(wantListen && !VOICE.busy) stopListen(); }, 120);
+    await new Promise(r=>setTimeout(r, 400));
+    window.stopListen = keep;
+    return {fired, wantListen};
+  });
+  t('and when nothing is said the session ends rather than billing on',
+     closes.fired===1 && closes.wantListen===false, JSON.stringify(closes));
+
+  const cont = await p.evaluate(()=>{
+    S.voice = S.voice || {}; S.voice.talk = 'continuous'; save();
+    wantListen = true; clearTimeout(pttTimer); pttTimer = null;
+    pttPoke();
+    const armed = !!pttTimer;
+    const warm = warmIdleMs();
+    S.voice.talk = 'push'; save();
+    return {armed, warm};
+  });
+  t('continuous mode never arms the clock — it is for the sheet walk',
+     cont.armed===false && cont.warm===120000, JSON.stringify(cont));
+
   const out = R.report('voice — turn taking, pause, undo and never guessing', errs);
   await p.ctx.close();
   return out;
