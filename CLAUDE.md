@@ -628,6 +628,13 @@ change.
 
 Roughly in order. Items 1–3 are the ones that turn this from a demo into something sellable.
 
+0. **`docs/backend-plan.md` is the plan for items 1 and 2 below**, written 10 Sep 2026 and **not yet
+   approved**: Supabase and why not Firebase, what moves off the phone, cost at 5 contractors and
+   50 users, a numbered setup list, how today's per-phone data migrates, and six batches. Two
+   modelling decisions in it are deliberately left open — whether locations stay organisation-wide
+   or become book-scoped, and who issues the item master for a book shared with NBI. **Do not build
+   any of it until Ciarán says so.**
+
 1. **Split the file and add a real backend.** Suggested: a small API (Node/Fastify or Python/FastAPI)
    with Postgres, and the front end as a PWA. The data model is already implicit in the prototype:
    `customers`, `locations` (with `spots`), `items`, `jobs`, `sessions`, `lines`, `clips`, `users`.
@@ -685,6 +692,18 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
   groups.
 - `nbi-items-ambiguous-sample.csv` — deliberately ambiguous items for testing disambiguation:
   two coach screws differing only by a number, and 12 Fibre UG vs OH.
+
+## Documents
+
+`docs/` carries the things that are not code:
+
+- `backend-plan.md` — accounts, books and sharing: the plan for the shared back end. A plan, not a
+  build. Nothing in it exists.
+- `items-without-a-product-group.csv` — the 69 fibre items still unclassified, for the office.
+- `iterating.md` — how to drive changes to this repo, for somebody who has not used Claude Code.
+
+(An earlier draft of this file promised a `commercial-note.html` here. There is no such file and
+there never was in this repo — the business case lives outside it.)
 
 ## Testing
 
