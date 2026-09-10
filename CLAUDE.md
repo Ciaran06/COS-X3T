@@ -586,6 +586,31 @@ change.
 
 - Irish spelling and en-IE formatting throughout (`metre`, `colour`, `toLocaleString('en-IE')`).
 - Copy is written in the customer's language, not the system's: "vehicle", "yard", "spot", "counter".
+- **The account — Batch A of the back end, and only Batch A.** Signed out, the app is exactly what
+  it was: it counts, and everything is on the phone. Signed in, it knows which organisation you are
+  in and which **books** you can see, and the item master and locations come from the book you are
+  counting rather than from the page. **No count is written to the server yet** — that is Batch B.
+  - **`supabase/schema.sql` and `supabase/policies.sql`** are the database. `supabase/README.md` is
+    the twenty-minute setup. The schema encodes two decisions: locations are **organisation-wide**
+    with a `private_to_book` exception, and a book counts against **one master**, which a
+    contractor owns for its own stock and NBI owns for a book shared with NBI.
+  - **Row level security is the whole reason for choosing Postgres.** `can_see_book()`,
+    `can_count_in()` and `can_admin_book()` turn a row in `grants` into the rule the database
+    enforces. The app never decides what you may see — it asks, and the answer is the same
+    whichever screen asked. **Nothing in the test suite can prove this**: the transport is stubbed
+    and the policies live in the database. They are proved by running them, on two phones.
+  - **The project URL and anon key sit on Setup, not in the source** — a different customer is a
+    different project. The anon key is publishable by design and grants nothing on its own; the
+    `service_role` key must never come near the page.
+  - **Sign-in is email plus a six-digit code**, not a magic link — a link assumes a working email
+    client on the phone in your hand. The session is kept on the device (`trucount.auth`), so a
+    counter signs in once, not every morning.
+  - **The server's copy wins, but a hand edit still layers on top.** `items()` prefers
+    `CLOUD.items` over the built-in catalogue and `S.custom` still overrides both, so a phone that
+    fixed a description keeps the fix. Signing out gives the built-in catalogue back rather than
+    leaving the counter with nothing.
+  - **A refused query says so.** A permission error puts its message on the Account panel; it never
+    quietly empties the master, which would look like a catalogue with two items in it.
 - **The app opens empty. No count line is ever seeded.** The first number in it is one somebody
   said out loud. It used to open with four example stocktakes so Results had something in it;
   they were written into `localStorage` on the first load and then lived there for good, which is
@@ -710,6 +735,9 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
   build. Nothing in it exists.
 - `items-without-a-product-group.csv` — the 69 fibre items still unclassified, for the office.
 - `iterating.md` — how to drive changes to this repo, for somebody who has not used Claude Code.
+
+`supabase/` carries the database: `schema.sql`, `policies.sql`, and a `README.md` that is the
+setup, step by step. Batch A only.
 
 (An earlier draft of this file promised a `commercial-note.html` here. There is no such file and
 there never was in this repo — the business case lives outside it.)

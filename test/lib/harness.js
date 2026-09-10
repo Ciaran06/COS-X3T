@@ -46,6 +46,52 @@ const VAPI_STUB = `
     this.stop = async ()=>{ window.__vapi.stopped++; self.emit('call-end'); };
   };
   window.__vapiLoaded = true;
+
+  /* Supabase, stubbed at the transport the same way Vapi is. It holds tables
+     in memory and answers the handful of query shapes the app builds, so the
+     account code above it is the app's own. What it cannot test is the row
+     level security, which lives in the database — policies.sql is checked by
+     running it, on two phones. */
+  window.__sbData = {profiles:[], orgs:[], books:[], items:[], locations:[]};
+  window.__sb = {sent:[], verified:[], signedOut:0, session:null, queries:[]};
+  window.supabase = { createClient: function(url, key, opts){
+    window.__sb.url = url; window.__sb.key = key; window.__sb.opts = opts;
+    const rows = t => (window.__sbData[t]||[]).slice();
+    function q(table){
+      let out = rows(table), one = false;
+      const api = {
+        select(){ return api; },
+        eq(col, val){ out = out.filter(r=>String(r[col])===String(val)); return api; },
+        in(col, vals){ out = out.filter(r=>vals.map(String).includes(String(r[col]))); return api; },
+        order(){ return api; },
+        limit(n){ out = out.slice(0,n); return api; },
+        maybeSingle(){ one = true; return api; },
+        single(){ one = true; return api; },
+        then(res){
+          window.__sb.queries.push(table);
+          const err = window.__sbFail && window.__sbFail[table]
+                    ? {message: window.__sbFail[table]} : null;
+          return Promise.resolve(res({data: err ? null : (one ? (out[0]||null) : out), error: err}));
+        }
+      };
+      return api;
+    }
+    return {
+      from: q,
+      auth: {
+        signInWithOtp: async o => { window.__sb.sent.push(o.email); return {data:{}, error:null}; },
+        verifyOtp: async o => {
+          window.__sb.verified.push(o);
+          if(String(o.token) !== '123456') return {data:null, error:{message:'Token has expired or is invalid'}};
+          const u = {id:'u-1', email:o.email};
+          window.__sb.session = {user:u};
+          return {data:{user:u, session:{user:u}}, error:null};
+        },
+        getSession: async () => ({data:{session: window.__sb.session}, error:null}),
+        signOut: async () => { window.__sb.signedOut++; window.__sb.session=null; return {error:null}; }
+      }
+    };
+  }};
 `;
 async function ensureVendor(){
   fs.mkdirSync(CACHE, { recursive: true });

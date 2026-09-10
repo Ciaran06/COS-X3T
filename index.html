@@ -869,6 +869,16 @@
   <section id="v-cat" class="hidden mgr">
 
     <div class="setuphdr">Who is using this</div>
+
+    <div class="panel" id="acctPanel">
+      <header><h2>Account</h2><span class="hint">Sign in and the item master and locations come from your organisation, not from this phone</span></header>
+      <div id="acctBox"></div>
+      <div class="catgrid" id="acctCfg">
+        <div class="field full"><label for="cbUrl">Supabase project URL</label><input id="cbUrl" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" spellcheck="false"></div>
+        <div class="field full"><label for="cbKey">Anon key</label><input id="cbKey" placeholder="the publishable anon key — never the service_role one" autocomplete="off" spellcheck="false"></div>
+      </div>
+      <div class="bar"><span class="sp" id="acctNote"></span><button class="btn dark" id="cbSave">Save</button></div>
+    </div>
     <div class="panel">
       <header><h2>Access</h2><span class="hint">Who is using this device, and what they can see</span></header>
       <div class="catgrid">
@@ -1065,6 +1075,10 @@
   window.__vapiLoaded = true;
   window.dispatchEvent(new Event('vapi-ready'));
 </script>
+<!-- Supabase. The UMD build defines window.supabase, so it drops into a page
+     with no build step; async, so it cannot hold up the boot. Nothing needs it
+     until somebody signs in, and the app counts perfectly well signed out. -->
+<script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <script>
 /* ============================================================
    TruCount — voice stocktake
@@ -1614,6 +1628,157 @@ function jobs(){ return (S.jobs && S.jobs.length) ? S.jobs : seedJobs(); }
 function job(id){ return jobs().find(j=>j.id===id) || null; }
 function jobName(id){ const j=job(id); return j? j.name : 'Unassigned'; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   The account — Batch A.
+
+   Sign in, find out which organisation you are in and which books you can
+   see, and pull that book's item master and location list. Counting is still
+   entirely local: nothing here writes a line, and the app works signed out
+   exactly as it did before. Batch B is what makes counts sync.
+
+   The project URL and the anon key are publishable — the anon key is the one
+   Supabase puts in your front end, and every table is behind row level
+   security, so it grants nothing on its own. They sit on Setup beside the
+   Vapi key rather than in the source, because a different customer means a
+   different project.
+   ══════════════════════════════════════════════════════════════════════ */
+let CLOUD = {sb:null, on:false, user:null, profile:null, org:null,
+             books:[], book:null, items:null, locs:null, note:'', busy:false, sent:''};
+function cloudCfg(){ S.cloud = S.cloud || {url:'', key:''}; return S.cloud; }
+function cloudReady(){ return !!(window.supabase && cloudCfg().url && cloudCfg().key); }
+/* one client per configuration, made on demand */
+function sb(){
+  if(CLOUD.sb) return CLOUD.sb;
+  if(!cloudReady()) return null;
+  try{
+    CLOUD.sb = window.supabase.createClient(cloudCfg().url, cloudCfg().key,
+      {auth:{persistSession:true, autoRefreshToken:true, storage:window.localStorage,
+             storageKey:'trucount.auth'}});
+  }catch(e){ CLOUD.sb = null; CLOUD.note = 'could not start — '+String(e&&e.message||e); }
+  return CLOUD.sb;
+}
+/* This device, named once and kept. Every line will carry it from Batch B on;
+   it is here now so a phone has an identity before it has counts to stamp. */
+function deviceId(){
+  if(!S.device) { S.device = 'd'+Math.random().toString(36).slice(2,10); save(); }
+  return S.device;
+}
+
+/* ---- sending and checking the code ---- */
+async function cloudSendCode(email){
+  const c = sb(); if(!c) throw new Error('no project configured');
+  const to = String(email||'').trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) throw new Error('that does not look like an email address');
+  const {error} = await c.auth.signInWithOtp({email:to, options:{shouldCreateUser:false}});
+  if(error) throw new Error(error.message);
+  CLOUD.sent = to; CLOUD.note = 'Code sent to '+to;
+  renderAccount();
+  return true;
+}
+async function cloudVerify(code){
+  const c = sb(); if(!c) throw new Error('no project configured');
+  const token = String(code||'').replace(/\D/g,'');
+  if(token.length < 6) throw new Error('the code is six digits');
+  const {data, error} = await c.auth.verifyOtp({email:CLOUD.sent, token, type:'email'});
+  if(error) throw new Error(error.message);
+  await cloudSignedIn(data && data.user);
+  return true;
+}
+async function cloudSignOut(){
+  const c = sb();
+  if(c){ try{ await c.auth.signOut(); }catch(e){} }
+  CLOUD.on=false; CLOUD.user=null; CLOUD.profile=null; CLOUD.org=null;
+  CLOUD.books=[]; CLOUD.book=null; CLOUD.items=null; CLOUD.locs=null;
+  CLOUD.note='Signed out'; CLOUD.sent='';
+  afterCloudChange();
+}
+
+/* ---- what the signed-in user can see ---- */
+async function cloudSignedIn(user){
+  const c = sb(); if(!c || !user) return false;
+  CLOUD.user = user; CLOUD.on = true; CLOUD.note = '';
+  const {data:prof, error:pe} = await c.from('profiles')
+    .select('id,name,role,org_id,orgs(id,name)').eq('id', user.id).maybeSingle();
+  if(pe) { CLOUD.note = 'signed in, but the profile would not load — '+pe.message; renderAccount(); return false; }
+  if(!prof){ CLOUD.note = 'signed in, but this account is not in an organisation yet'; renderAccount(); return false; }
+  CLOUD.profile = prof;
+  CLOUD.org = prof.orgs || {id:prof.org_id, name:''};
+  await cloudLoadBooks();
+  return true;
+}
+/* Every book this login can see: its own organisation's, and anything shared
+   with it. RLS decides — the query asks for all of them and gets what it is
+   allowed. */
+async function cloudLoadBooks(){
+  const c = sb(); if(!c) return [];
+  const {data, error} = await c.from('books')
+    .select('id,name,catalogue,org_id,master_id,orgs(name)').order('name');
+  if(error){ CLOUD.note = 'books would not load — '+error.message; renderAccount(); return []; }
+  CLOUD.books = (data||[]).map(b=>({id:b.id, name:b.name, catalogue:b.catalogue||'fibre',
+      orgId:b.org_id, masterId:b.master_id, orgName:(b.orgs&&b.orgs.name)||'',
+      mine: b.org_id === (CLOUD.profile&&CLOUD.profile.org_id)}));
+  const want = S.book && CLOUD.books.find(b=>b.id===S.book);
+  await cloudUseBook((want || CLOUD.books[0] || null));
+  return CLOUD.books;
+}
+async function cloudUseBook(book){
+  CLOUD.book = book || null;
+  S.book = book ? book.id : ''; save();
+  CLOUD.items = null; CLOUD.locs = null;
+  if(book) await cloudPull();
+  afterCloudChange();
+}
+/* The master the book counts against, and the organisation's locations. The
+   master may belong to somebody else — that is the point of a shared book. */
+async function cloudPull(){
+  const c = sb(), b = CLOUD.book;
+  if(!c || !b) return false;
+  CLOUD.busy = true; renderAccount();
+  try{
+    const cat = b.catalogue || 'fibre';
+    if(b.masterId){
+      const {data, error} = await c.from('items')
+        .select('code,short,long,group_name,unit,pack,pack_name,alias,price,expected,is_drum')
+        .eq('master_id', b.masterId);
+      if(error) throw new Error(error.message);
+      CLOUD.items = {}; CLOUD.items[cat] = (data||[]).map(r=>({
+        code:r.code, short:r.short||r.code, long:r.long||r.short||r.code,
+        group:r.group_name||undefined, unit:r.unit||'each',
+        pack:Number(r.pack)||1, packName:r.pack_name||undefined,
+        alias:r.alias||'', price:(r.price==null? undefined : Number(r.price)),
+        drum:!!r.is_drum}));
+    }
+    const {data:locs, error:le} = await c.from('locations')
+      .select('name,da,alias,org_id,orgs(name)').order('name');
+    if(le) throw new Error(le.message);
+    CLOUD.locs = {}; CLOUD.locs[cat] = (locs||[]).map(l=>({
+      name:l.name, da:l.da||'', alias:l.alias||'', org:(l.orgs&&l.orgs.name)||''}));
+    CLOUD.note = '';
+    return true;
+  }catch(e){
+    CLOUD.note = 'could not load this book — '+String(e&&e.message||e);
+    return false;
+  }finally{ CLOUD.busy = false; }
+}
+/* everything that has to redraw when the account or the book changes */
+function afterCloudChange(){
+  try{
+    renderAccount();
+    fillOrgs(true); renderCat(); renderLocField(); renderLocAdmin(); renderLocTable();
+    renderJobLocs(); renderMgr(); renderKeyterms(); syncStartable();
+  }catch(e){}
+}
+/* Pick up a session left by a previous visit, so a counter signs in once. */
+async function cloudResume(){
+  const c = sb(); if(!c) return false;
+  try{
+    const {data} = await c.auth.getSession();
+    if(data && data.session && data.session.user) return await cloudSignedIn(data.session.user);
+  }catch(e){}
+  renderAccount();
+  return false;
+}
+
 /* ---------- state ---------- */
 let S = load();
 /* A phone that opened this app before the example counts were dropped still
@@ -1663,7 +1828,10 @@ function mergeAlias(a, b){
 }
 function items(cat){
   const own  = (S.custom && S.custom[cat]) || [];
-  const base = (S.hideBuiltin && S.hideBuiltin[cat]) ? [] : CATALOGUES[cat].items;
+  /* Signed in, the master comes from the book you are counting. Hand edits
+     still layer on top, so a phone that fixed a description keeps the fix. */
+  const base = (CLOUD.items && CLOUD.items[cat]) ? CLOUD.items[cat]
+             : (S.hideBuiltin && S.hideBuiltin[cat]) ? [] : CATALOGUES[cat].items;
   const gone = deletedSet(cat);
   const ov   = new Map(own.map(i=>[i.code, i]));
   const seen = new Set();
@@ -2464,7 +2632,7 @@ function matchPlace(cat, org, label){
    ══════════════════════════════════════════════════════════════════════ */
 let LOC = '', LOCDA = '';
 function locsFor(cat, org){
-  const reg = (S.locs && S.locs[cat]) || [];
+  const reg = (CLOUD.locs && CLOUD.locs[cat]) || (S.locs && S.locs[cat]) || [];
   if(!reg.length) return [];
   /* No falling back to somebody else's list, the way the place register does:
      these lists are per contractor and showing KN Circet's towns to TLI would
@@ -8705,6 +8873,62 @@ refreshWhere();
 if(window.speechSynthesis) window.speechSynthesis.getVoices();
 
 /* ---------- voice engine settings ---------- */
+/* ---------- the Account panel ---------- */
+function renderAccount(){
+  const box = $('acctBox'); if(!box) return;
+  const n = $('acctNote');
+  if(n) n.textContent = CLOUD.note || (cloudReady() ? '' : 'Paste the project URL and anon key to sign in. Counting works without them.');
+  const cfg = $('acctCfg');
+  if(cfg) cfg.classList.toggle('hidden', CLOUD.on);
+  if(!cloudReady()){
+    box.innerHTML = '<p class="note">'+(window.supabase? 'No project set yet.'
+      : 'The Supabase client has not loaded — check the phone had signal on this page once.')
+      + ' Everything counts locally in the meantime, exactly as it does today.</p>';
+    return;
+  }
+  if(!CLOUD.on){
+    box.innerHTML = '<div class="catgrid">'
+      + '<div class="field full"><label for="cbEmail">Email</label><input id="cbEmail" type="email" placeholder="you@company.ie" autocomplete="username" value="'+esc(CLOUD.sent||'')+'"></div>'
+      + (CLOUD.sent
+         ? '<div class="field full"><label for="cbCode">Six-digit code</label><input id="cbCode" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div>'
+         : '')
+      + '</div><div class="bar"><span class="sp">'
+      + (CLOUD.sent? 'Check your email. The code lasts an hour.' : 'We send a six-digit code — no password to forget on a van phone.')
+      + '</span>'
+      + (CLOUD.sent? '<button class="btn" id="cbAgain">Send again</button><button class="btn dark" id="cbGo">Sign in</button>'
+                   : '<button class="btn dark" id="cbSend">Send me a code</button>')
+      + '</div>';
+    const send = $('cbSend'); if(send) send.onclick = e=>withFeedback(e.currentTarget, ()=>cloudSendCode($('cbEmail').value), 'Sent');
+    const again = $('cbAgain'); if(again) again.onclick = e=>withFeedback(e.currentTarget, ()=>cloudSendCode(CLOUD.sent), 'Sent');
+    const go = $('cbGo'); if(go) go.onclick = e=>withFeedback(e.currentTarget, ()=>cloudVerify($('cbCode').value), 'Signed in');
+    return;
+  }
+  const p = CLOUD.profile || {};
+  const mine = CLOUD.books.filter(b=>b.mine), shared = CLOUD.books.filter(b=>!b.mine);
+  const opt = b => '<option value="'+esc(b.id)+'"'+(CLOUD.book&&CLOUD.book.id===b.id?' selected':'')+'>'
+      + esc(b.name)+(b.mine? '' : ' — '+esc(b.orgName||'shared'))+'</option>';
+  box.innerHTML = '<div class="jrow"><span class="ji"><b>'+esc(p.name||CLOUD.user.email||'Signed in')+'</b>'
+      + '<small>'+esc((CLOUD.org&&CLOUD.org.name)||'no organisation')+' · '+esc(cap(p.role||'counter'))
+      + ' · this phone is '+esc(deviceId())+'</small></span>'
+      + '<button class="btn" id="cbOut">Sign out</button></div>'
+    + '<div class="catgrid"><div class="field full"><label for="cbBook">Book</label><select id="cbBook">'
+      + (mine.length? '<optgroup label="'+esc((CLOUD.org&&CLOUD.org.name)||'Ours')+'">'+mine.map(opt).join('')+'</optgroup>' : '')
+      + (shared.length? '<optgroup label="Shared with us">'+shared.map(opt).join('')+'</optgroup>' : '')
+      + (CLOUD.books.length? '' : '<option value="">No books yet</option>')
+      + '</select></div></div>'
+    + '<p class="note" style="margin:0">'
+      + (CLOUD.busy ? 'Loading…'
+        : CLOUD.book
+          ? esc(((CLOUD.items&&CLOUD.items[CLOUD.book.catalogue])||[]).length)+' items and '
+            + esc(((CLOUD.locs&&CLOUD.locs[CLOUD.book.catalogue])||[]).length)+' locations from '
+            + esc(CLOUD.book.mine? 'your organisation' : CLOUD.book.orgName+', shared with you')
+            + '. Counting still saves on this phone.'
+          : 'No book selected, so the item master on this phone is still the built-in one.')
+      + '</p>';
+  const out = $('cbOut'); if(out) out.onclick = e=>withFeedback(e.currentTarget, cloudSignOut, 'Signed out');
+  const bk = $('cbBook');
+  if(bk) bk.onchange = ()=>cloudUseBook(CLOUD.books.find(b=>b.id===bk.value)||null);
+}
 function fillVoiceBox(){
   const c = voiceCfg();
   if($('vProxy')) $('vProxy').value = c.proxy || '';
@@ -8784,6 +9008,27 @@ $('vlogExport').onclick = e => withFeedback(e.currentTarget, ()=>{
 }, 'Exported');
 fillVoiceBox();
 renderVlog();
+/* the account, if this phone has one — the client is loaded async, so it may
+   not be there on the first pass */
+function bootCloud(){
+  if($('cbUrl')) $('cbUrl').value = cloudCfg().url || '';
+  if($('cbKey')) $('cbKey').value = cloudCfg().key || '';
+  renderAccount();
+  if(cloudReady()) cloudResume();
+}
+$('cbSave').onclick = e => withFeedback(e.currentTarget, async ()=>{
+  const c = cloudCfg();
+  c.url = $('cbUrl').value.trim().replace(/\/+$/,'');
+  c.key = $('cbKey').value.trim();
+  save();
+  CLOUD.sb = null; CLOUD.note = '';
+  if(!cloudReady()){ renderAccount(); return false; }
+  await cloudResume(); renderAccount();
+  return true;
+}, 'Saved');
+bootCloud();
+if(!window.supabase) window.addEventListener('load', ()=>setTimeout(bootCloud, 300));
+
 probeVoice().then(voiceNote);
 /* the SDK is a deferred module, so it usually lands after this line */
 window.addEventListener('vapi-ready', ()=>{ probeVoice().then(voiceNote); });
