@@ -554,7 +554,17 @@ treat it as a specification of behaviour that must survive a rewrite.
 
 - Irish spelling and en-IE formatting throughout (`metre`, `colour`, `toLocaleString('en-IE')`).
 - Copy is written in the customer's language, not the system's: "vehicle", "yard", "spot", "counter".
-- The page must open in a working state with example data visible, never an empty shell.
+- **The app opens empty. No count line is ever seeded.** The first number in it is one somebody
+  said out loud. It used to open with four example stocktakes so the Rollup had something in it;
+  they were written into `localStorage` on the first load and then lived there for good, which is
+  how a phone ended up showing counts against demo item codes months after the demo items were
+  removed — Unassigned rows for FIB-48F and CONN-KIT that no filter could explain. **Example data
+  that persists is not a demo, it is a fake number in a real total.** `clearSeeds()` runs on the
+  way in and drops anything marked `example`, writing the cleaned state straight back; a count
+  somebody actually made is left alone even if the item it names has since been deleted from the
+  master, and a closed job is left alone because it is a frozen record. Everything that is *not* a
+  count still ships with something in it — the jobs, the item master, the place types, TLI's logo —
+  so the app is never an empty shell to look at.
 - **Blue and white, and the blue lives in one line.** `--brand` (currently `#1D5FD1`) is the only
   place TruCount's colour is written down; the header bar, the active tab, primary buttons, the mic
   and every accent are cut from it with `color-mix()`, so changing that one declaration reshades the
@@ -632,7 +642,11 @@ Roughly in order. Items 1–3 are the ones that turn this from a demo into somet
 - `NBI-item-master-fibre.xlsx` — **the fibre catalogue the app ships with**, plus the **Spoken
   rules** sheet those rules are built from. Baked into `CATALOGUES.fibre.items` as **388 rows,
   every one of them a real NBI part**, across 16 product groups. **No item carries a unit value**
-  and 69 have no product group, so the value columns read "—" and the estate rollup shows no money
+  and 69 have no product group — `docs/items-without-a-product-group.csv` is that list, and the
+  item master's **No Product Group** button puts them on screen in one tap. All but two of them are
+  Ceragon microwave-radio kit (IP-20/IP-50 radios, AM antennas, SFPs, SL-* licences) rather than
+  fibre-build material; the two that belong are `506PILLARUP31P600D300W` and `TOBYBOXUY1428LOGO`.
+  So the value columns read "—" and the estate rollup shows no money
   until the office fills the *Unit value* column in — which the item master editor and the importer
   both take. That is the honest position: the master we were given does not price anything.
 

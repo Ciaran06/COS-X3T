@@ -991,6 +991,7 @@
       </div>
       <div class="bar">
         <span class="sp" id="catCount"></span>
+        <button class="btn" id="catNoGrp">No Product Group</button>
         <button class="btn" id="catExport">Export to Excel</button>
         <button class="btn dark" id="catNew">Add item</button>
       </div>
@@ -1567,10 +1568,19 @@ const CATALOGUES = {
 };
 
 /* ---------- seed ---------- */
-const seedTs = Date.parse('2026-09-04T09:12:00Z');
-function L(cat,code,qty,unit,loc,drumId,ts){
-  return {id:'l'+Math.random().toString(36).slice(2,9), cat, code, qty, unit, loc, drumId:drumId||null, ts, raw:null};
-}
+/* No count lines are ever seeded. The app opens empty and the first number in
+   it is one somebody said out loud.
+
+   It used to open with four example stocktakes so the Rollup had something in
+   it. They were written into localStorage on the first load and then lived
+   there for good, which is how a phone ended up showing counts against demo
+   item codes months after the demo items themselves were removed — Unassigned
+   rows for FIB-48F and CONN-KIT that no filter could explain. Example data that
+   persists is not a demo, it is a fake number in a real total. */
+function seedSessions(){ return []; }
+
+/* Jobs are not counts — a count has to belong to one, so there are three to
+   start with and they can be renamed or replaced on the Data tab. */
 function seedJobs(){
   return [
     {id:'j-nbi-me',    name:'NBI stocktake — month end',  kind:'Month end', cat:'fibre', due:'2026-09-30', target:12},
@@ -1582,42 +1592,35 @@ function jobs(){ return (S.jobs && S.jobs.length) ? S.jobs : seedJobs(); }
 function job(id){ return jobs().find(j=>j.id===id) || null; }
 function jobName(id){ const j=job(id); return j? j.name : 'Unassigned'; }
 
-function seedSessions(){
-  return [
-    {id:'demo-tli-1', cat:'fibre', org:'TLI Group', ctype:'van', container:'12-G-12345', by:'Seán M', job:'j-nbi-me', started:seedTs, finished:seedTs+2.4e6, example:true, lines:[
-      L('fibre','500CABLEAER96F',3,'drum','',null,seedTs),
-      L('fibre','500CABLEAER96F',800,'metre','','ABCD1',seedTs+6e4),
-      L('fibre','500CABLEAER96F',350,'metre','','ABCD7',seedTs+9e4),
-      L('fibre','504DUCTSUB14101WAY',6,'km','',null,seedTs+1.5e5),
-      L('fibre','500POLESTEP',4,'case','',null,seedTs+1.8e5),
-      L('fibre','3FE49328CB',22,'each','',null,seedTs+2.4e5),
-      L('fibre','500CONPOLE9M',2,'each','',null,seedTs+3e5)]},
-    {id:'demo-tli-2', cat:'fibre', org:'TLI Group', ctype:'yard', container:'Back yard', by:'Marie D', job:'j-nbi-me', started:seedTs+2.9e6, finished:seedTs+3.4e6, example:true, lines:[
-      L('fibre','500CABLEAER96F',9,'drum','',null,seedTs+2.9e6),
-      L('fibre','500CABLEAER48F',4,'drum','',null,seedTs+2.95e6),
-      L('fibre','500CONPOLE9M',36,'each','',null,seedTs+3.0e6),
-      L('fibre','501COVERPYTHOND400',14,'each','',null,seedTs+3.1e6)]},
-    {id:'demo-knc-1', cat:'fibre', org:'KN Circet', ctype:'van', container:'202-C-8871', by:'Declan B', job:'j-nbi-me', started:seedTs+3.6e6, finished:seedTs+5.4e6, example:true, lines:[
-      L('fibre','500CABLEAER48F',2,'drum','',null,seedTs+3.6e6),
-      L('fibre','500CABLEAER48F',1250,'metre','','KN0043',seedTs+3.7e6),
-      L('fibre','3FE49328CB',14,'each','',null,seedTs+3.8e6),
-      L('fibre','500POLECOACHSCREW300',3,'case','',null,seedTs+3.9e6),
-      L('fibre','500ENCLOSURE1H',6,'each','',null,seedTs+4.0e6)]},
-    {id:'demo-powers-1', cat:'pub', org:'Powers', ctype:'store-in', container:'Main bar', by:'Pat', job:'j-powers-me', started:seedTs+7.2e6, finished:seedTs+8.1e6, example:true, lines:[
-      L('pub','COKE-330',20,'bottle','',null,seedTs+7.2e6),
-      L('pub','COKE-330',10,'bottle','',null,seedTs+7.25e6),
-      L('pub','SPRT-330',10,'bottle','',null,seedTs+7.3e6),
-      L('pub','COKE-330',10,'case','',null,seedTs+7.4e6),
-      L('pub','JAM-70',7,'bottle','',null,seedTs+7.5e6),
-      L('pub','HEIN-KEG',4,'keg','',null,seedTs+7.6e6),
-      L('pub','GUIN-KEG',6,'keg','',null,seedTs+7.7e6)]}
-  ];
-}
-
 /* ---------- state ---------- */
 let S = load();
+/* A phone that opened this app before the example counts were dropped still
+   carries them, so they are cleared on the way in. Only the seeded ones —
+   anything a person actually counted is theirs, even if the item it named has
+   since been deleted from the master. A closed job is left alone on purpose:
+   it is a frozen record and un-freezing one would be worse than the demo rows
+   inside it. */
+function clearSeeds(p){
+  let n = 0;
+  if(Array.isArray(p.sessions)){
+    const before = p.sessions.length;
+    p.sessions = p.sessions.filter(x=>!x.example);
+    n = before - p.sessions.length;
+  }
+  if(p.current && p.current.example){ p.current = null; n++; }
+  return n;
+}
 function load(){
-  try{ const raw = localStorage.getItem(LS); if(raw){ const p=JSON.parse(raw); if(p&&p.sessions) return p; } }catch(e){}
+  try{
+    const raw = localStorage.getItem(LS);
+    if(raw){
+      const p = JSON.parse(raw);
+      if(p && p.sessions){
+        if(clearSeeds(p)){ try{ localStorage.setItem(LS, JSON.stringify(p)); }catch(e){} }
+        return p;
+      }
+    }
+  }catch(e){}
   return {sessions:seedSessions(), current:null, synced:{}, custom:{fibre:[],pub:[]},
           hideBuiltin:{}, baseline:{}, orgs:{}, mapping:{}, brand:{},
           me:{role:'counter', name:'Seán M'}, pin:'1234', job:'j-nbi-me', jobs:seedJobs(), closed:[]};
@@ -5403,10 +5406,16 @@ function renderVar(){
 }
 
 let CATEDIT = null;          /* code being edited, or '' for a new item */
+/* An item with no Product Group is invisible in the rollup's breakdown — it
+   lands in Unassigned with everything else that was never classified — so the
+   master says how many there are and puts them on screen in one tap. */
+let CATNOGRP = false;
+function ungrouped(cat){ return items(cat).filter(it=>groupOf(it)===UNASSIGNED); }
 function catRows(){
   const cat=$('fCat').value;
   const q = norm(($('catSearch')&&$('catSearch').value)||'');
-  const all = items(cat);
+  let all = items(cat);
+  if(CATNOGRP) all = all.filter(it=>groupOf(it)===UNASSIGNED);
   if(!q) return all;
   return all.filter(it => norm([it.code, it.short, it.long, groupOf(it), it.alias].join(' ')).includes(q));
 }
@@ -5459,8 +5468,16 @@ function renderCat(){
   if(!rows.length) h += '<tr><td colspan="'+cols+'" style="color:var(--ink-3)">Nothing matches that search.</td></tr>';
   $('tblCat').innerHTML = h+'</tbody>';
   const all = items(cat).length;
+  const nog = ungrouped(cat).length;
   const c = $('catCount');
-  if(c) c.textContent = rows.length===all ? all+' items' : rows.length+' of '+all+' items';
+  if(c) c.innerHTML = (rows.length===all ? all+' items' : rows.length+' of '+all+' items')
+      + (nog ? ' · <b style="color:var(--bad)">'+nog+'</b> with no Product Group' : ' · every one has a Product Group');
+  const ng = $('catNoGrp');
+  if(ng){
+    ng.disabled = !nog;
+    ng.className = 'btn'+(CATNOGRP?' dark':'');
+    ng.textContent = CATNOGRP ? 'Show all items' : 'No Product Group';
+  }
   wireCatEdit();
 }
 function wireCatEdit(){
@@ -8586,6 +8603,7 @@ $('orgSave').onclick = e => withFeedback(e.currentTarget, ()=>{
   save(); fillOrgs(); renderOrgBox(); renderBrands();
 }, 'Saved');
 $('catSearch').oninput = ()=>{ CATEDIT=null; renderCat(); };
+$('catNoGrp').onclick = ()=>{ CATNOGRP = !CATNOGRP; CATEDIT=null; renderCat(); };
 $('catNew').onclick = ()=>{ CATEDIT=''; renderCat();
   const f=$('ie_code'); if(f){ f.scrollIntoView({block:'center'}); f.focus(); } };
 $('catExport').onclick = e => withFeedback(e.currentTarget, ()=>exportItemMaster(), 'Exported');

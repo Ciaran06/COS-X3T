@@ -68,6 +68,7 @@ either way — counting them would flatter the recognition rate.
 | File | What it holds the line on |
 | --- | --- |
 | `05-generated` | the tools and prompt in `index.html` still match `agent/` |
+| `06-clean` | the app starts empty, old example counts are cleared, every item has a group |
 | `10-theme` | blue and white, contrast on the bar, one line reshades everything, contractor colours untouched |
 | `20-turn-taking` | one utterance one line, the ear shut while speaking, "no" undoes, pause, never guessing an item |
 | `22-spoken-rules` | a written part number, said out loud — and a pole's grade is never metres |
