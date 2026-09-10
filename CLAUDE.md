@@ -89,8 +89,10 @@ change.
       block by hand**; `05-generated` fails when it has drifted.
     - **Push to talk is the default, and it is a billing decision.** A Vapi call bills for every
       minute it is connected, whether anybody is speaking into it or not, so a mic left open in a
-      pocket is money. In push mode the call ends after **ten seconds** of silence (`pttPoke()`,
-      `PTT_IDLE_MS`) and the next tap redials: a counter mid-flow speaks again inside ten seconds so
+      pocket is money. In push mode the call ends after **five seconds** of silence (`pttPoke()`,
+      `PTT_IDLE_MS`) — **fifteen** before the first line (`PTT_OPEN_MS`), because a counter taps on
+      the way to the shelf and shutting off in their hand is not what push to talk means — and the
+      next tap redials: a counter mid-flow speaks again inside five seconds so
       a burst stays live, and one who walks to the next shelf stops paying. **Continuous** keeps the
       old behaviour and is what the sheet walk-through wants, because there the app reads a row and
       the counter answers. The clock is poked by anything that means somebody is still counting — a

@@ -162,7 +162,13 @@ module.exports = async function({ browser, H }){
     return {armed, afterLine, idle:real};
   });
   t('the idle clock is armed the moment listening starts', ptt.armed===true, JSON.stringify(ptt));
-  t('and ten seconds is the window', ptt.idle===10000, String(ptt.idle));
+  t('and five seconds is the window between lines', ptt.idle===5000, String(ptt.idle));
+  t('with longer before the first one, so it never shuts off in your hand',
+     await p.evaluate(()=>PTT_OPEN_MS)===15000, String(await p.evaluate(()=>PTT_OPEN_MS)));
+  t('a tap opens the long window, a line heard shortens it', await p.evaluate(()=>{
+      wantListen = true; pttPoke(true); const a = pttHeard;
+      pttHeard = true; pttPoke(); const b = pttHeard;
+      clearTimeout(pttTimer); return a===false && b===true; }));
   t('a line heard restarts it rather than letting it run out', ptt.afterLine===0, JSON.stringify(ptt));
 
   const closes = await p.evaluate(async ()=>{

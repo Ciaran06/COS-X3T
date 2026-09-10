@@ -3356,11 +3356,16 @@ const VAPI_ASSISTANT_ID = 'aefc0a29-6dc2-41ec-be44-254316db923c';
    workflow one. A Vapi call bills for every minute it is connected, whether
    anybody is speaking into it or not, so a mic left open in a pocket is money.
    In push mode the call ends after PTT_IDLE_MS of silence and the next tap
-   redials — a counter mid-flow speaks again inside ten seconds so a burst stays
+   redials — a counter mid-flow speaks again inside five seconds so a burst stays
    live, and one who walks to the next shelf stops paying. Continuous keeps the
    old behaviour, which is what the sheet walk-through wants: there the app is
    reading rows and the counter is answering. */
-const PTT_IDLE_MS = 10000;
+const PTT_IDLE_MS = 5000;
+/* Longer before the first line. A counter taps the mic on the way to the shelf,
+   and the engine may still be settling — closing on them before they have said
+   anything is the app shutting off in their hand, which is not what push to
+   talk means. Between lines, five seconds is the pocket test. */
+const PTT_OPEN_MS = 15000;
 function talkMode(){ return voiceCfg().talk === 'continuous' ? 'continuous' : 'push'; }
 /* Pre-connect costs call time too, so it is short in push mode: opening Count
    and not counting is at most half a minute, not two. */
@@ -4079,7 +4084,7 @@ function onHeardFinal(text){
   if(!text || PAUSED) return;
   /* the ear is shut while we speak, so this is belt and braces */
   if(VOICE.busy || TURN==='speaking') return;
-  pttPoke();                     /* somebody is counting — the clock restarts */
+  pttHeard = true; pttPoke();     /* somebody is counting — the clock restarts, shorter now */
   closeEar();
   setTurn('thinking');
   logHeard(text);
@@ -4435,7 +4440,7 @@ function startListen(){
   wantListen = true;
   PAUSED = false;
   primeAudio();
-  pttPoke();
+  pttPoke(true);
   if(VOICE.stt === 'agent'){
     chime();
     setTurn('thinking'); paintMic();
@@ -4459,16 +4464,18 @@ function startListen(){
 /* The idle clock. Poked by anything that means somebody is still counting —
    a tap, a line heard, a readback finishing — and it ends the session when
    nothing has happened for PTT_IDLE_MS. Continuous mode never arms it. */
-let pttTimer = null;
-function pttPoke(){
+let pttTimer = null, pttHeard = false;
+function pttPoke(first){
   clearTimeout(pttTimer);
+  if(first) pttHeard = false;
   if(talkMode() !== 'push' || !wantListen) return;
+  const wait = pttHeard ? PTT_IDLE_MS : PTT_OPEN_MS;
   pttTimer = setTimeout(()=>{
     if(!wantListen) return;
     if(VOICE.busy || TURN==='speaking' || TURN==='thinking') return pttPoke();  /* mid-readback is not idle */
     stopListen();
-    say('Mic closed', 'Nothing said for ten seconds. Tap to talk again — it saves the call charge.');
-  }, PTT_IDLE_MS);
+    say('Mic closed', 'Nothing said for a while. Tap to talk again — it saves the call charge.');
+  }, wait);
 }
 function stopListen(){
   wantListen = false;
