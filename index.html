@@ -713,6 +713,26 @@
   <!-- ================= ROLLUP ================= -->
   <section id="v-mgr" class="mgr hidden">
     <div class="scope" id="scope"></div>
+
+    <div class="panel" id="pnlMgf">
+      <header><h2>What to show</h2><span class="hint">Filters combine · the line underneath says exactly what is on screen</span></header>
+      <div class="catgrid">
+        <div class="field"><label for="mgJob">Counting job</label><select id="mgJob"></select></div>
+        <div class="field"><label for="mgDate">Date</label><select id="mgDate"></select></div>
+        <div class="field" id="mgFromWrap"><label for="mgFrom">From</label><input id="mgFrom" type="date"></div>
+        <div class="field" id="mgToWrap"><label for="mgTo">To</label><input id="mgTo" type="date"></div>
+        <div class="field"><label for="mgLoc">Location</label>
+          <input id="mgLoc" list="mgLocList" placeholder="All locations" autocomplete="off" spellcheck="false">
+          <datalist id="mgLocList"></datalist></div>
+        <div class="field"><label for="mgWhere">Where</label><select id="mgWhere"></select></div>
+        <div class="field"><label for="mgPlace">Registration / store name</label><select id="mgPlace"></select></div>
+      </div>
+      <div class="bar">
+        <span class="sp" id="mgSaid"></span>
+        <button class="btn" id="mgClear">Clear filters</button>
+      </div>
+    </div>
+
     <div class="tiles" id="tiles"></div>
 
     <div class="panel owner-only" id="pnlJobs">
@@ -4888,10 +4908,125 @@ function allSessions(){
   return list;
 }
 function scopedSessions(){ return visible(allSessions()); }
+
+/* ---------- the Rollup's filters ----------
+   The Rollup has to answer "what was counted for this job, on this day, at this
+   location" without anybody exporting a spreadsheet first. The filters combine,
+   every table below them respects them, and the line under the bar says what is
+   on screen so a number is never read out of context. Contractor is not in here
+   — that is the scope control above, and it is the one an NBI user changes most. */
+let MGF = {job:'', date:'', from:'', to:'', loc:'', where:'', place:''};
+const MG_ALLDATES = '*', MG_RANGE = 'range';
+const MG_NOWHERE = '\u2014none\u2014';           /* counted with no type chosen */
+function dayKey(ts){
+  const d = new Date(ts);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function dayLabel(k){
+  const [y,m,d] = k.split('-').map(Number);
+  return new Date(y, m-1, d).toLocaleDateString('en-IE',{day:'numeric', month:'short', year:'numeric'});
+}
+function sessDay(s){ return dayKey(s.finished||s.started); }
+function sessWhere(s){ return s.ctype || MG_NOWHERE; }
+/* every day that has a count, newest first */
+function countedDays(){ return [...new Set(scopedSessions().map(sessDay))].sort().reverse(); }
+/* Filters are applied one at a time so each dropdown can be filled from what is
+   still reachable given the others — a date with nothing on it should not be
+   offered, and neither should a registration in a location you have filtered out. */
+function mgFilter(list, skip){
+  skip = skip || {};
+  return list.filter(s=>{
+    if(!skip.job   && MGF.job   && s.job !== MGF.job) return false;
+    if(!skip.date  && MGF.date && MGF.date !== MG_ALLDATES){
+      const d = sessDay(s);
+      if(MGF.date === MG_RANGE){
+        if(MGF.from && d < MGF.from) return false;
+        if(MGF.to   && d > MGF.to)   return false;
+      } else if(d !== MGF.date) return false;
+    }
+    if(!skip.loc   && MGF.loc   && (s.loc||'') !== MGF.loc) return false;
+    if(!skip.where && MGF.where && sessWhere(s) !== MGF.where) return false;
+    if(!skip.place && MGF.place && s.container !== MGF.place) return false;
+    return true;
+  });
+}
+function mgSessions(){ return mgFilter(scopedSessions()); }
+/* what the numbers on screen are of, in one line */
+function mgSaid(){
+  const bits = [];
+  const v = viewOrgs();
+  bits.push(v.length===1 ? v[0] : (v.length ? v.length+' contractors' : 'All contractors'));
+  bits.push(MGF.job ? jobName(MGF.job) : 'All jobs');
+  if(!MGF.date || MGF.date===MG_ALLDATES) bits.push('All dates');
+  else if(MGF.date===MG_RANGE) bits.push((MGF.from? dayLabel(MGF.from) : 'the start') + ' to ' + (MGF.to? dayLabel(MGF.to) : 'today'));
+  else bits.push(dayLabel(MGF.date));
+  if(MGF.loc) bits.push(MGF.loc);
+  if(MGF.where) bits.push(MGF.where===MG_NOWHERE ? 'Not specified' : PL(MGF.where).label);
+  if(MGF.place) bits.push(MGF.place);
+  return bits.join(' \u00b7 ');
+}
+function renderMgFilters(){
+  if(!$('mgJob')) return;
+  const all = scopedSessions();
+
+  /* job — the same list the Count tab offers */
+  const jl = jobs();
+  if(MGF.job && !jl.some(j=>j.id===MGF.job)) MGF.job = '';
+  $('mgJob').innerHTML = '<option value="">All jobs</option>'
+    + jl.map(j=>'<option value="'+esc(j.id)+'"'+(MGF.job===j.id?' selected':'')+'>'+esc(j.name)+'</option>').join('');
+
+  /* date — only days that actually have a count under the other filters */
+  const days = [...new Set(mgFilter(all, {date:true}).map(sessDay))].sort().reverse();
+  if(MGF.date && MGF.date!==MG_ALLDATES && MGF.date!==MG_RANGE && !days.includes(MGF.date)) MGF.date = MG_ALLDATES;
+  $('mgDate').innerHTML = '<option value="'+MG_ALLDATES+'"'+(MGF.date===MG_ALLDATES?' selected':'')+'>All dates</option>'
+    + days.map(d=>'<option value="'+d+'"'+(MGF.date===d?' selected':'')+'>'+esc(dayLabel(d))+'</option>').join('')
+    + '<option value="'+MG_RANGE+'"'+(MGF.date===MG_RANGE?' selected':'')+'>From / To\u2026</option>';
+  const range = MGF.date===MG_RANGE;
+  $('mgFromWrap').classList.toggle('hidden', !range);
+  $('mgToWrap').classList.toggle('hidden', !range);
+  $('mgFrom').value = MGF.from||''; $('mgTo').value = MGF.to||'';
+
+  /* location — the contractor's own list, the way the Count tab has it */
+  const cat = $('fCat').value;
+  const named = new Set(mgFilter(all,{loc:true}).map(s=>s.loc).filter(Boolean));
+  const listed = [];
+  (viewOrgs().length ? viewOrgs() : [...new Set(all.map(s=>s.org))]).forEach(o=>
+    locsFor(cat, o).forEach(l=>{ if(!listed.includes(l.name)) listed.push(l.name); }));
+  const locs = [...new Set(listed.concat([...named]))].sort();
+  $('mgLocList').innerHTML = locs.map(l=>'<option value="'+esc(l)+'"></option>').join('');
+  if($('mgLoc').value !== (MGF.loc||'')) $('mgLoc').value = MGF.loc||'';
+
+  /* where — this customer's own place types, plus the ones with no type at all */
+  const org = viewOrg() || activeOrg();
+  const types = placeTypes(cat, org);
+  const used = new Set(mgFilter(all,{where:true, place:true}).map(sessWhere));
+  $('mgWhere').innerHTML = '<option value="">All</option>'
+    + types.map(p=>'<option value="'+esc(p.k)+'"'+(MGF.where===p.k?' selected':'')+'>'+esc(p.label)+'</option>').join('')
+    + ((used.has(MG_NOWHERE) || MGF.where===MG_NOWHERE)
+        ? '<option value="'+MG_NOWHERE+'"'+(MGF.where===MG_NOWHERE?' selected':'')+'>Not specified</option>' : '');
+
+  /* registration or store name — scoped to the Where choice, as on the Count tab */
+  const places = [...new Set(mgFilter(all,{place:true}).map(s=>s.container).filter(Boolean))].sort();
+  if(MGF.place && !places.includes(MGF.place)) MGF.place = '';
+  $('mgPlace').innerHTML = '<option value="">All</option>'
+    + places.map(c=>'<option value="'+esc(c)+'"'+(MGF.place===c?' selected':'')+'>'+esc(c)+'</option>').join('');
+
+  $('mgSaid').textContent = mgSaid();
+}
+/* Today if anything was counted today, otherwise every date — so a daily van
+   count opens on today's round and a month-end opens on the whole month. */
+function mgDefaults(){
+  MGF.job = (S.job && jobs().some(j=>j.id===S.job)) ? S.job : '';
+  const today = dayKey(Date.now());
+  MGF.date = countedDays().includes(today) ? today : MG_ALLDATES;
+  MGF.from = ''; MGF.to = ''; MGF.loc = ''; MGF.where = ''; MGF.place = '';
+}
 function tile(k,v,s){ return '<div class="tile"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="s">'+esc(s||'')+'</div></div>'; }
 
+const MG_EMPTY = 'Nothing counted for this selection.';
 function renderMgr(){
-  const sess = scopedSessions();
+  renderMgFilters();
+  const sess = mgSessions();
   const lines = sess.flatMap(s=>s.lines.map(l=>Object.assign({},l,{org:s.org, container:s.container, cat:s.cat||l.cat})));
   const orgs = [...new Set(sess.map(s=>s.org))];
   const places = [...new Set(sess.map(s=>s.org+'|'+s.container))];
@@ -4936,7 +5071,8 @@ function renderMgr(){
     }
   }
   h += '</tbody>';
-  $('tblOrg').innerHTML = h;
+  $('tblOrg').innerHTML = orgs.length ? h
+    : '<tbody><tr><td class="empty">'+MG_EMPTY+'</td></tr></tbody>';
   wireTree($('tblOrg'));
 
   const byItem={};
@@ -4951,7 +5087,7 @@ function renderMgr(){
     byItem[k].orgs.add(l.org);
   }
   const rows = Object.values(byItem).sort((a,b)=>b.base-a.base);
-  if(!rows.length) $('tblItem').innerHTML = '<tbody><tr><td class="empty">No counts yet.</td></tr></tbody>';
+  if(!rows.length) $('tblItem').innerHTML = '<tbody><tr><td class="empty">'+MG_EMPTY+'</td></tr></tbody>';
   else {
     let h2 = '<thead><tr><th>Item</th><th class="r">Stock value</th><th class="r">Total</th><th>Unit</th><th>Product Group</th><th class="r">Whole packs</th><th class="r">Held by</th></tr></thead><tbody>';
     for(const r of rows){
@@ -4983,7 +5119,7 @@ function renderMgr(){
       else { gr.value += b*uv; o.value += b*uv; }
     }
     const orgNames = Object.keys(byOrgGroup).sort();
-    if(!orgNames.length) $('tblGrp').innerHTML = '<tbody><tr><td class="empty">No counts yet.</td></tr></tbody>';
+    if(!orgNames.length) $('tblGrp').innerHTML = '<tbody><tr><td class="empty">'+MG_EMPTY+'</td></tr></tbody>';
     else {
       let hg = '<thead><tr><th>Contractor / product group</th><th class="r">Stock value</th></tr></thead><tbody>';
       let estate = 0, estateUnpriced = false;
@@ -5010,10 +5146,12 @@ function renderMgr(){
     }
   }
 
-  /* by job */
+  /* By job \u2014 deliberately NOT narrowed by the job dropdown: this is the table
+     you pick a job FROM, and one row on its own is not a comparison. */
+  const allSess = scopedSessions();
   let hj='<thead><tr><th>Job</th><th>Type</th><th>Due</th><th class="r">Locations</th><th class="r">Lines</th><th class="r">Counters</th><th>Progress</th></tr></thead><tbody>';
   for(const j of jobs()){
-    const js = sess.filter(x=>x.job===j.id);
+    const js = allSess.filter(x=>x.job===j.id);
     const locs = new Set(js.map(x=>x.org+'|'+x.container)).size;
     const who = new Set(js.map(x=>x.by||'—')).size;
     const pct = j.target ? Math.min(100, Math.round(locs/j.target*100)) : (locs?100:0);
@@ -5027,9 +5165,9 @@ function renderMgr(){
 
   /* still to count — the register, minus what has been done on the live job */
   if($('tblTodo')){
-    const cat=$('fCat').value, jid=$('fJob').value||S.job;
+    const cat=$('fCat').value, jid=MGF.job || $('fJob').value || S.job;
     const reg=(S.places&&S.places[cat])||[];
-    const done=new Set(sess.filter(x=>x.job===jid).map(x=>regKey(x.container)));
+    const done=new Set(allSess.filter(x=>x.job===jid).map(x=>regKey(x.container)));
     const todo=reg.filter(pl=>!done.has(regKey(pl.label)));
     $('todoHint').textContent = reg.length
       ? jobName(jid)+' — '+(reg.length-todo.length)+' of '+reg.length+' registered locations counted'
@@ -8035,10 +8173,35 @@ function showTab(which){
   /* the tap should not be the moment we start dialling — see warmAgent() */
   if(which==='count'){ renderJobLocs(); warmAgent(); }
   if(which==='sheet') renderSheet();
-  if(which==='mgr') renderMgr();
+  if(which==='mgr'){ if(!MGF.set){ mgDefaults(); MGF.set = true; } renderMgr(); }
   if(which==='hist') renderHistory();
   if(which==='cat'){ renderCat(); renderOrgBox(); renderBrands(); renderJobsAdmin(); renderPlaceAdmin(); renderTypeAdmin(); renderShare(); renderAccess(); }
 }
+/* Every filter redraws the whole Rollup — the tables and the line that says what
+   they are of have to move together or the number is read out of context. */
+['mgJob','mgDate','mgWhere','mgPlace'].forEach(id=>{
+  const el = $(id); if(!el) return;
+  el.onchange = ()=>{
+    const k = {mgJob:'job', mgDate:'date', mgWhere:'where', mgPlace:'place'}[id];
+    MGF[k] = el.value;
+    if(k==='where') MGF.place = '';          /* the reg list is scoped to it */
+    renderMgr();
+  };
+});
+['mgFrom','mgTo'].forEach(id=>{
+  const el = $(id); if(!el) return;
+  el.onchange = ()=>{ MGF[id==='mgFrom'?'from':'to'] = el.value; renderMgr(); };
+});
+$('mgLoc').oninput = ()=>{
+  /* the datalist gives type-ahead; a half-typed name is not a filter yet */
+  const v = $('mgLoc').value.trim();
+  const known = [...$('mgLocList').options].some(o=>o.value===v);
+  const next = (!v || known) ? v : MGF.loc;
+  if(next === MGF.loc) return;
+  MGF.loc = next; renderMgr();
+};
+$('mgLoc').onblur = ()=>{ if($('mgLoc').value.trim() !== (MGF.loc||'')){ $('mgLoc').value = MGF.loc||''; } };
+$('mgClear').onclick = e => withFeedback(e.currentTarget, ()=>{ mgDefaults(); renderMgr(); }, 'Cleared');
 $('roleBtn').onclick = switchRole;
 $('editTypes').onclick = ()=>{ EDIT_TYPES=!EDIT_TYPES; renderSegs(); };
 $('fJob').onchange = ()=>{

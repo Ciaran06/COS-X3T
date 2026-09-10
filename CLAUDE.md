@@ -370,6 +370,22 @@ treat it as a specification of behaviour that must survive a rewrite.
   The Rollup tab breaks stock value down by Product Group under each contractor, with quantity and
   euro on every row, and the CSV export carries the same breakdown. Quantity is kept per base unit
   rather than summed across metres and each. See `unitValue()`, `valCell()`, `qtyByUnit()`, `eur()`.
+- **The Rollup answers a question, not just "how much stock".** A filter bar across the top —
+  **counting job, date, location, where, registration or store name** — narrows everything under it,
+  and a line beneath the bar states what is on screen ("KN Circet · Daily van count · 10 Sep 2026 ·
+  Claremorris · Vehicle · 202-C-8871") so a number is never read out of context. Contractor is
+  deliberately *not* in the bar: that is the scope control above it, and it is the one an NBI user
+  changes most.
+  - **Each dropdown is filled from what is still reachable given the others** (`mgFilter()` takes a
+    `skip` so a list can be built as if its own filter were off). A date with nothing behind it, or
+    a registration in a location you have filtered out, is not offered.
+  - **It opens where the counter is:** the job being counted, and today if anything was counted
+    today, otherwise all dates. See `mgDefaults()`.
+  - **Two tables deliberately ignore the bar** — *Jobs*, because it is the table you pick a job
+    *from* and one row is not a comparison, and *Still to count*, which is about a job's whole
+    register rather than a slice of it.
+  - An empty selection says **"Nothing counted for this selection."** rather than showing a blank
+    table, which reads as breakage.
 - **Location is a field of its own, and the list is closed.** *Where* the count is happening
   (Claremorris) is asked before *what* is being counted in (a van, the inside store) — the Location
   field sits above "Where are you counting?" on the Count tab, with type-ahead, a list and a mic.
