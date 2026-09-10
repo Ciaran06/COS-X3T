@@ -81,6 +81,7 @@ either way — counting them would flatter the recognition rate.
 | `51-agent-context` | what the app tells the agent that it could not have heard |
 | `60-delete` | every line can be removed, undone for five seconds, and the removal is in the record |
 | `61-spots` | storage areas are optional, off by default, and never invented |
+| `62-where` | the place type is optional, and blank everywhere it was never chosen |
 | `70-rollup` | the filter bar narrows every table under it, says what it is showing, and exports it |
 
 ## Writing another one

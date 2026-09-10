@@ -213,6 +213,13 @@
     background:var(--bad); color:#fff; font-size:13px; line-height:19px; text-align:center; font-weight:700}
   .segs button{position:relative}
   .segs .addtype{border-style:dashed; color:var(--ink-3)}
+  /* the "no type" option is a real choice, so it is a real chip — just a quieter
+     one, so the row does not read as seven equal things to pick between */
+  .segs button.none{flex:0 1 auto; min-width:78px; border-style:dashed; color:var(--ink-3)}
+  .segs button.none svg{opacity:.5}
+  .segs button.none[aria-pressed="true"]{background:var(--sunk); border-style:solid;
+    border-color:var(--line); color:var(--ink-2)}
+  .segnote{display:block; margin-top:6px; font-size:11.5px; color:var(--ink-3)}
   .lblrow{display:flex !important; align-items:center; justify-content:space-between; gap:8px}
   .lnk{border:0; background:none; padding:0; font-size:11px; font-weight:700; letter-spacing:.08em;
     text-transform:uppercase; color:var(--accent-ink); cursor:pointer}
@@ -638,6 +645,7 @@
       <div class="field full">
         <label class="lblrow">Where are you counting?<button class="lnk" id="editTypes">Edit</button></label>
         <div class="segs" id="segs"></div>
+        <small class="segnote">Optional — tap one if it matters. Counts land on the location either way.</small>
         <div class="addrow hidden" id="addType">
           <input id="newType" placeholder="Add a place — Cold room, Front bar, Cellar…" autocomplete="off">
           <button class="btn dark" id="newTypeGo">Add</button>
@@ -1148,7 +1156,6 @@ const CATALOGUES = {
   fibre: {
     label:'Fibre / NBI build',
     orgs:['TLI Group','Actavo','Bradleys','Gaeltec','Secto','KN Circet','KN Connections'],
-    defaultPlace:'van',
     spots:['Shelf A1','Shelf A2','Shelf A3','Bay 1','Bay 2','Roof rack','Floor'],
     items:[
       {code:'500CONPOLE10L', short:'Light Pole 10.0m', long:'Light Pole 10.0m', unit:'each', pack:1, group:'01. Poles', alias:'10 L, 10 el, 10 light, 10 lightweight, 10 light pole, 10 metre light, 10 metre light pole, ten L, ten el, ten light, ten lightweight, ten light pole, ten metre light, ten metre light pole, light pole, light pole 10, light pole ten'},
@@ -1544,7 +1551,6 @@ const CATALOGUES = {
   pub: {
     label:'Pub & bar',
     orgs:['Powers'],
-    defaultPlace:'store-in',
     spots:['Back bar','Shelf 1','Shelf 2','Shelf 3','Under-bar fridge','Cellar'],
     items:[
       {code:'COKE-330', short:'Coke 330ml', long:'Coca-Cola 330ml glass bottle', unit:'bottle', pack:24, packName:'case', alias:'coke, cola, coca cola', group:'Minerals', price:0.62},
@@ -2576,8 +2582,16 @@ function addPlace(cat, label, type, org){
 /* ============================================================
    session
    ============================================================ */
-let PTYPE = 'van';
+/* "Where are you counting?" is optional and starts unselected. A count goes
+   straight against the location until somebody says it is a van or a store, and
+   nothing anywhere invents "Vehicle" for a line that never said so — a blank in
+   the Where column is the truth, and a wrong label is not. */
+let PTYPE = '';
 let SPOT = '';
+function typeLabel(k){ return k ? PL(k).label : ''; }
+function typeTag(k){ return k ? ' <span class="tag">'+esc(PL(k).label)+'</span>' : ''; }
+/* what to call the place on screen when no registration or store name was given */
+function placeLabel(s){ return (s && (s.container || s.loc)) || 'Not specified'; }
 
 function cur(){ return S.current; }
 function containerLabel(){
@@ -2684,7 +2698,7 @@ function resume(id, announce){
   save();
 
   $('fCat').value = s.cat || 'fibre';
-  PTYPE = s.ctype || CATALOGUES[$('fCat').value].defaultPlace;
+  PTYPE = s.ctype || '';        /* a session counted with no type keeps none */
   fillOrgs(true);
   $('fOrg').value = s.org;
   $('fVan').value = s.container;
@@ -2708,7 +2722,7 @@ function renderRecent(){
     : 'Already counted for '+esc(me().org||'this contractor')+' — tap to add to one';
   el.innerHTML = '<h3>'+head+'</h3>' + list.map(s=>{
     const by = rollLines(s.lines, s.cat);
-    return '<div class="rrow"><span class="ri"><b>'+esc(s.container)+' <span class="tag">'+esc(PL(s.ctype||'van').label)+'</span></b>'
+    return '<div class="rrow"><span class="ri"><b>'+esc(placeLabel(s))+typeTag(s.ctype)+'</b>'
       + '<small>'+(isNBI()? esc(s.org)+' · ':'')+s.lines.length+' lines · '+Object.keys(by).length+' items · '
       + new Date(s.finished||s.started).toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
       + (s.reopens? ' · reopened '+s.reopens+'×':'')+'</small></span>'
@@ -4254,10 +4268,12 @@ function say(l1,l2,err){
 }
 function whereLine(){
   const s = cur();
-  const p = PL(PTYPE);
   const label = s ? s.container : containerLabel();
   const loc = (s && s.loc) || LOC;
-  return (loc ? esc(loc)+' · ' : '') + p.label+' · '+label
+  const ty = typeLabel(s ? s.ctype : PTYPE);
+  /* with no type and no registration there is only the location, and that reads
+     better on its own than padded out with a dash */
+  return [loc ? esc(loc) : '', ty, label ? esc(label) : ''].filter(Boolean).join(' · ')
        + (SPOT ? ' · <b>'+esc(SPOT)+'</b>' : '');
 }
 function refreshWhere(){ $('whoWhere').innerHTML = whereLine(); }
@@ -4424,7 +4440,7 @@ function goPlace(ptype, label){
   $('fVan').value = label || '';
   SPOT = '';
   syncPlaceUI(); fillPlaces();
-  say('Now counting '+shown, PL(PTYPE).label+'. Say the spot — "shelf A1" — or start counting straight away.');
+  say('Now counting '+shown, (typeLabel(PTYPE)? typeLabel(PTYPE)+'. ' : '')+'Say the spot — "shelf A1" — or start counting straight away.');
   speak('Now counting '+shown+'. Go ahead.');
   renderTally(); refreshWhere(); renderRecent();
 }
@@ -4711,7 +4727,13 @@ function renderSegs(){
   const cat=$('fCat').value, org=$('fOrg').value;
   const list = placeTypes(cat, org);
   $('segs').className = 'segs'+(EDIT_TYPES?' editing':'');
-  $('segs').innerHTML = list.map(p=>
+  /* the quiet one first, pre-selected, so "nothing chosen" is a visible state
+     rather than the row simply looking untouched */
+  $('segs').innerHTML =
+    '<button class="none" data-p="" aria-pressed="'+(!PTYPE)+'">'
+    + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg>'
+    + 'Not specified</button>'
+    + list.map(p=>
     '<button data-p="'+esc(p.k)+'" aria-pressed="'+(p.k===PTYPE)+'">'
     + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="'+p.icon+'"></path></svg>'
     + esc(p.label)
@@ -4747,10 +4769,15 @@ function renderTypeAdmin(){
 }
 function syncPlaceUI(){
   const avail = placeTypes($('fCat').value, $('fOrg').value);
-  if(avail.length && !avail.some(x=>x.k===PTYPE)) PTYPE = avail[0].k;
+  /* '' is a legitimate choice — only a type that has been deleted from this
+     customer's list falls back, and it falls back to unselected */
+  if(PTYPE && avail.length && !avail.some(x=>x.k===PTYPE)) PTYPE = '';
   const p = PL(PTYPE);
-  $('lVan').textContent = p.field;
-  $('fVan').placeholder = p.ph;
+  $('lVan').textContent = PTYPE ? p.field : 'Registration';
+  $('fVan').placeholder = PTYPE ? p.ph : '';
+  /* the registration or store name has no meaning until there is a kind of place */
+  $('placeWrap').classList.toggle('hidden', !PTYPE);
+  if(!PTYPE) $('fVan').value = '';
   $('aFinish').textContent = 'Finish '+(PTYPE==='van'?'this vehicle':'here');
   renderSegs(); refreshWhere();
   if(S.current && !S.current.lines.length) S.current=null;
@@ -4852,7 +4879,7 @@ function renderTally(){
   }
   const locs=[]; for(const l of s.lines) if(!locs.includes(l.loc||'')) locs.push(l.loc||'');
   const anySpot = locs.some(Boolean);
-  let h = '<h3>'+esc(PL(s.ctype||'van').label)+' · '+esc(s.container)+' · '+esc(s.org)+'</h3>';
+  let h = '<h3>'+[typeLabel(s.ctype), esc(placeLabel(s)), esc(s.org)].filter(Boolean).join(' · ')+'</h3>';
   for(const loc of locs){
     const by = rollLines(s.lines.filter(l=>(l.loc||'')===loc), s.cat);
     /* no heading at all when nobody used a storage area */
@@ -5055,7 +5082,9 @@ function rollupItems(lines){
    header block naming every filter, so a spreadsheet mailed to somebody who was
    not standing at the phone still says what it is of. The second is every line
    behind it — the audit trail, one row per thing somebody said. */
-function whereLabel(k){ return !k ? 'Not specified' : PL(k).label; }
+/* blank in a sheet, because the counter never said it — "Not specified" is a
+   thing to filter BY on screen, not a fact to write into a column */
+function whereLabel(k){ return k ? PL(k).label : ''; }
 function stamp(ts){ return new Date(ts).toLocaleString('en-IE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
 function rollupHeadAoA(said, filters, nLoc, nLines){
   const aoa = [['TruCount — rollup'], ['Showing', said], ['Exported', stamp(Date.now())]];
@@ -5195,8 +5224,8 @@ function renderMgr(){
       const vid = oid+'v'+s.id.replace(/\W/g,'');
       const vBy = rollLines(s.lines, s.cat);
       const vVal = sumValue(vBy);
-      h += '<tr class="grp sub '+oid+' hidden" data-t="'+vid+'"><td><span class="caret">▸</span> '+esc(s.container)
-         + ' <span class="tag">'+esc(PL(s.ctype||'van').label)+'</span></td>'
+      h += '<tr class="grp sub '+oid+' hidden" data-t="'+vid+'"><td><span class="caret">▸</span> '+esc(placeLabel(s))
+         + typeTag(s.ctype)+'</td>'
          + '<td class="r">'+valCell(vVal.value,vVal.unpriced)+'</td>'
          + '<td class="r">'+Object.keys(vBy).length+'</td><td>items</td><td class="r">'+s.lines.length+' lines</td>'
          + '<td>'+new Date(s.finished||s.started).toLocaleDateString('en-IE',{day:'numeric',month:'short'})+'</td></tr>';
@@ -5330,7 +5359,7 @@ function renderMgr(){
   for(const s of sess){
     h3 += '<tr><td>'+new Date(s.finished||s.started).toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+'</td>'
         + '<td>'+esc(s.by||'—')+'</td><td>'+esc(jobName(s.job))+'</td>'
-        + '<td>'+esc(s.org)+'</td><td>'+esc(s.container)+' <span class="tag">'+esc(PL(s.ctype||'van').label)+'</span></td>'
+        + '<td>'+esc(s.org)+'</td><td>'+esc(placeLabel(s))+typeTag(s.ctype)+'</td>'
         + '<td class="r">'+s.lines.length+'</td>'
         + '<td>'+(s.open?'<span class="tag open">Counting</span>':'<span class="tag">Closed</span>')
         + (s.reopens?' <span class="tag">Reopened '+s.reopens+'×</span>':'')
@@ -5956,7 +5985,7 @@ function buildSnapshot(j){
       const uv = unitValue(it);
       const base = baseQty(it, l.qty, l.unit);
       rows.push({
-        org:x.org, loc:x.loc||'', container:x.container, ctype:x.ctype||'van', spot:l.loc,
+        org:x.org, loc:x.loc||'', container:x.container||'', ctype:x.ctype||'', spot:l.loc,
         by:x.by||'', ts:l.ts, eng:l.eng||'',
         code:it.code, short:it.short, long:it.long||it.short, group:groupOf(it),
         unit:it.unit, pack:it.pack||1, packName:it.packName||'',
@@ -5974,7 +6003,7 @@ function buildSnapshot(j){
     id:'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
     jobId:j.id, name:j.name, kind:j.kind, cat:j.cat||'', due:j.due||'', closedAt:Date.now(),
     orgs:[...new Set(rows.map(r=>r.org))].sort(),
-    locations: sess.map(x=>({container:x.container, ctype:x.ctype||'van', org:x.org, da:x.da||'',
+    locations: sess.map(x=>({container:x.container||'', ctype:x.ctype||'', org:x.org, da:x.da||'',
       submitted:Object.assign({}, x.submitted||{}), submittedBy:Object.assign({}, x.submittedBy||{}),
       revealed:(x.revealed||[]).slice(), reopened:(x.reopened||[]).slice(),
       witnessed:isSubmitted(x,'nbi')})),
@@ -7351,7 +7380,7 @@ function renderUploadedSheet(sh){
   const sess = sheetSession(), role = curRole();
   const other = role==='nbi' ? 'contractor' : 'nbi';
   const pl = selectedPlace();
-  $('sheetWho').innerHTML = '<b>'+esc(sh.label)+'</b> · '+esc(PL(PTYPE).label)
+  $('sheetWho').innerHTML = '<b>'+esc(sh.label)+'</b>'+(typeLabel(PTYPE)? ' · '+esc(typeLabel(PTYPE)):'')
     + ' · '+esc(sh.org) + (sh.da? ' · '+esc(sh.da):'')
     + (sh.witness? ' · witness '+esc(sh.witness):'')
     + ' · you are entering the <b>'+esc(roleLabel(role))+'</b>';
@@ -7810,7 +7839,7 @@ function renderCatalogueSheet(){
     return;
   }
   const pl = selectedPlace();
-  $('sheetWho').innerHTML = '<b>'+esc(label)+'</b> · '+esc(PL(PTYPE).label)
+  $('sheetWho').innerHTML = '<b>'+esc(label)+'</b>'+(typeLabel(PTYPE)? ' · '+esc(typeLabel(PTYPE)):'')
     + (org? ' · '+esc(org):'') + (pl&&pl.da? ' · '+esc(pl.da):'')
     + ' · you are entering the <b>'+esc(roleLabel(role))+'</b>'
     + (sess? '' : ' · nothing counted here yet');
@@ -8111,7 +8140,7 @@ function csv(){
   for(const s of scopedSessions()) for(const l of s.lines){
     const it=item(s.cat||l.cat,l.code);
     const b=baseQty(it,l.qty,l.unit), uv=unitValue(it), val = uv==null? null : b*uv;
-    rows.push([s.id,new Date(l.ts).toISOString(),s.org,PL(s.ctype||'van').label,s.container]
+    rows.push([s.id,new Date(l.ts).toISOString(),s.org,typeLabel(s.ctype),s.container||'']
       .concat(anySpot? [l.loc||''] : [])
       .concat([it.code,it.short,groupOf(it),
         l.qty,l.unit,b,it.unit, uv==null?'':uv.toFixed(2), val==null?'':val.toFixed(2), l.drumId||'',l.audio?'yes':'no']));
@@ -8286,9 +8315,12 @@ function fillOrgs(keepPlace){
     else $('fOrg').value = (v.length ? v[0] : (list[0]||''));
   }
   renderOrgPick();
-  if(!keepPlace){
-    PTYPE = CATALOGUES[cat].defaultPlace;
-  }
+  /* Switching catalogue or contractor starts unselected, the same as opening
+     the app does. The catalogue's old `defaultPlace` is gone with it — it is why
+     every count carried "Vehicle" whether anybody chose one or not. Voice still
+     sets a type when the words carry one ("van 191 D 12345"), which is somebody
+     choosing it out loud. */
+  if(!keepPlace) PTYPE = '';
   $('heard').innerHTML = cat==='fibre'
     ? '<b>“reg number one two G one two three four five”</b> · <b>“three full drums of aerial ninety six fibre”</b> · <b>“six nine metre medium poles”</b>'
     : '<b>“Coke, twenty bottles”</b> · <b>“ten cases of Coke”</b> · <b>“four bottles of Powers”</b>';

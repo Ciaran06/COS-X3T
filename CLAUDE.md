@@ -434,6 +434,19 @@ treat it as a specification of behaviour that must survive a rewrite.
     phrases they answer to — searchable, exportable, and **kept when the list is uploaded again**,
     exactly like the item master. The importer also reads a *Spoken as* column out of the file if
     there is one.
+- **"Where are you counting?" is optional and starts unselected.** A count goes straight against
+  the location — a van or a store is extra detail, not a gate. The row leads with a quieter
+  **"Not specified"** chip that is pressed to begin with, so "nothing chosen" is a state you can
+  see rather than a row that merely looks untouched, and it carries a line saying so. The
+  registration or store-name field is **not there at all** until a type is tapped, and tapping
+  *Not specified* puts it away and clears it.
+  - **A blank is the truth and a wrong label is not.** A line counted with no type has `ctype:''`
+    and `container:''`; every screen shows the location instead (`placeLabel()`, `typeTag()`,
+    `typeLabel()`), and every export writes an empty Where cell. "Not specified" is a thing to
+    filter *by* on the Rollup, never a fact written into a column. Voice still sets a type when the
+    words carry one — *"van 191 D 12345"* — because that is somebody choosing it out loud.
+  - The catalogue's old `defaultPlace` is gone. It is why every count carried "Vehicle" whether
+    anybody chose one or not.
 - **Location register.** The vehicle regs and named rooms *within* a location. Counts must land on a registered vehicle reg or named location, each with a
   type, a contractor and the **DA it is served from** (DA008 and so on). Unregistered ones are
   challenged with the nearest matches. The picker is **strictly scoped to the place type** — a
