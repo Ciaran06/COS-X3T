@@ -86,6 +86,7 @@ either way — counting them would flatter the recognition rate.
 | `62-where` | the place type is optional, and blank everywhere it was never chosen |
 | `70-rollup` | Results' filter bar narrows every table under it, says what it is showing, and exports it |
 | `80-account` | signing in, the org and its books, and counting against the book's master |
+| `81-sync` | local first, the outbox out, other phones in, and a refusal that keeps the work |
 
 ## Writing another one
 

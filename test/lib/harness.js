@@ -53,7 +53,7 @@ const VAPI_STUB = `
      level security, which lives in the database — policies.sql is checked by
      running it, on two phones. */
   window.__sbData = {profiles:[], orgs:[], books:[], items:[], locations:[]};
-  window.__sb = {sent:[], verified:[], signedOut:0, session:null, queries:[]};
+  window.__sb = {sent:[], verified:[], signedOut:0, session:null, queries:[], rpc:[]};
   window.supabase = { createClient: function(url, key, opts){
     window.__sb.url = url; window.__sb.key = key; window.__sb.opts = opts;
     const rows = t => (window.__sbData[t]||[]).slice();
@@ -67,6 +67,17 @@ const VAPI_STUB = `
         limit(n){ out = out.slice(0,n); return api; },
         maybeSingle(){ one = true; return api; },
         single(){ one = true; return api; },
+        upsert(row, opts){
+          const key = (opts && opts.onConflict) || 'id';
+          const list = window.__sbData[table] = window.__sbData[table] || [];
+          [].concat(row).forEach(r=>{
+            const at = list.findIndex(x=>String(x[key])===String(r[key]));
+            if(at>=0) list[at] = Object.assign({}, list[at], r); else list.push(r);
+          });
+          out = [].concat(row);
+          return api;
+        },
+        insert(row){ return api.upsert(row, {onConflict:'uid'}); },
         then(res){
           window.__sb.queries.push(table);
           const err = window.__sbFail && window.__sbFail[table]
@@ -76,8 +87,43 @@ const VAPI_STUB = `
       };
       return api;
     }
+    /* the three server-side functions Batch B calls */
+    async function rpc(name, args){
+      window.__sb.rpc.push({name, args});
+      if(window.__sbFail && window.__sbFail[name]) return {data:null, error:{message:window.__sbFail[name]}};
+      const D = window.__sbData;
+      if(name === 'push_sessions'){
+        D.sessions = D.sessions || [];
+        (args.rows||[]).forEach(r=>{
+          const at = D.sessions.findIndex(x=>x.uid===r.uid);
+          const row = Object.assign({}, r, {updated_at:new Date().toISOString()});
+          if(at>=0) D.sessions[at] = Object.assign({}, D.sessions[at], row); else D.sessions.push(row);
+        });
+        return {data:(args.rows||[]).length, error:null};
+      }
+      if(name === 'push_lines'){
+        D.lines = D.lines || [];
+        (args.rows||[]).forEach(r=>{
+          const at = D.lines.findIndex(x=>x.uid===r.uid);
+          const row = Object.assign({}, r, {updated_at:new Date().toISOString()});
+          if(at>=0) D.lines[at] = Object.assign({}, D.lines[at], row); else D.lines.push(row);
+        });
+        return {data:(args.rows||[]).length, error:null};
+      }
+      if(name === 'pull_counts'){
+        const since = args.since || '';
+        const out = (D.sessions||[]).filter(x=>x.book_id===args.book).map(x=>{
+          const ls = (D.lines||[]).filter(l=>l.session_uid===x.uid);
+          const stamp = ls.reduce((m,l)=>l.updated_at>m?l.updated_at:m, x.updated_at||'');
+          return Object.assign({}, x, {lines:ls, updated_at:stamp});
+        }).filter(x=>!since || x.updated_at > since);
+        return {data:out, error:null};
+      }
+      return {data:null, error:{message:'no such function '+name}};
+    }
     return {
       from: q,
+      rpc,
       auth: {
         signInWithOtp: async o => { window.__sb.sent.push(o.email); return {data:{}, error:null}; },
         verifyOtp: async o => {

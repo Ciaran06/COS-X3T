@@ -220,6 +220,11 @@
   .segs button.none[aria-pressed="true"]{background:var(--sunk); border-style:solid;
     border-color:var(--line); color:var(--ink-2)}
   .segnote{display:block; margin-top:6px; font-size:11.5px; color:var(--ink-3)}
+  /* A counter should never wonder whether a count got out of the van. */
+  .syncstate{margin:0 15px 10px; padding:7px 11px; border-radius:9px; font-size:12px;
+    background:var(--sunk); color:var(--ink-3); border:1px solid var(--line)}
+  .syncstate.waiting{background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent-ink)}
+  .syncstate.off{background:var(--warn-soft, var(--sunk)); color:var(--ink-2)}
   .lblrow{display:flex !important; align-items:center; justify-content:space-between; gap:8px}
   .lnk{border:0; background:none; padding:0; font-size:11px; font-weight:700; letter-spacing:.08em;
     text-transform:uppercase; color:var(--accent-ink); cursor:pointer}
@@ -732,6 +737,7 @@
       <div class="prog" id="prog"></div>
     </div>
 
+    <div class="syncstate hidden" id="syncState"></div>
     <div class="card tally" id="tally"></div>
     <p class="note" style="border:0;text-align:center">Counts save on this phone as you speak them — no signal needed. They upload when you're back in coverage.</p>
     </div><!-- /mode-voice -->
@@ -1008,6 +1014,7 @@
         <span class="sp" id="vNote">The API key is never held in this page. It lives in the proxy — see proxy/README.md for the ten-minute setup.</span>
         <button class="btn" id="vTest">Test connection</button>
         <button class="btn" id="vSample">Save a sample readback</button>
+        <button class="btn" id="vOrgSave">Save for the whole organisation</button>
         <button class="btn dark" id="vSave">Save</button>
       </div>
     </div>
@@ -1729,7 +1736,12 @@ async function cloudUseBook(book){
   CLOUD.book = book || null;
   S.book = book ? book.id : ''; save();
   CLOUD.items = null; CLOUD.locs = null;
-  if(book) await cloudPull();
+  if(book){
+    await cloudPull();
+    await cloudPullSettings();
+    await cloudPullCounts();
+    cloudFlushSoon(200);
+  }
   afterCloudChange();
 }
 /* The master the book counts against, and the organisation's locations. The
@@ -1767,7 +1779,7 @@ async function cloudPull(){
 /* everything that has to redraw when the account or the book changes */
 function afterCloudChange(){
   try{
-    renderAccount(); renderAccess(); renderScope(); applyBrand();
+    renderAccount(); renderAccess(); renderScope(); applyBrand(); renderSyncState();
     fillOrgs(true); renderCat(); renderLocField(); renderLocAdmin(); renderLocTable();
     renderJobLocs(); renderMgr(); renderKeyterms(); syncStartable();
   }catch(e){}
@@ -1781,6 +1793,219 @@ async function cloudResume(){
   }catch(e){}
   renderAccount();
   return false;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Counts sync — Batch B.
+
+   The phone is still the thing that writes. A count is saved locally the
+   instant it is spoken, with no network in the path, and an OUTBOX carries it
+   up when there is coverage. That order is the whole promise: a counter in a
+   dead spot is never waiting on us, and nothing is lost because the van drove
+   into a hollow.
+
+   Rows carry a UUID minted on the phone, so pushing the same row twice is an
+   upsert onto itself rather than a duplicate. A removed line is a tombstone,
+   never a delete — a phone that was offline when it happened has to be able to
+   learn that it happened.
+   ══════════════════════════════════════════════════════════════════════ */
+function uuid(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==='x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+/* Minted lazily, so rows made before this existed get one the first time they
+   are pushed rather than needing a migration. */
+function uidOf(row){ if(!row.uid) row.uid = uuid(); return row.uid; }
+
+function outbox(){ S.out = S.out || []; return S.out; }
+function outPush(kind, body){
+  const q = outbox();
+  /* one entry per row — a line edited twice goes up once, in its latest shape */
+  const key = kind+':'+body.uid;
+  const at = q.findIndex(x=>x.key===key);
+  const entry = {key, kind, body, at:Date.now(), tries:0};
+  if(at>=0) q[at] = entry; else q.push(entry);
+  save();
+  renderSyncState();
+  cloudFlushSoon();
+  return entry;
+}
+/* The shapes the server wants, built from what the phone holds. */
+function sessionRow(sess){
+  const loc = (CLOUD.locs && CLOUD.locs[sess.cat]||[]).find(l=>l.name===sess.loc);
+  return {uid: uidOf(sess), book_id: CLOUD.book ? CLOUD.book.id : null,
+          container: sess.container||'', ctype: sess.ctype||'',
+          counted_name: sess.by||'', device_id: deviceId(),
+          location_name: sess.loc||'', da: sess.da||'',
+          job_name: jobName(sess.job), started_at: new Date(sess.started).toISOString(),
+          finished_at: sess.finished ? new Date(sess.finished).toISOString() : null,
+          _loc: loc ? loc.name : ''};
+}
+function lineRow(sess, l){
+  return {uid: uidOf(l), session_uid: uidOf(sess), code: l.code, qty: l.qty,
+          unit: l.unit||'each', spot: l.loc||'', drum_id: l.drumId||null,
+          raw: l.raw||null, engine: l.eng||'', said_at: new Date(l.ts).toISOString(),
+          device_id: deviceId(), removed_at: null};
+}
+/* Called from the three places a count changes. Cheap and safe signed out —
+   the outbox simply never fills. */
+function queueSession(sess){ if(CLOUD.on && CLOUD.book && sess) outPush('session', sessionRow(sess)); }
+function queueLine(sess, l){
+  if(!CLOUD.on || !CLOUD.book || !sess || !l) return;
+  outPush('session', sessionRow(sess));
+  outPush('line', lineRow(sess, l));
+}
+function queueRemoval(sess, l){
+  if(!CLOUD.on || !CLOUD.book || !sess || !l) return;
+  const row = lineRow(sess, l);
+  row.removed_at = new Date().toISOString();
+  outPush('line', row);
+}
+
+/* ---- sending it ---- */
+let flushTimer = null, FLUSHING = false;
+function online(){ return navigator.onLine !== false; }
+function cloudFlushSoon(ms){
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(()=>{ cloudFlush(); }, ms==null ? 400 : ms);
+}
+async function cloudFlush(){
+  if(FLUSHING || !CLOUD.on || !CLOUD.book || !online()) return false;
+  const q = outbox();
+  if(!q.length) return true;
+  const c = sb(); if(!c) return false;
+  FLUSHING = true; renderSyncState();
+  try{
+    /* Sessions before the lines that hang off them, always — a line whose
+       session has not landed is a line the server has nowhere to put. */
+    const sess = q.filter(x=>x.kind==='session');
+    const lines = q.filter(x=>x.kind==='line');
+    for(const batch of [sess, lines]){
+      if(!batch.length) continue;
+      const fn = batch===sess ? 'push_sessions' : 'push_lines';
+      const {error} = await c.rpc(fn, {rows: batch.map(x=>x.body)});
+      if(error) throw new Error(error.message);
+      batch.forEach(x=>{ const i = outbox().indexOf(x); if(i>=0) outbox().splice(i,1); });
+      save();
+    }
+    CLOUD.syncNote = ''; CLOUD.syncedAt = Date.now();
+    return true;
+  }catch(e){
+    q.forEach(x=>x.tries++);
+    CLOUD.syncNote = String(e && e.message || e);
+    save();
+    return false;
+  }finally{
+    FLUSHING = false;
+    renderSyncState();
+  }
+}
+
+/* ---- and getting back what other phones did ---- */
+function syncMark(){ S.syncAt = S.syncAt || {}; return S.syncAt; }
+async function cloudPullCounts(){
+  const c = sb(), b = CLOUD.book;
+  if(!c || !b || !CLOUD.on || !online()) return false;
+  const since = syncMark()[b.id] || '1970-01-01T00:00:00Z';
+  try{
+    const {data, error} = await c.rpc('pull_counts', {book: b.id, since});
+    if(error) throw new Error(error.message);
+    const rows = data || [];
+    let touched = 0;
+    for(const r of rows) if(mergeSession(r)) touched++;
+    if(rows.length) syncMark()[b.id] = rows.reduce((m,r)=>r.updated_at>m?r.updated_at:m, since);
+    save();
+    if(touched){ renderTally(); renderMgr(); renderRecent(); renderJobLocs(); }
+    CLOUD.pulledAt = Date.now();
+    renderSyncState();
+    return touched;
+  }catch(e){
+    CLOUD.syncNote = String(e && e.message || e);
+    renderSyncState();
+    return false;
+  }
+}
+/* One session and its lines, as the server has them. Anything this phone made
+   is left alone — it is already the newer copy, and its edits are in the
+   outbox waiting to go up. */
+function mergeSession(r){
+  if(!r || !r.uid) return false;
+  if(r.device_id === deviceId()) return false;
+  const cat = (CLOUD.book && CLOUD.book.catalogue) || 'fibre';
+  let sess = (S.sessions||[]).find(x=>x.uid===r.uid);
+  if(!sess){
+    sess = {id:'s'+r.uid.slice(0,8), uid:r.uid, cat, org:(CLOUD.org&&CLOUD.org.name)||'',
+            ctype:r.ctype||'', container:r.container||'', loc:r.location_name||'', da:r.da||'',
+            by:r.counted_name||'', job:S.job, started:Date.parse(r.started_at)||Date.now(),
+            finished:r.finished_at? Date.parse(r.finished_at) : null, lines:[], fromServer:true};
+    (S.sessions = S.sessions || []).unshift(sess);
+  }else{
+    sess.container = r.container||sess.container; sess.ctype = r.ctype||'';
+    sess.loc = r.location_name||sess.loc; sess.by = r.counted_name||sess.by;
+    sess.finished = r.finished_at? Date.parse(r.finished_at) : sess.finished;
+  }
+  for(const l of (r.lines||[])){
+    const at = sess.lines.findIndex(x=>x.uid===l.uid);
+    if(l.removed_at){ if(at>=0) sess.lines.splice(at,1); continue; }
+    const row = {id:'l'+l.uid.slice(0,8), uid:l.uid, cat, code:l.code, qty:Number(l.qty),
+                 unit:l.unit||'each', loc:l.spot||'', drumId:l.drum_id||null,
+                 ts:Date.parse(l.said_at)||Date.now(), raw:l.raw||null, eng:l.engine||'',
+                 role:'contractor'};
+    if(at>=0) sess.lines[at] = row; else sess.lines.push(row);
+  }
+  sess.lines.sort((a,b)=>a.ts-b.ts);
+  return true;
+}
+
+/* ---- the voice engine settings belong to the organisation ---- */
+async function cloudPullSettings(){
+  const c = sb(); if(!c || !CLOUD.on || !CLOUD.profile) return false;
+  const {data, error} = await c.from('org_settings')
+    .select('voice').eq('org_id', CLOUD.profile.org_id).maybeSingle();
+  if(error || !data || !data.voice) return false;
+  const v = data.voice;
+  /* The phone keeps whatever it had for anything the organisation has not set,
+     so a half-filled org never blanks a working van. */
+  S.voice = Object.assign({}, S.voice||{}, v);
+  save();
+  fillVoiceBox(); probeVoice().then(voiceNote);
+  CLOUD.voiceFromOrg = true;
+  return true;
+}
+async function cloudPushSettings(){
+  const c = sb(); if(!c || !CLOUD.on || !CLOUD.profile) throw new Error('not signed in');
+  const v = voiceCfg();
+  const {error} = await c.from('org_settings').upsert({
+    org_id: CLOUD.profile.org_id, updated_by: CLOUD.profile.id, updated_at: new Date().toISOString(),
+    voice: {proxy:v.proxy||'', token:v.token||'', agentId:v.agentId||'',
+            llm:v.llm||'', prefer:v.prefer||'auto', talk:v.talk||'push'}
+  }, {onConflict:'org_id'});
+  if(error) throw new Error(error.message);
+  CLOUD.voiceFromOrg = true;
+  renderAccount();
+  return true;
+}
+
+/* what the counter sees about all of this: a number, and when it last worked */
+function renderSyncState(){
+  const el = $('syncState'); if(!el) return;
+  if(!CLOUD.on || !CLOUD.book){ el.className='syncstate hidden'; el.textContent=''; return; }
+  const q = outbox();
+  /* Counted in LINES, because that is what the counter said. The outbox also
+     holds the session each line belongs to, and "3 waiting" after two lines is
+     a number nobody can reconcile with what they just did. */
+  const n = q.filter(x=>x.kind==='line').length;
+  const other = q.length - n;
+  const what = n ? (n+' line'+(n===1?'':'s')) : (other ? other+' change'+(other===1?'':'s') : '');
+  el.className = 'syncstate' + (q.length ? (online()? ' waiting' : ' off') : '');
+  el.textContent = !online()
+      ? (q.length ? what+' waiting — no signal' : 'No signal. Counting carries on.')
+    : q.length ? (FLUSHING ? 'Uploading '+what+'…' : what+' waiting to upload')
+    : (CLOUD.syncedAt ? 'All uploaded' : 'Nothing to upload');
+  if(CLOUD.syncNote && q.length) el.textContent += ' · '+CLOUD.syncNote.slice(0,60);
 }
 
 /* ---------- state ---------- */
@@ -2803,6 +3028,7 @@ function startSession(){
     job: $('fJob').value || S.job,
     started:Date.now(), finished:null, lines:[]};
   save();
+  queueSession(S.current);
 }
 function ensureSession(){
   if(!S.current) startSession();
@@ -2824,7 +3050,9 @@ function addLine(it,qty,unit,drumId,raw){
   s.lines.push({id:'l'+Math.random().toString(36).slice(2,9), cat:s.cat, code:it.code, qty, unit,
     loc:SPOT, drumId:drumId||null, ts:Date.now(), raw:raw||null, role:curRole(), eng:lineSource()});
   save();
-  return s.lines[s.lines.length-1];
+  const line = s.lines[s.lines.length-1];
+  queueLine(s, line);          /* local first, always — this only queues it */
+  return line;
 }
 function rollLines(lines, cat){
   const by={};
@@ -4820,6 +5048,7 @@ async function removeLine(sessId, lineId){
      out of IndexedDB — a deleted line does not keep its recording */
   const blob = line.audio ? await clipGet(lineId) : null;
   sess.lines.splice(idx,1);
+  queueRemoval(sess, line);    /* a tombstone, so another phone learns it went */
   if(line.audio) clipDel(lineId);
   auditAdd(sess, 'removed', {lineId, code:line.code, qty:line.qty, unit:line.unit,
                              spot:line.loc||'', words:lineWords(sess,line)});
@@ -4831,6 +5060,7 @@ async function removeLine(sessId, lineId){
 }
 function restoreLine(){
   if(!UNDO) return;
+  /* queued after the splice below, once it is back in the session */
   const {sessId, line, idx, blob} = UNDO;
   UNDO = null;
   const sess = findSession(sessId);
@@ -4839,6 +5069,7 @@ function restoreLine(){
   if(blob) clipPut(line.id, blob);
   auditAdd(sess, 'restored', {lineId:line.id, code:line.code, qty:line.qty, unit:line.unit,
                               spot:line.loc||'', words:lineWords(sess,line)});
+  queueLine(sess, line);       /* un-tombstoned — removed_at goes back to null */
   save();
   afterLineChange();
   toast('Put back — '+lineWords(sess,line));
@@ -4910,6 +5141,7 @@ function doFinish(quiet){
   if(!s||!s.lines.length){ if(!quiet){ say('Nothing to close','Nothing counted here yet.',true); } return; }
   s.finished = Date.now();
   S.sessions.unshift(s); S.current=null; save();
+  queueSession(s);             /* the close time is worth sending on its own */
   const by = rollLines(s.lines, s.cat);
   if(!quiet){
     say('Closed — '+s.container, Object.keys(by).length+' item types, '+s.lines.length+' lines. You can reopen it and add to it any time.');
@@ -9084,6 +9316,13 @@ function saveVoiceCfg(){
 }
 function voiceNote(){
   const n = $('vNote'); if(!n) return;
+  const org = $('vOrgSave');
+  if(org){
+    const can = CLOUD.on && ['supervisor','admin'].includes(cloudRole());
+    org.classList.toggle('hidden', !CLOUD.on);
+    org.disabled = !can;
+    org.title = can ? '' : 'A supervisor or an admin sets these for the organisation';
+  }
   const spec = VOICE.model
     ? ' Readbacks: ' + VOICE.model
       + (VOICE.voiceId ? ', voice ' + VOICE.voiceId : '')
@@ -9095,13 +9334,21 @@ function voiceNote(){
     ? (llm ? ' Tools and prompt sent from the app on '+llm.provider+'/'+llm.model+' ('+VAPI_TOOLS.length+' tools).'
            : ' Tools and prompt come from the assistant in the dashboard.')
     : '';
+  const from = CLOUD.voiceFromOrg ? ' These came with your account.' : '';
   n.textContent = (VOICE.stt==='eleven'
     ? 'ElevenLabs is answering' + (VOICE.note ? ' — ' + VOICE.note : '.')
     : VOICE.stt==='agent'
       ? 'Vapi is answering' + (VOICE.note ? ' — ' + VOICE.note : '.')
-      : 'On the browser engine' + (VOICE.note ? ' — ' + VOICE.note + '.' : '.')) + tools + spec;
+      : 'On the browser engine' + (VOICE.note ? ' — ' + VOICE.note + '.' : '.')) + tools + spec + from;
 }
 $('vSave').onclick = e => withFeedback(e.currentTarget, async ()=>{ await saveVoiceCfg(); voiceNote(); }, 'Saved');
+/* A new van should be a sign-in, not a paste. These settings belong to the
+   organisation, and only a supervisor or an admin may set them for everybody. */
+$('vOrgSave').onclick = e => withFeedback(e.currentTarget, async ()=>{
+  await saveVoiceCfg();
+  await cloudPushSettings();
+  voiceNote();
+}, 'Saved for everyone');
 $('vTest').onclick = e => withFeedback(e.currentTarget, async ()=>{
   await saveVoiceCfg();
   voiceNote();
@@ -9160,6 +9407,14 @@ $('cbSave').onclick = e => withFeedback(e.currentTarget, async ()=>{
 }, 'Saved');
 bootCloud();
 if(!window.supabase) window.addEventListener('load', ()=>setTimeout(bootCloud, 300));
+
+/* Coming back into coverage is the moment that matters. Nothing polls a dead
+   network; the browser tells us, and we try again then. */
+window.addEventListener('online',  ()=>{ renderSyncState(); cloudFlushSoon(200); cloudPullCounts(); });
+window.addEventListener('offline', ()=>renderSyncState());
+/* And a slow catch-up for what other phones did, because nothing pushes to us. */
+setInterval(()=>{ if(CLOUD.on && CLOUD.book && online()){ cloudFlush(); cloudPullCounts(); } }, 60000);
+renderSyncState();
 
 probeVoice().then(voiceNote);
 /* the SDK is a deferred module, so it usually lands after this line */

@@ -624,6 +624,29 @@ change.
     app's own nbi/contractor axis is **derived**: a login that can see a book belonging to another
     organisation is looking across the estate; one that cannot is a contractor counting its own.
     Signing out gives the switch back.
+  - **Batch B: counts sync, and the phone is still what writes.** A count is saved locally the
+    instant it is spoken, with **no network in the path**, and an **outbox** (`S.out`) carries it up
+    when there is coverage. That order is the promise: a counter in a dead spot is never waiting on
+    us, and nothing is lost because the van drove into a hollow.
+    - **Rows carry a UUID minted on the phone** (`uidOf()`), so pushing the same row twice is an
+      upsert onto itself rather than a duplicate — which is what makes an outbox safe to retry.
+    - **Sessions go up before the lines that hang off them**, always. A line whose session has not
+      landed is a line the server has nowhere to put.
+    - **A removed line is a tombstone, never a delete.** A phone that was offline when it happened
+      has to be able to learn that it happened. Nothing may hard-delete a line.
+    - **The pull is "what changed in this book since I last looked"** (`pull_counts`), one row per
+      session with its lines nested, so an hour in a hollow is one request. A session this device
+      made never comes back to it — that copy is newer and its edits are in the outbox.
+    - **The status line counts LINES, not outbox entries.** The queue also holds the session each
+      line belongs to, and "3 waiting" after two lines is a number nobody can reconcile with what
+      they just said.
+    - **A refused push keeps the work.** The entry stays in the outbox with its try count; it is
+      never dropped to make the number look better.
+    - **The voice engine settings belong to the organisation**, not the phone — `org_settings`,
+      saved by a supervisor or admin, pulled on sign-in, so a new van is a sign-in rather than a
+      paste. It is a table of its own rather than a column on `orgs` **because `orgs` is readable by
+      an organisation you share a book with**, and the Cloudflare `APP_TOKEN` is a shared secret. A
+      guest can see your name. It cannot see your keys.
   - **A refused query says so.** A permission error puts its message on the Account panel; it never
     quietly empties the master, which would look like a catalogue with two items in it.
 - **The app opens empty. No count line is ever seeded.** The first number in it is one somebody
