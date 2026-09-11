@@ -98,6 +98,54 @@ module.exports = async function({ browser, H }){
   await p.screenshot({ path: shot('b3-loc.png'), clip:{x:0,y:100,width:430,height:700} });
   await p.click('#t-hist'); await p.waitForTimeout(500);
   await p.screenshot({ path: shot('b3-hist.png') });
+  /* ── the field mic fills the field, and does nothing else ── */
+  await p.click('#t-count'); await p.waitForTimeout(300);
+  const mic = await p.evaluate(async ()=>{
+    setLoc(''); PTYPE=''; syncPlaceUI();
+    wantListen = false;
+    const before = {setupHidden:$('setup').classList.contains('hidden'), listening:wantListen, ptype:PTYPE};
+    resolveLocVoice('Claremorris');
+    await new Promise(r=>setTimeout(r,300));
+    return {before, loc:LOC, da:LOCDA,
+            setupHidden:$('setup').classList.contains('hidden'),
+            listening:wantListen, ptype:PTYPE,
+            note:$('locVoice').textContent,
+            started:!!cur()};
+  });
+  t('saying a location fills the Location field', mic.loc==='Claremorris' && mic.da==='DA008', JSON.stringify(mic));
+  t('and the panel stays open — it does not jump into counting',
+     mic.setupHidden===false && mic.listening===false && mic.started===false, JSON.stringify(mic));
+  t('Where is still yours to choose', mic.ptype==='', JSON.stringify(mic.ptype));
+  t('the field says what it heard', /Claremorris/.test(mic.note) && /DA008/.test(mic.note), mic.note);
+
+  const heard = await p.evaluate(async ()=>{
+    setLoc(''); resolveLocVoice('Claire Morris');
+    await new Promise(r=>setTimeout(r,250));
+    return {loc:LOC, note:$('locVoice').textContent, yes:!!document.getElementById('locYes')};
+  });
+  t('a name heard another way asks rather than setting it',
+     heard.loc==='' && /Do you mean Claremorris/.test(heard.note) && heard.yes===true, JSON.stringify(heard));
+  await p.click('#locYes'); await p.waitForTimeout(250);
+  t('and Yes fills the field', await p.evaluate(()=>LOC)==='Claremorris');
+
+  const nope = await p.evaluate(async ()=>{
+    setLoc(''); resolveLocVoice('Timbuktu');
+    await new Promise(r=>setTimeout(r,250));
+    return {loc:LOC, note:$('locVoice').textContent};
+  });
+  t('and something off the list is refused, still without starting anything',
+     nope.loc==='' && /Not on the list/.test(nope.note), JSON.stringify(nope));
+
+  /* the registration mic is the same rule */
+  const reg = await p.evaluate(()=>{
+    setLoc('Claremorris'); PTYPE='store-in'; syncPlaceUI();
+    const said = selectRegPlace({label:'202-C-8871', type:'van'});
+    return {val:$('fVan').value, ptype:PTYPE, said};
+  });
+  t('the registration mic fills the registration and leaves Where alone',
+     reg.val==='202-C-8871' && reg.ptype==='store-in', JSON.stringify(reg));
+  t('and says so when the register disagrees', /register has it as Vehicle/.test(reg.said), reg.said);
+
   const out = R.report('location — a closed list, per contractor', errs);
   await p.ctx.close();
   return out;

@@ -650,6 +650,7 @@
       </div>
       <div class="field full" id="locField">
         <label class="lblrow" for="fLoc">Location<span class="lochint" id="locHint"></span></label>
+        <div id="locVoice" class="regvoice hidden"></div>
         <div class="picker">
           <input id="fLoc" placeholder="Search or type…" autocomplete="off" role="combobox" aria-expanded="false">
           <button class="caretbtn micbtn" id="locMic" aria-label="Say the location" title="Say the location">
@@ -881,13 +882,16 @@
     </div>
     <div class="panel">
       <header><h2>Access</h2><span class="hint">Who is using this device, and what they can see</span></header>
-      <div class="catgrid">
-        <div class="field"><label for="aRole">This device is</label><select id="aRole"><option value="nbi">NBI — sees every contractor</option><option value="contractor">A contractor — sees only their own stock</option></select></div>
-        <div class="field"><label for="aOrg">Which contractor</label><select id="aOrg"></select></div>
-        <div class="field"><label for="aName">Counter name</label><input id="aName" placeholder="Seán M"></div>
-        <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="aSave">Save</button></div>
+      <div id="accessSaid" class="hidden"></div>
+      <div id="accessLocal">
+        <div class="catgrid">
+          <div class="field"><label for="aRole">This device is</label><select id="aRole"><option value="nbi">NBI — sees every contractor</option><option value="contractor">A contractor — sees only their own stock</option></select></div>
+          <div class="field"><label for="aOrg">Which contractor</label><select id="aOrg"></select></div>
+          <div class="field"><label for="aName">Counter name</label><input id="aName" placeholder="Seán M"></div>
+          <div class="field" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn dark" id="aSave">Save</button></div>
+        </div>
+        <p class="note">With no account signed in, this is a switch with no password so you can see both sides: a contractor opens the app fixed to their own stock, NBI sees every contractor that has reached this device. Sign in on the Account panel above and it is a real login instead — who you are, which organisation, and what you may do all come from there.</p>
       </div>
-      <p class="note">In the shipped product this is a real account login with hard separation between contractors. Here it is a switch, with no password, so you can see both sides: a contractor opens the app fixed to their own stock and the fibre catalogue; NBI sees every contractor that has reached this device, and can sum them.</p>
     </div>
     <div class="panel">
       <header><h2>Customers and branding</h2><span class="hint">Each one gets its own colour and badge across the app</span></header>
@@ -1763,7 +1767,7 @@ async function cloudPull(){
 /* everything that has to redraw when the account or the book changes */
 function afterCloudChange(){
   try{
-    renderAccount();
+    renderAccount(); renderAccess(); renderScope(); applyBrand();
     fillOrgs(true); renderCat(); renderLocField(); renderLocAdmin(); renderLocTable();
     renderJobLocs(); renderMgr(); renderKeyterms(); syncStartable();
   }catch(e){}
@@ -6094,7 +6098,24 @@ function renderOrgBox(){
 /* ============================================================
    roles, jobs, location picker
    ============================================================ */
+/* Signed in, who you are is the account — not a dropdown on this phone. The
+   app's own nbi/contractor axis is really "do I see more than one organisation's
+   books", so it is derived rather than picked: a login that can see somebody
+   else's book is looking across the estate, and one that cannot is a contractor
+   counting its own. */
+function cloudRole(){ return (CLOUD.profile && CLOUD.profile.role) || 'counter'; }
+function cloudSeesOthers(){
+  const mine = CLOUD.profile && CLOUD.profile.org_id;
+  return !!mine && CLOUD.books.some(b=>b.orgId && b.orgId !== mine);
+}
 function me(){
+  if(CLOUD.on && CLOUD.profile){
+    return {account:true,
+            role: cloudSeesOthers() ? 'nbi' : 'contractor',
+            org:  (CLOUD.org && CLOUD.org.name) || '',
+            name: CLOUD.profile.name || (CLOUD.user && CLOUD.user.email) || '',
+            level: cloudRole()};
+  }
   const m = S.me = S.me || {};
   /* an older device may still be on the counter / owner pair */
   if(m.role==='owner') m.role='nbi';
@@ -6619,22 +6640,29 @@ function regNote(html, err, place){
     ? '<div class="yn"><button class="btn dark" id="regYes">Yes</button><button class="btn" id="regNo">No</button></div>'
     : '');
   if(place){
-    $('regYes').onclick = ()=>{ selectRegPlace(place); regNote('Selected <b class="mono">'+esc(place.label)+'</b>.'); speak(place.label.replace(/-/g,' ')+' selected.'); };
+    $('regYes').onclick = ()=>{ const d = selectRegPlace(place);
+      regNote('Selected <b class="mono">'+esc(place.label)+'</b>.'+esc(d)); speak(place.label.replace(/-/g,' ')+' selected.'); };
     $('regNo').onclick = ()=>{ regNote('Pick it from the list instead.', true); openPick(); $('fVan').focus(); };
   }
 }
 function clearRegNote(){ const el=$('regVoice'); el.className='regvoice hidden'; el.innerHTML=''; }
+/* Fills the registration field and nothing else. It used to set "Where are you
+   counting?" from the register's own idea of what this label is, which is a
+   shortcut past a question the counter was asked — if the register disagrees
+   with what they picked, it says so and leaves the choice with them. */
 function selectRegPlace(pl){
   $('fVan').value = pl.label;
-  if((pl.type||'van')!==PTYPE){ PTYPE = pl.type||'van'; renderSegs(); syncPlaceUI(); }
   closePick(); SPOT=''; fillPlaces(); renderSpots(); refreshWhere(); renderRecent();
+  const kind = pl.type || '';
+  if(kind && PTYPE && kind !== PTYPE) return ' The register has it as '+typeLabel(kind)+'.';
+  return '';
 }
 function resolveRegVoice(text){
   const r = regVoiceMatch(text);
   const heard = r.heard ? '<small>Heard <span class="mono">'+esc(r.heard)+'</span></small>' : '';
   if(r.kind==='exact'){
-    selectRegPlace(r.place);
-    regNote('Selected <b class="mono">'+esc(r.place.label)+'</b>.'+heard);
+    const differs = selectRegPlace(r.place);
+    regNote('Selected <b class="mono">'+esc(r.place.label)+'</b>.'+esc(differs)+heard);
     speak(sayReg(r.place.label)+'. Selected.');
     return;
   }
@@ -6648,6 +6676,91 @@ function resolveRegVoice(text){
     + heard + (n? '' : '<small>No register imported for this customer yet.</small>'), true);
   speak('Not found. Pick it from the list.');
   openPick();
+}
+/* ---------- the Location field's own mic ----------
+   Voice on a field is a way of typing into it, not a shortcut past the rest of
+   the form. It used to hide the setup card and start the whole counting
+   session; now it fills the Location and stops, and the counter still picks
+   the Where and taps Start counting themselves. */
+function locNote(html, err, name){
+  const el=$('locVoice'); if(!el) return;
+  el.className = 'regvoice'+(err?' err':'');
+  el.innerHTML = html + (name
+    ? '<div class="yn"><button class="btn dark" id="locYes">Yes</button><button class="btn" id="locNo">No</button></div>'
+    : '');
+  if(name){
+    $('locYes').onclick = ()=>{ setLoc(name); locNote('Location <b>'+esc(name)+'</b>.'); speak(name+'.'); };
+    $('locNo').onclick  = ()=>{ locNote('Pick it from the list instead.', true); openLocMenu(); $('fLoc').focus(); };
+  }
+}
+function clearLocNote(){ const el=$('locVoice'); if(el){ el.className='regvoice hidden'; el.innerHTML=''; } }
+let locRec=null;
+function locListen(){
+  if(locRec){ try{ locRec.stop(); }catch(e){} return; }
+  const cat=$('fCat').value, org=$('fOrg').value;
+  if(!locsFor(cat,org).length){
+    locNote('No location list for this contractor yet. Upload one on the Setup tab.', true);
+    return;
+  }
+  if(!SR){
+    locNote('Voice is not available in this browser. Type the location, or pick it from the list.', true);
+    return;
+  }
+  if(wantListen) stopListen();          /* one recogniser at a time */
+  let got='';
+  const r = new SR();
+  locRec = r;
+  r.lang='en-IE'; r.continuous=false; r.interimResults=true;
+  r.onstart = ()=>{ $('locMic').classList.add('on'); locNote('Listening \u2014 say the location.'); };
+  r.onerror = e=>{
+    locRec=null; $('locMic').classList.remove('on');
+    locNote(e.error==='not-allowed'||e.error==='service-not-allowed'
+      ? 'Microphone blocked. Allow microphone access for this page, then tap the mic again.'
+      : 'Did not catch that. Tap the mic and try again, or pick from the list.', true);
+  };
+  r.onresult = ev=>{
+    let interim='', final='';
+    for(let i=ev.resultIndex;i<ev.results.length;i++){
+      const x=ev.results[i];
+      if(x.isFinal) final += x[0].transcript+' '; else interim += x[0].transcript;
+    }
+    if(interim && !final.trim()) locNote('Hearing \u201C'+esc(interim)+'\u201D\u2026');
+    if(final.trim()) got = final.trim();
+  };
+  r.onend = ()=>{
+    if(locRec!==r) return;
+    locRec=null; $('locMic').classList.remove('on');
+    if(got) resolveLocVoice(got);
+    else locNote('Did not catch that. Tap the mic and try again, or pick from the list.', true);
+  };
+  try{ r.start(); }catch(e){ locRec=null; $('locMic').classList.remove('on'); }
+}
+/* The same phonetic matcher the spoken command uses — "Claire Morris" is
+   Claremorris here too — but the answer only ever lands in this one field. */
+function resolveLocVoice(text){
+  const cat=$('fCat').value, org=$('fOrg').value;
+  const m = matchLoc(cat, org, text);
+  const heard = '<small>Heard <span class="mono">'+esc(text)+'</span></small>';
+  if(m.exact){
+    setLoc(m.exact.name);
+    locNote('Location <b>'+esc(m.exact.name)+'</b>.'+(m.exact.da? ' <small>'+esc(m.exact.da)+'</small>':'')+heard);
+    speak(m.exact.name+'.');
+    return;
+  }
+  if(m.sure){
+    locNote('Do you mean <b>'+esc(locSaidName(m.sure))+'</b>?'+heard, false, m.sure.name);
+    speak('Do you mean '+locSaidName(m.sure)+'?');
+    return;
+  }
+  if(m.near.length){
+    locNote('Closest on the list: '+m.near.slice(0,3).map(l=>'<b>'+esc(l.name)+'</b>').join(', ')
+      +'. Pick one from the list.'+heard, true);
+    speak('Which one? '+m.near.slice(0,3).map(l=>l.name).join('. ')+'.');
+    openLocMenu();
+    return;
+  }
+  locNote('<b>Not on the list.</b> Nothing close to that for '+esc(org)+'.'+heard, true);
+  speak('Not on the location list.');
 }
 let regRec=null;
 function regListen(){
@@ -6696,8 +6809,8 @@ function fillPlaces(){
   /* one store, one yard — no point making them pick it */
   const cur = inp.value.trim();
   if(mine.length===1 && (!cur || !all.some(x=>regKey(x.label)===regKey(cur)))) inp.value = mine[0].label;
-  const known = all.find(x=>regKey(x.label)===regKey(inp.value.trim()));
-  if(known && known.type && known.type!==PTYPE){ PTYPE=known.type; renderSegs(); }
+  /* Typing a registration the register knows does not move "Where are you
+     counting?" either — same reason as selectRegPlace(). */
   if(PICK_OPEN) renderPickMenu();
   renderSpots();
 }
@@ -8533,6 +8646,19 @@ function renderShare(){
 }
 function renderAccess(){
   const m = me();
+  const box = $('accessLocal'), said = $('accessSaid');
+  /* Signed in, the dropdowns are not the truth and must not look like it. */
+  if(box) box.classList.toggle('hidden', !!m.account);
+  if(said){
+    said.classList.toggle('hidden', !m.account);
+    if(m.account) said.innerHTML = '<div class="jrow"><span class="ji"><b>'+esc(m.name)+'</b><small>'
+      + esc(m.org||'no organisation')+' \u00b7 '+esc(cap(m.level||'counter'))
+      + ' \u00b7 '+(m.role==='nbi' ? 'sees every book shared with you' : 'sees your own stock')
+      + '</small></span><span class="tag">From your account</span></div>'
+      + '<p class="note" style="margin:0">This comes from the account you are signed in with, not from this phone. '
+      + 'Sign out on the Account panel above to go back to the on-device settings.</p>';
+  }
+  if(m.account) return;
   $('aRole').value = m.role;
   $('aOrg').innerHTML = contractorList().map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('');
   if(m.org) $('aOrg').value = m.org;
@@ -8663,8 +8789,7 @@ $('fLoc').addEventListener('blur', ()=>setTimeout(()=>{
   else { $('fLoc').value = LOC || ''; renderLocField(); }
 }, 160));
 $('locToggle').onclick = ()=>{ LOCMENU_OPEN ? closeLocMenu() : (openLocMenu(), $('fLoc').focus()); };
-$('locMic').onclick = ()=>{ primeAudio(); $('setup').classList.add('hidden'); startListen();
-  say('Say the location','For example, “location Claremorris”.'); };
+$('locMic').onclick = e=>{ e.preventDefault(); primeAudio(); locListen(); };
 
 /* ---------- the location list upload ---------- */
 function doLocUpload(f){

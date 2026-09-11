@@ -115,6 +115,43 @@ module.exports = async function({ browser, H }){
   t('a spoken line matches against the book\'s master',
      await p.evaluate(()=>{ const r=parse('six nine metre medium poles','fibre'); return r.kind==='line' && r.it.code==='500CONPOLE9M'; }));
 
+  /* ---------- C2. who you are follows the account ---------- */
+  const who = await p.evaluate(()=>({
+    role: me().role, org: me().org, name: me().name, level: me().level, acct: !!me().account,
+    localHidden: $('accessLocal').classList.contains('hidden'),
+    said: $('accessSaid').textContent
+  }));
+  t('signed in, me() is the account and not the dropdown',
+     who.acct===true && who.org==='KN Circet' && who.name==='Seán M' && who.level==='counter',
+     JSON.stringify(who));
+  /* This fixture's login can see TLI's book as well as its own, so by the rule
+     it is looking across the estate — which is exactly what NBI is. Take the
+     foreign book away and the same login is a contractor again. */
+  t('a login that can see somebody else\'s book is looking across the estate', who.role==='nbi', who.role);
+  const alone = await p.evaluate(()=>{
+    const keep = CLOUD.books;
+    CLOUD.books = keep.filter(b=>b.mine);
+    const r = me().role;
+    CLOUD.books = keep;
+    return r;
+  });
+  t('and one that sees only its own is a contractor', alone==='contractor', alone);
+  t('the Access panel shows the account instead of the on-device switch',
+     who.localHidden===true && /Seán M/.test(who.said) && /KN Circet/.test(who.said)
+     && /Counter/.test(who.said) && /From your account/.test(who.said), who.said.slice(0,110));
+
+  /* a login that CAN see another organisation's book is looking across the estate */
+  const nbi = await p.evaluate(()=>{
+    const keep = CLOUD.profile.org_id;
+    CLOUD.profile.org_id = 'o-nbi'; CLOUD.org = {id:'o-nbi', name:'NBI'};
+    CLOUD.books = CLOUD.books.map(b=>Object.assign({}, b, {mine:false}));
+    const r = {role:me().role, org:me().org};
+    CLOUD.profile.org_id = keep; CLOUD.org = {id:'o-kn', name:'KN Circet'};
+    CLOUD.books = CLOUD.books.map(b=>Object.assign({}, b, {mine:b.orgId==='o-kn'}));
+    return r;
+  });
+  t('and one that can see somebody else\'s is NBI', nbi.role==='nbi' && nbi.org==='NBI', JSON.stringify(nbi));
+
   /* ---------- D. switching book switches the master ---------- */
   await p.selectOption('#cbBook','b-own'); await p.waitForTimeout(700);
   const own = await p.evaluate(()=>({book:CLOUD.book.name, codes:items('fibre').map(i=>i.code), saved:S.book}));
@@ -152,6 +189,11 @@ module.exports = async function({ browser, H }){
   t('and it really signed out', after.out===1 && after.form===true, JSON.stringify(after));
 
   /* ---------- G. the device has a name ---------- */
+  const back = await p.evaluate(()=>({acct:!!me().account, name:me().name,
+      localShown:!$('accessLocal').classList.contains('hidden')}));
+  t('and signing out gives the on-device switch back',
+     back.acct===false && back.localShown===true && back.name==='Seán M', JSON.stringify(back));
+
   const dev = await p.evaluate(()=>({a:deviceId(), b:deviceId(), stored:S.device}));
   t('the phone names itself once and keeps it', dev.a===dev.b && dev.stored===dev.a, JSON.stringify(dev));
 

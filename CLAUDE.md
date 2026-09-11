@@ -463,6 +463,13 @@ change.
   - **A bare place name is a location.** Counters say *"Claremorris"*, not *"location
     Claremorris"*. `parse()` takes a bare utterance as a location only when there is **no quantity
     in it** and no item worth the name — anything with a number in it is a count, always.
+  - **A mic on a field is a way of typing into it.** The Location mic (`locListen()`,
+    `resolveLocVoice()`) fills the Location and stops: the setup panel stays open, no session
+    starts, nothing begins listening, and *Where are you counting?* is still the counter's to
+    choose. It used to hide the panel and start the whole counting session, which is a shortcut
+    past the rest of the form. The registration mic is the same rule — `selectRegPlace()` no longer
+    moves the place type to whatever the register says this label is; it **tells** you the register
+    disagrees and leaves the choice alone. Typing a known registration does not move it either.
   - **"Spoken as" on the location list**, for the ones the sound rules still miss. The Setup tab
     carries the contractor's locations as an editable table — name, DA, and a box to type the
     phrases they answer to — searchable, exportable, and **kept when the list is uploaded again**,
@@ -611,6 +618,12 @@ change.
     `CLOUD.items` over the built-in catalogue and `S.custom` still overrides both, so a phone that
     fixed a description keeps the fix. Signing out gives the built-in catalogue back rather than
     leaving the counter with nothing.
+  - **Signed in, who you are is the account.** `me()` returns the profile's name, its organisation
+    and its level, and the Access panel shows that rather than the on-device switch — which is
+    hidden, not just ignored, because a dropdown that does nothing is worse than no dropdown. The
+    app's own nbi/contractor axis is **derived**: a login that can see a book belonging to another
+    organisation is looking across the estate; one that cannot is a contractor counting its own.
+    Signing out gives the switch back.
   - **A refused query says so.** A permission error puts its message on the Account panel; it never
     quietly empties the master, which would look like a catalogue with two items in it.
 - **The app opens empty. No count line is ever seeded.** The first number in it is one somebody
