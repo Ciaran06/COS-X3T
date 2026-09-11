@@ -21,6 +21,9 @@ any of it.
 1. Left-hand menu → **SQL Editor** → **New query**.
 2. Paste the whole of `supabase/schema.sql` from this repo. **Run**.
 3. New query. Paste the whole of `supabase/policies.sql`. **Run**.
+4. New query. Paste the whole of `supabase/002-counts.sql`. **Run**. That is
+   Batch B: the push and pull functions the outbox uses, the uid columns, the
+   tombstone rule, and the table the voice engine settings live in.
 
 Both are safe to run again — they create nothing twice and drop each policy
 before recreating it. If you change either file, re-run it.
@@ -115,8 +118,18 @@ No server, no certificates, no backup job, no DNS. Supabase's own email sender
 is rate-limited but fine for two phones; a custom sender is only needed when
 real counters start signing in.
 
+## The voice engine settings, once
+
+**Setup → Voice engine → Save for the whole organisation.** A supervisor or an
+admin does it once, and every phone that signs in afterwards gets the proxy, the
+app token, the Vapi assistant and the LLM with the account. A new van is a
+sign-in, not a paste.
+
+They live in `org_settings`, which no grant can read — an organisation you share
+a book with can see your *name*, never your keys.
+
 ## What is deliberately not here yet
 
-Counts still save on the phone and go nowhere — that is **Batch B**. Books are
-created by hand — **Batch C**. Sharing between organisations, and the invite
-flow — **Batch D**. Roles doing anything — **Batch E**.
+Books are created by hand — **Batch C**. Sharing between organisations, and the
+invite flow — **Batch D**. Roles doing anything beyond the voice settings —
+**Batch E**. Audio clips still live only on the phone that recorded them.
