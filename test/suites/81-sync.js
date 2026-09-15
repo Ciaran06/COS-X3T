@@ -166,6 +166,21 @@ module.exports = async function({ browser, H }){
   });
   t('an admin can, and it lands on the organisation', can.off===false && can.saved==='openai/gpt-5', JSON.stringify(can));
 
+  /* a number typed into the stock list is a count like any other — same job,
+     same location, same queue out */
+  const byThumb = await p.evaluate(async ()=>{
+    const i = document.querySelector('#stockList input.qty[data-code="500POLESTEP"]');
+    i.value = '25'; i.dispatchEvent(new Event('change'));
+    await new Promise(r=>setTimeout(r,200));
+    const q = outbox().filter(o=>o.kind==='line');
+    const l = cur().lines[cur().lines.length-1];
+    await cloudFlush();
+    const row = (window.__sbData.lines||[]).find(r=>r.uid===uidOf(l));
+    return {queued:q.length, code:l.code, up:!!row, loc:row&&row.location_name, left:outbox().length};
+  });
+  t('a number typed into the stock list queues and uploads like a spoken one',
+    byThumb.queued===1 && byThumb.code==='500POLESTEP' && byThumb.up && byThumb.left===0, JSON.stringify(byThumb));
+
   const out = R.report('sync — local first, outbox out, other phones in', p.errs);
   await p.ctx.close();
   return out;

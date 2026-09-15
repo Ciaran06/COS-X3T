@@ -20,8 +20,13 @@ module.exports = async function({ browser, H }){
   });
   t('a counted line has no storage area on it', (bare.loc===''||bare.loc==null) && bare.lines===1, JSON.stringify(bare));
   await p.waitForTimeout(300);
-  t('and the tally shows no area heading',
-    !/WHOLE LOCATION|SHELF/i.test(await p.textContent('#tally')), (await p.textContent('#tally')).slice(0,120));
+  /* The panel is the stock list now, not a per-area breakdown, so there is no
+     heading to show. The area is still on the line and still in the export. */
+  t('and the stock list carries the number with no area heading',
+    await p.evaluate(()=>{
+      const i = document.querySelector('#stockList input.qty[data-code="500CONPOLE9M"]');
+      return !!i && i.value === '12' && !/WHOLE LOCATION/i.test($('tally').textContent);
+    }));
   t('the Storage areas tile is not shown either',
     !/Storage areas/.test(await p.textContent('#prog')), await p.textContent('#prog'));
 
@@ -39,8 +44,13 @@ module.exports = async function({ browser, H }){
   t('and a "Whole location" chip appears to get back out',
     after.chips.some(c=>/Whole location/.test(c)) && after.chips.some(c=>c==='Bay 3'), JSON.stringify(after.chips));
   await p.waitForTimeout(300);
-  t('the tally splits by area once one is in use',
-    /BAY 3/i.test(await p.textContent('#tally')) && /WHOLE LOCATION/i.test(await p.textContent('#tally')));
+  t('the box holds the whole location, whichever area the line went against',
+    await p.evaluate(()=>{
+      const q = c => (document.querySelector('#stockList input.qty[data-code="'+c+'"]')||{}).value;
+      return q('500CONPOLE9M')==='12' && q('3FE49328CB')==='4';
+    }));
+  t('and the area is still on the line, where the export reads it',
+    await p.evaluate(()=>cur().lines.map(l=>l.loc||'').join('|'))==='|Bay 3');
 
   const back = await p.evaluate(()=>{
     [...document.querySelectorAll('#spots .spot')].find(b=>/Whole location/.test(b.textContent)).click();

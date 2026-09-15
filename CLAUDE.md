@@ -551,6 +551,30 @@ change.
   finished first so its lines make the snapshot. Closed jobs live in `S.closed` and are never pruned,
   so they persist year over year. See `buildSnapshot()`, `doCloseJob()`, `renderHistory()`,
   `renderHistoryDetail()`.
+- **The panel under the buttons on the Count tab is the stock list** — the whole item master,
+  not a list of what has been counted. Every item gets a row (description, code, unit, product
+  group) with a box on the right holding what this location has so far, so a counter working down
+  a shelf can see the item they are looking at before anybody has said it.
+  - It **reads `items()`**, the same master the Setup tab edits. Nothing is copied, so a
+    description fixed in Setup is on this list the moment `saveItemForm()` returns.
+  - **The search box filters live** on code, short description, long description and *Spoken as*.
+    Clearing it brings the whole master back. It is sticky at the top of the panel, which is why
+    the header lives *inside* the scroll box (`.stockbox`) — `position:sticky` has nothing to
+    stick to otherwise.
+  - **Typing a number sets the total, it does not add to it** — and it does that by writing one
+    adjusting line for the difference down the same path a spoken line takes (`addLine()`, so the
+    same job, the same location, the same local save and the same outbox). The voice lines already
+    there keep their words, their recordings and their place in Undo, and the correction is a line
+    in the record rather than a silent overwrite of one. A stocktake that hides its own corrections
+    is not worth having in a contract dispute. `lineSource()` records it as **Typed**, not heard.
+  - 0 and an empty box are both allowed and both mean none. A negative is refused.
+  - A spoken line repaints the boxes in place. `stockHold()`/`stockRestore()` carry the caret, the
+    half-typed digits and the scroll position across the rebuild, so a line landing in the next van
+    neither eats a character nor throws the list back to the top.
+  - **The only empty state left is no item master at all.** Everything else draws the list, counted
+    or not — a shelf nobody has reached yet is still a row.
+  - See `stockRows()`, `stockTotals()`, `setStockCount()`, `renderStock()`, `paintStock()`,
+    `renderTally()`. Tested in `test/suites/63-stocklist.js`.
 - **Storage areas are optional and start off.** A count goes straight against the location; lines
   carry `loc:''` until somebody creates an area. One **+ Add storage area** button replaces the old
   shelf chips, and an area is named whatever the counter types or says — "Bay 3", "back yard",
@@ -559,9 +583,11 @@ change.
   counts carry no areas, and an imported count sheet no longer invents a "Count sheet" area either.
   A location with an uploaded shelf list still offers those, because the office chose them.
   - Once one area exists, a **Whole location** chip appears so the counter can get back out.
-  - **If nobody used one, it is not a column.** The tally shows no area headings, the Storage areas
-    tile is not rendered, and the CSV export omits the column entirely rather than carrying an empty
-    one on every row.
+  - **If nobody used one, it is not a column.** The Storage areas tile is not rendered and the CSV
+    export omits the column entirely rather than carrying an empty one on every row. The panel on
+    the Count tab is the stock list now and never splits by area either way — the box on a row is
+    the whole location's number. The area stays on every line, and reaches the export and the
+    server from there.
 - **Removing is recorded, not silent.** A counted line is evidence, so taking one off writes an
   entry to the session's `audit` array — who, when, and what it was — and that appears as **Count
   history** under the lines on the Count tab. Every route in goes through `removeLine()`: the bin,

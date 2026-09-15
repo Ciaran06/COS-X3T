@@ -84,6 +84,7 @@ either way — counting them would flatter the recognition rate.
 | `60-delete` | every line can be removed, undone for five seconds, and the removal is in the record |
 | `61-spots` | storage areas are optional, off by default, and never invented |
 | `62-where` | the place type is optional, and blank everywhere it was never chosen |
+| `63-stocklist` | the Count panel is the whole master, searchable, and a typed box sets the total |
 | `70-rollup` | Results' filter bar narrows every table under it, says what it is showing, and exports it |
 | `80-account` | signing in, the org and its books, and counting against the book's master |
 | `81-sync` | local first, the outbox out, other phones in, and a refusal that keeps the work |

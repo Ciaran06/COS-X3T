@@ -349,15 +349,42 @@
 
   .tally{margin-top:12px; overflow:hidden}
   .tally h3{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); padding:12px 14px 9px}
-  .grp2{display:flex; align-items:center; gap:8px; padding:8px 14px; background:var(--surface-2); border-top:1px solid var(--line); font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-2)}
-  .line{display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:baseline; padding:9px 14px; border-top:1px solid var(--line-soft)}
-  .line .code{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3)}
-  .line .nm{font-size:14px; min-width:0}
-  .line .nm small{display:block; color:var(--ink-3); font-size:11.5px}
-  .line .q{font-family:"Archivo",sans-serif; font-weight:700; font-size:15px; text-align:right; white-space:nowrap}
-  .line .q small{display:block; font-family:"IBM Plex Sans",sans-serif; font-weight:500; font-size:11px; color:var(--ink-3)}
-  .sum{display:flex; justify-content:space-between; align-items:baseline; padding:11px 14px; background:var(--surface-2); border-top:1px solid var(--line)}
-  .sum b{font-family:"Archivo",sans-serif; font-size:16px}
+
+  /* ---------- the stock list ----------
+     The whole item master with a box on each row. The header scrolls with the
+     panel until it reaches the top, then stays — on a phone the search box has
+     to still be there after three screens of items. That means the header must
+     live INSIDE the scroll box, not above it, or sticky has nothing to stick to. */
+  .stockbox{max-height:62vh; overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain}
+  .stockhdr{position:sticky; top:0; z-index:2; background:var(--surface);
+    border-bottom:1px solid var(--line); padding:0 14px 10px;
+    display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:center}
+  .stockhdr h3{padding:12px 0 6px}
+  .stocktot{justify-self:end; font-size:11.5px; color:var(--ink-3); white-space:nowrap; padding-top:6px}
+  .stocktot b{font-family:"Archivo",sans-serif; font-weight:700; font-size:13px; color:var(--ink)}
+  .stocksrch{grid-column:1 / -1; width:100%; font:inherit; font-size:15px; padding:9px 12px;
+    border-radius:9px; border:1px solid var(--line); background:var(--sunk); color:var(--ink)}
+  .stocksrch:focus{outline:none; border-color:var(--accent-line); background:var(--surface);
+    box-shadow:0 0 0 3px var(--accent-soft)}
+  #tblStock{width:100%; border-collapse:collapse}
+  #tblStock td{padding:8px 14px; border-top:1px solid var(--line-soft); vertical-align:middle}
+  #tblStock tr:first-child td{border-top:0}
+  #tblStock tr.has td{background:var(--accent-soft)}
+  #tblStock td.nm{min-width:0}
+  #tblStock td.nm b{display:block; font-size:14px; font-weight:600}
+  #tblStock td.nm small{display:block; margin-top:1px; font-size:11.5px; color:var(--ink-3)}
+  #tblStock td.nm .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+  #tblStock td.nm .nog{font-style:italic}
+  #tblStock td.qc{width:88px; padding-left:0; text-align:right}
+  #tblStock td.none{padding:22px 16px; text-align:center; font-size:13px; color:var(--ink-3)}
+  input.qty{width:76px; padding:9px 8px; text-align:right;
+    font:700 15px/1 "Archivo",sans-serif; -moz-appearance:textfield;
+    border-radius:8px; border:1px solid var(--line); background:var(--sunk); color:var(--ink)}
+  input.qty::placeholder{font-weight:500; color:var(--ink-3)}
+  input.qty:focus{outline:none; border-color:var(--accent-line); background:var(--surface);
+    box-shadow:0 0 0 3px var(--accent-soft)}
+  tr.has input.qty{border-color:var(--accent-line); background:var(--surface); color:var(--accent-ink)}
+
   .calls{border-top:1px solid var(--line)}
   /* time · what was said · play · bin — the bin is a fourth column, not a
      second row, which is what it became when it was first added */
@@ -5336,30 +5363,154 @@ function wireSwipe(root){
     row.addEventListener('touchcancel', end);
   });
 }
+/* ══════════════════════════════════════════════════════════════════════
+   The stock list on the Count tab.
+
+   Not a list of what has been counted — the whole item master, with a box on
+   each row holding what this location has so far. A counter working down a
+   shelf can see the item they are looking at whether or not anybody has said
+   it yet, and type the number when saying it is not worth the trouble.
+
+   It reads `items()` — the same master the Setup tab edits — so a correction
+   made there is on this screen the next time it draws. Nothing is copied.
+   ══════════════════════════════════════════════════════════════════════ */
+let STOCK_Q = '', STOCK_SIG = '';
+function stockRows(){
+  const cat = $('fCat').value;
+  const q = norm(STOCK_Q);
+  const all = items(cat);
+  if(!q) return all;
+  return all.filter(it => norm([it.code, it.short, it.long, groupOf(it), it.alias].join(' ')).includes(q));
+}
+/* what this location holds of one item, in base units, across every storage
+   area in it — the box is the LOCATION's number, not the shelf's */
+function stockTotals(){
+  const s = cur();
+  if(!s) return {};
+  const by = rollLines(s.lines, s.cat);
+  const out = {};
+  for(const k of Object.keys(by)) out[k] = by[k].base;
+  return out;
+}
+/* Setting the box sets the total. It does that by writing ONE adjusting line
+   for the difference, down the same path a spoken line takes — so the voice
+   lines that are already there keep their words, their recordings and their
+   place in Undo, and the correction is a line in the record rather than a
+   silent overwrite of one. A stocktake that hides its own corrections is not
+   worth having in a contract dispute. */
+function setStockCount(code, want){
+  const cat = $('fCat').value;
+  const it = item(cat, code);
+  const target = Number(want);
+  if(!isFinite(target) || target < 0) return false;
+  const now = stockTotals()[code] || 0;
+  const delta = Math.round((target - now) * 1000) / 1000;
+  if(!delta) return true;
+  /* down the same path a spoken line takes — same job, same location, same
+     queue out — but the record says it was typed, not heard */
+  LINE_SRC = 'Typed';
+  try{ addLine(it, delta, it.unit, null, 'set to ' + fmt(target)); }
+  finally { LINE_SRC = ''; }
+  afterLineChange();
+  return true;
+}
+function stockList(){
+  const rows = stockRows();
+  const tot = stockTotals();
+  let h = '<table id="tblStock"><tbody>';
+  for(const it of rows){
+    const n = tot[it.code] || 0;
+    const g = groupOf(it);
+    h += '<tr'+(n? ' class="has"':'')+'>'
+       + '<td class="nm"><b>'+esc(it.short)+'</b>'
+       + '<small><span class="mono">'+esc(it.code)+'</span> · '+esc(it.unit)
+       + ' · <span'+(g===UNASSIGNED? ' class="nog"':'')+'>'+esc(g)+'</span></small></td>'
+       + '<td class="qc"><input class="qty" inputmode="numeric" enterkeyhint="done" '
+       + 'aria-label="'+esc(it.short)+' count" data-code="'+esc(it.code)+'" value="'+(n? fmt(n) : '')+'" placeholder="0"></td>'
+       + '</tr>';
+  }
+  if(!rows.length) h += '<tr><td colspan="2" class="none">Nothing matches “'+esc(STOCK_Q)+'”.</td></tr>';
+  return h + '</tbody></table>';
+}
+/* Rebuild only when the rows themselves change — a spoken line repaints the
+   numbers and leaves the box somebody is typing in alone. */
+function stockSig(rows){ return rows.map(it=>it.code+'\u0000'+it.short+'\u0000'+it.unit+'\u0000'+groupOf(it)).join('|'); }
+function paintStock(){
+  const box = $('stockList'); if(!box) return;
+  const tot = stockTotals(), live = document.activeElement;
+  box.querySelectorAll('input.qty').forEach(i=>{
+    if(i === live) return;                    /* never fight the thumb */
+    const n = tot[i.dataset.code] || 0;
+    const v = n ? fmt(n) : '';
+    if(i.value !== v) i.value = v;
+    i.closest('tr').classList.toggle('has', !!n);
+  });
+  const s = cur();
+  const all = s ? rollLines(s.lines, s.cat) : {};
+  const v = sumValue(all);
+  const el = $('stockTot');
+  if(el) el.innerHTML = '<b>'+Object.keys(all).length+'</b> item'+(Object.keys(all).length===1?'':'s')
+      + ' · <b>'+(s? s.lines.length : 0)+'</b> line'+((s&&s.lines.length===1)?'':'s')
+      + ' · '+valCell(v.value, v.unpriced);
+}
+function renderStock(){
+  const box = $('stockList'); if(!box) return;
+  const rows = stockRows();
+  const sig = stockSig(rows);
+  if(sig !== STOCK_SIG){
+    stockHold();
+    box.innerHTML = stockList();
+    STOCK_SIG = sig;
+    wireStock();
+    stockRestore();
+  }
+  paintStock();
+}
+function wireStock(){
+  const box = $('stockList'); if(!box) return;
+  box.querySelectorAll('input.qty').forEach(i=>{
+    i.onfocus = ()=>{ try{ i.select(); }catch(e){} };
+    i.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); i.blur(); } };
+    i.onchange = ()=>{
+      const raw = i.value.trim().replace(/,/g,'');
+      const v = raw==='' ? 0 : Number(raw);      /* clearing it means none */
+      if(!isFinite(v) || v < 0){ paintStock(); return; }
+      setStockCount(i.dataset.code, v);
+    };
+  });
+}
+
 function renderTally(){
   renderProg();
+  stockHold();
   const s = cur(), el = $('tally');
-  if(!s || !s.lines.length){
-    el.innerHTML = '<h3>This location</h3><div class="empty">Nothing counted yet. Say an item and a quantity to begin.</div>';
+  const cat = $('fCat').value;
+  /* The only empty state left: no master to show. Everything else draws the
+     list, counted or not — a shelf you have not reached yet is still a row. */
+  if(!items(cat).length){
+    el.innerHTML = '<h3>This location</h3><div class="empty">No item master loaded yet. Import one on the Setup tab, or sign in and it comes with the book.</div>';
+    STOCK_SIG = '';
     return;
   }
-  const locs=[]; for(const l of s.lines) if(!locs.includes(l.loc||'')) locs.push(l.loc||'');
-  const anySpot = locs.some(Boolean);
-  let h = '<h3>'+[typeLabel(s.ctype), esc(placeLabel(s)), esc(s.org)].filter(Boolean).join(' · ')+'</h3>';
-  for(const loc of locs){
-    const by = rollLines(s.lines.filter(l=>(l.loc||'')===loc), s.cat);
-    /* no heading at all when nobody used a storage area */
-    if(anySpot) h += '<div class="grp2">'+esc(loc || 'Whole location')+'</div>';
-    for(const r of Object.values(by)){
-      h += '<div class="line"><span class="code">'+esc(r.it.code)+'</span><span class="nm">'+esc(r.it.short)
-         + (r.drums.length? '<small>'+esc(r.drums.join(', '))+'</small>':'')
-         + (r.packs? '<small>incl. '+fmt(r.packs)+' '+esc(plural(r.it.packName||'case',r.packs))+'</small>':'')
-         + '</span><span class="q">'+fmt(r.base)+'<small>'+esc(plural(r.it.unit,r.base))+' \u00B7 '+valCell(r.value,r.unpriced)+'</small></span></div>';
-    }
+  const where = [typeLabel(s?s.ctype:PTYPE), esc(s? placeLabel(s) : (LOC||'')), esc(s? s.org : ($('fOrg').value||''))].filter(Boolean).join(' · ');
+  let h = '<div class="stockbox">'
+        + '<div class="stockhdr">'
+        + '<h3>'+(where || 'This location')+'</h3>'
+        + '<div class="stocktot" id="stockTot"></div>'
+        + '<input id="stockSearch" class="stocksrch" placeholder="Search code, description or spoken as…" '
+        + 'autocomplete="off" spellcheck="false" enterkeyhint="search" value="'+esc(STOCK_Q)+'">'
+        + '</div>'
+        + '<div class="stocklist" id="stockList"></div>'
+        + '</div>';
+
+  if(!s || !s.lines.length){
+    el.innerHTML = h;
+    STOCK_SIG = '';
+    renderStock();
+    wireStockSearch();
+    stockRestore();
+    return;
   }
-  const all = rollLines(s.lines, s.cat);
-  const allVal = sumValue(all);
-  h += '<div class="sum"><span>Running total</span><b>'+Object.keys(all).length+' items · '+s.lines.length+' lines · '+valCell(allVal.value,allVal.unpriced)+'</b></div>';
 
   h += '<div class="calls"><h3>As called out</h3>';
   const shown = CALLS_ALL ? s.lines.slice() : s.lines.slice(-8);
@@ -5393,6 +5544,10 @@ function renderTally(){
     h += '</div>';
   }
   el.innerHTML = h;
+  STOCK_SIG = '';
+  renderStock();
+  wireStockSearch();
+  stockRestore();
   el.querySelectorAll('.play[data-clip]').forEach(b=> b.addEventListener('click',()=>playClip(b.dataset.clip,b)));
   el.querySelectorAll('[data-del-line]').forEach(b=> b.addEventListener('click', e=>{
     e.stopPropagation();
@@ -5401,6 +5556,50 @@ function renderTally(){
   const more = $('callsMore');
   if(more) more.onclick = ()=>{ CALLS_ALL = !CALLS_ALL; renderTally(); };
   wireSwipe(el);
+}
+/* The panel is rebuilt whenever a line lands, which throws away whatever the
+   thumb was in the middle of. So the caret is picked up before the rebuild and
+   put back after it — otherwise a spoken line in the next van eats the letter
+   somebody was typing into the search box. */
+let STOCK_KEEP = null;
+function stockHold(){
+  if(STOCK_KEEP) return;        /* an outer hold already has it — don't overwrite */
+  const sc = document.querySelector('.stockbox');
+  const a  = document.activeElement;
+  const k  = {top: sc ? sc.scrollTop : 0};
+  if(a && a.id === 'stockSearch'){ k.what='search'; k.at=a.selectionStart; }
+  else if(a && a.classList && a.classList.contains('qty')){
+    k.what='qty'; k.code=a.dataset.code; k.val=a.value; k.at=a.selectionStart;
+  }
+  STOCK_KEEP = k;
+}
+function stockRestore(){
+  const k = STOCK_KEEP; STOCK_KEEP = null;
+  if(!k) return;
+  const sc = document.querySelector('.stockbox');
+  if(sc && k.top) sc.scrollTop = k.top;      /* fifty rows down stays fifty rows down */
+  if(k.what === 'search'){
+    const f = $('stockSearch');
+    if(f){ f.focus(); try{ f.setSelectionRange(k.at, k.at); }catch(e){} }
+    return;
+  }
+  if(k.what !== 'qty') return;
+  const box  = $('stockList');
+  const back = box && box.querySelector('input.qty[data-code="'+cssq(k.code)+'"]');
+  if(!back) return;
+  back.value = k.val;                        /* half-typed digits survive it too */
+  back.focus();
+  try{ back.setSelectionRange(k.at, k.at); }catch(e){}
+}
+/* some masters carry quotes and backslashes in a code; a selector built from one
+   has to be escaped or the query throws and the caret goes with it */
+function cssq(v){
+  if(window.CSS && CSS.escape) return CSS.escape(v);
+  return String(v).replace(/["\\]/g, '\\$&');
+}
+function wireStockSearch(){
+  const f = $('stockSearch'); if(!f) return;
+  f.oninput = ()=>{ STOCK_Q = f.value; renderStock(); };
 }
 
 /* ============================================================
@@ -5952,7 +6151,7 @@ function wireCatEdit(){
   if(del) del.onclick = ()=>{
     const cat=$('fCat').value, code=CATEDIT;
     deleteItem(cat, code);
-    CATEDIT=null; renderCat(); renderMgr(); renderKeyterms();
+    CATEDIT=null; renderCat(); renderMgr(); renderKeyterms(); renderTally();
   };
   const sv = $('ieSave');
   if(sv) sv.onclick = e => withFeedback(e.currentTarget, ()=>saveItemForm(), 'Saved');
@@ -5992,7 +6191,9 @@ function saveItemForm(){
   rec.edited = ed;
   upsertItem(cat, rec);
   CATEDIT = null;
-  renderCat(); renderMgr(); renderKeyterms();
+  /* the Count tab reads the same master, so an edit here is on that screen
+     the moment this returns — nothing is copied, it is just redrawn */
+  renderCat(); renderMgr(); renderKeyterms(); renderTally();
   return true;
 }
 
@@ -6296,7 +6497,7 @@ function doImport(replace){
     + '<br><b>Unit values:</b> ' + priced + ' of ' + out.length + ' priced'
       + ((out.length-priced) ? ', '+(out.length-priced)+' with no value \u2014 those count as \u20AC0.00' : '');
   $('mapWrap').classList.add('hidden'); IMP=null;
-  fillOrgs(); renderCat(); renderOrgBox(); renderBrands(); renderMgr();
+  fillOrgs(); renderCat(); renderOrgBox(); renderBrands(); renderMgr(); renderTally();
   return true;
 }
 function readFile(f){
